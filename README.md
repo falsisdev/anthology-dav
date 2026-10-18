@@ -159,8 +159,8 @@ Proje içinde hazır bir servis kurulum komutu yer alır:
 ```bash
 make install-service
 ```
-> [!IMPORTANT]
-> Eğer projeyi `/Users/falsis/Desktop/Projects/anthology-dav` dışında farklı bir klasöre indirdiyseniz, `make install-service` komutunu çalıştırmadan önce `scripts/Makefile` ve `scripts/com.falsisdev.anthology-dav.plist` dosyalarındaki klasör yolunu kendi kullanıcı adınıza göre (`pwd` çıktısı ile) güncelleyin.
+> [!NOTE]
+> `make install-service` komutu projenin bulunduğu dizini otomatik olarak tespit eder ve LaunchAgent plist dosyasını dinamik olarak yapılandırır. Herhangi bir dosya yolunu elle düzenlemenize gerek yoktur.
 
 **Servis Yönetim Komutları (macOS):**
 - **Servisi Kur ve Başlat:** `make install-service`

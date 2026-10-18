@@ -6,16 +6,16 @@
     <string>com.falsisdev.anthology-dav</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/falsis/Desktop/Projects/anthology-dav/anthology-dav</string>
+        <string>{{PROJECT_DIR}}/anthology-dav</string>
         <string>-host</string>
-        <string>127.0.0.1</string>
+        <string>0.0.0.0</string>
         <string>-port</string>
         <string>8085</string>
         <string>-watchlist</string>
-        <string>/Users/falsis/Desktop/Projects/anthology-dav/watchlist.json</string>
+        <string>{{PROJECT_DIR}}/watchlist.json</string>
     </array>
     <key>WorkingDirectory</key>
-    <string>/Users/falsis/Desktop/Projects/anthology-dav</string>
+    <string>{{PROJECT_DIR}}</string>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>

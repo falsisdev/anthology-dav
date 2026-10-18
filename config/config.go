@@ -19,8 +19,29 @@ const (
 	DefaultTMDBAPIKey = "500330721680edb6d5f7f12ba7cd9023"
 	VidlinkTMDBAPIKey = "68e094699525b18a70bab2f86b1fa706"
 	RemoteConfigURL   = "https://raw.githubusercontent.com/falsisdev/anthology/main/config.json"
-	LocalAnthologyDir = "/Users/falsis/Desktop/Projects/anthology"
 )
+
+// GetAnthologyDir returns the path to a local anthology repo if present, checked via ANTHOLOGY_DIR env, adjacent dir, or home dir.
+func GetAnthologyDir() string {
+	if env := os.Getenv("ANTHOLOGY_DIR"); env != "" {
+		return env
+	}
+	// Check adjacent directory ../anthology
+	if wd, err := os.Getwd(); err == nil {
+		adj := filepath.Join(filepath.Dir(wd), "anthology")
+		if stat, err := os.Stat(adj); err == nil && stat.IsDir() {
+			return adj
+		}
+	}
+	// Check ~/Desktop/Projects/anthology
+	if home, err := os.UserHomeDir(); err == nil {
+		homePath := filepath.Join(home, "Desktop", "Projects", "anthology")
+		if stat, err := os.Stat(homePath); err == nil && stat.IsDir() {
+			return homePath
+		}
+	}
+	return ""
+}
 
 // Config holds the runtime configuration for the anthology-dav server.
 type Config struct {
@@ -251,12 +272,14 @@ func LoadRemoteConfig() map[string]any {
 	}
 
 	// 1. Try local Anthology config.json first for instant startup
-	localCfgPath := filepath.Join(LocalAnthologyDir, "config.json")
-	if raw, err := os.ReadFile(localCfgPath); err == nil {
-		var parsed map[string]any
-		if json.Unmarshal(raw, &parsed) == nil {
-			remoteCfgData = parsed
-			remoteCfgTime = time.Now()
+	if anthDir := GetAnthologyDir(); anthDir != "" {
+		localCfgPath := filepath.Join(anthDir, "config.json")
+		if raw, err := os.ReadFile(localCfgPath); err == nil {
+			var parsed map[string]any
+			if json.Unmarshal(raw, &parsed) == nil {
+				remoteCfgData = parsed
+				remoteCfgTime = time.Now()
+			}
 		}
 	}
 

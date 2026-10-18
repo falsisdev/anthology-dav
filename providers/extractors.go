@@ -1547,11 +1547,13 @@ func FetchCanliM3U(ctx context.Context) (string, error) {
 	canliM3UMu.Lock()
 	defer canliM3UMu.Unlock()
 
-	localPath := filepath.Join(config.LocalAnthologyDir, "providers", "M3U", "Liste", "canli.m3u")
-	if raw, err := os.ReadFile(localPath); err == nil && len(raw) > 0 {
-		canliM3UText = string(raw)
-		canliM3UTime = time.Now()
-		return canliM3UText, nil
+	if anthDir := config.GetAnthologyDir(); anthDir != "" {
+		localPath := filepath.Join(anthDir, "providers", "M3U", "Liste", "canli.m3u")
+		if raw, err := os.ReadFile(localPath); err == nil && len(raw) > 0 {
+			canliM3UText = string(raw)
+			canliM3UTime = time.Now()
+			return canliM3UText, nil
+		}
 	}
 
 	remoteURL := config.RemoteString("urls.live.m3u_remote", "https://raw.githubusercontent.com/falsisdev/anthology/main/providers/M3U/Liste/canli.m3u")

@@ -1,5 +1,5 @@
 APP_NAME := anthology-dav
-PROJECT_DIR := /Users/falsis/Desktop/Projects/anthology-dav
+PROJECT_DIR ?= $(shell if [ -f main.go ]; then pwd; elif [ -f ../main.go ]; then cd .. && pwd; else pwd; fi)
 PLIST_NAME := com.falsisdev.anthology-dav.plist
 PLIST_SRC := $(PROJECT_DIR)/scripts/$(PLIST_NAME)
 PLIST_DST := $(HOME)/Library/LaunchAgents/$(PLIST_NAME)
@@ -12,12 +12,12 @@ build:
 	cd $(PROJECT_DIR) && go mod tidy && go build -o $(PROJECT_DIR)/$(APP_NAME) .
 
 run: build
-	$(PROJECT_DIR)/$(APP_NAME) -host 127.0.0.1 -port 8085
+	$(PROJECT_DIR)/$(APP_NAME) -host 0.0.0.0 -port 8085
 
 install-service: build
 	mkdir -p $(HOME)/Library/LaunchAgents
-	cp $(PLIST_SRC) $(PLIST_DST)
 	-launchctl unload $(PLIST_DST) 2>/dev/null || true
+	sed "s|{{PROJECT_DIR}}|$(PROJECT_DIR)|g" $(PLIST_SRC) > $(PLIST_DST)
 	launchctl load -w $(PLIST_DST)
 	@echo "anthology-dav LaunchAgent installed and started at http://127.0.0.1:8085/dav/"
 
@@ -31,3 +31,4 @@ logs:
 
 clean:
 	rm -f $(PROJECT_DIR)/$(APP_NAME)
+
