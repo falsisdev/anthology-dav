@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.falsisdev.anthology-dav</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/falsis/Desktop/Projects/anthology-dav/anthology-dav</string>
+        <string>-host</string>
+        <string>127.0.0.1</string>
+        <string>-port</string>
+        <string>8085</string>
+        <string>-watchlist</string>
+        <string>/Users/falsis/Desktop/Projects/anthology-dav/watchlist.json</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/falsis/Desktop/Projects/anthology-dav</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/anthology-dav.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/anthology-dav.err.log</string>
+</dict>
+</plist>
