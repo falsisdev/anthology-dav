@@ -57,3 +57,5 @@ ehthumbs.db
 *~
 *.sublime-project
 *.sublime-workspace
+
+library.json
