@@ -68,7 +68,7 @@ type StreamSource struct {
 
 // StreamResult holds the best selected stream along with all available sources and subtitles.
 type StreamResult struct {
-	Primary   StreamSource   `json:"primary"`
+	Primary    StreamSource   `json:"primary"`
 	Alternates []StreamSource `json:"alternates,omitempty"`
-	Subtitles []Subtitle     `json:"subtitles,omitempty"`
+	Subtitles  []Subtitle     `json:"subtitles,omitempty"`
 }

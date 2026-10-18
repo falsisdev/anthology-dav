@@ -20,10 +20,10 @@ type Provider interface {
 }
 
 var (
-	registryMu     sync.RWMutex
-	byID           = make(map[string]Provider)
-	byName         = make(map[string]Provider)
-	orderedIDs     []string
+	registryMu sync.RWMutex
+	byID       = make(map[string]Provider)
+	byName     = make(map[string]Provider)
+	orderedIDs []string
 )
 
 // Register adds a Provider to the central registry.

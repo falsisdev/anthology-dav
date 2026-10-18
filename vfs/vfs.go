@@ -37,6 +37,19 @@ type VFSDiscoveredSource struct {
 	Quality      string
 }
 
+type contextKey string
+
+const RequestHostKey contextKey = "anthology_request_host"
+
+func (v *AnthologyVFS) baseURL(ctx context.Context) string {
+	if ctx != nil {
+		if h, ok := ctx.Value(RequestHostKey).(string); ok && h != "" {
+			return "http://" + h
+		}
+	}
+	return v.cfg.BaseURL
+}
+
 // SourceDiscoveryFunc is a callback used by VFS to discover working sources on demand without circular imports.
 type SourceDiscoveryFunc func(ctx context.Context, mediaType string, tmdbID int, title, origTitle, year string, season, episode int) []VFSDiscoveredSource
 
@@ -248,7 +261,7 @@ func (v *AnthologyVFS) handleLibraryMovies(ctx context.Context, rest []string) (
 	baseName := formatItemFolderName(matchedMovie.Title, matchedMovie.Year)
 	strmName := baseName + ".strm"
 	strmContent := fmt.Sprintf("%s/stream/resolve?type=movie&tmdb_id=%d&title=%s&year=%s\n",
-		v.cfg.BaseURL, matchedMovie.TMDBID, url.QueryEscape(matchedMovie.Title), url.QueryEscape(matchedMovie.Year))
+		v.baseURL(ctx), matchedMovie.TMDBID, url.QueryEscape(matchedMovie.Title), url.QueryEscape(matchedMovie.Year))
 	strmFile := NewVirtualFile(strmName, []byte(strmContent), v.bootTime)
 
 	if len(rest) == 1 {
@@ -345,7 +358,7 @@ func (v *AnthologyVFS) handleLibrarySeriesOrAnime(ctx context.Context, mediaType
 
 	for epNum := 1; epNum <= epCount; epNum++ {
 		strmContent := fmt.Sprintf("%s/stream/resolve?type=%s&tmdb_id=%d&title=%s&year=%s&season=%d&episode=%d\n",
-			v.cfg.BaseURL, mediaType, matchedItem.TMDBID, url.QueryEscape(matchedItem.Title), url.QueryEscape(matchedItem.Year), seasonNum, epNum)
+			v.baseURL(ctx), mediaType, matchedItem.TMDBID, url.QueryEscape(matchedItem.Title), url.QueryEscape(matchedItem.Year), seasonNum, epNum)
 
 		primaryName := SanitizeFileName(fmt.Sprintf("%s - S%02dE%02d", folderTitle, seasonNum, epNum)) + ".strm"
 		vf := NewVirtualFile(primaryName, []byte(strmContent), v.bootTime)
@@ -526,7 +539,7 @@ func (v *AnthologyVFS) buildWorkingSourceFiles(ctx context.Context, item *config
 	}
 	autoName := SanitizeFileName(fmt.Sprintf("1 - Otomatik En Iyi (%s) - %s", bestQual, suffix)) + ".strm"
 	autoURL := fmt.Sprintf("%s/stream/resolve?type=%s&tmdb_id=%d&title=%s&year=%s&season=%d&episode=%d&provider=auto\n",
-		v.cfg.BaseURL, mediaType, item.TMDBID, url.QueryEscape(item.Title), url.QueryEscape(item.Year), season, episode)
+		v.baseURL(ctx), mediaType, item.TMDBID, url.QueryEscape(item.Title), url.QueryEscape(item.Year), season, episode)
 	filesMap[autoName] = NewVirtualFile(autoName, []byte(autoURL), v.bootTime)
 	ordered = append(ordered, autoName)
 
@@ -534,7 +547,7 @@ func (v *AnthologyVFS) buildWorkingSourceFiles(ctx context.Context, item *config
 	for i, src := range sources {
 		fName := SanitizeFileName(fmt.Sprintf("%d - %s (%s) - %s", i+2, src.ProviderName, src.Quality, suffix)) + ".strm"
 		sURL := fmt.Sprintf("%s/stream/resolve?type=%s&tmdb_id=%d&title=%s&year=%s&season=%d&episode=%d&provider=%s\n",
-			v.cfg.BaseURL, mediaType, item.TMDBID, url.QueryEscape(item.Title), url.QueryEscape(item.Year), season, episode, url.QueryEscape(src.ProviderID))
+			v.baseURL(ctx), mediaType, item.TMDBID, url.QueryEscape(item.Title), url.QueryEscape(item.Year), season, episode, url.QueryEscape(src.ProviderID))
 		filesMap[fName] = NewVirtualFile(fName, []byte(sURL), v.bootTime)
 		ordered = append(ordered, fName)
 	}
@@ -756,7 +769,7 @@ func (v *AnthologyVFS) handleMediaItem(ctx context.Context, prov providers.Provi
 			return nil, os.ErrNotExist
 		}
 
-		filesMap := v.buildEpisodeFiles(prov, cleanSeriesTitle, sNum, eps)
+		filesMap := v.buildEpisodeFiles(ctx, prov, cleanSeriesTitle, sNum, eps)
 
 		if len(rest) == 1 {
 			var children []fs.FileInfo
@@ -784,7 +797,7 @@ func (v *AnthologyVFS) handleMediaItem(ctx context.Context, prov providers.Provi
 		return nil, os.ErrNotExist
 	}
 
-	filesMap := v.buildMovieFiles(prov, detail)
+	filesMap := v.buildMovieFiles(ctx, prov, detail)
 	if len(rest) == 0 {
 		var children []fs.FileInfo
 		var names []string
@@ -811,7 +824,7 @@ func (v *AnthologyVFS) handleMediaItem(ctx context.Context, prov providers.Provi
 	return nil, os.ErrNotExist
 }
 
-func (v *AnthologyVFS) buildEpisodeFiles(prov providers.Provider, seriesTitle string, seasonNum int, eps []providers.Episode) map[string]*VirtualFile {
+func (v *AnthologyVFS) buildEpisodeFiles(ctx context.Context, prov providers.Provider, seriesTitle string, seasonNum int, eps []providers.Episode) map[string]*VirtualFile {
 	out := make(map[string]*VirtualFile)
 	for idx, ep := range eps {
 		epNum := ep.Number
@@ -824,13 +837,13 @@ func (v *AnthologyVFS) buildEpisodeFiles(prov providers.Provider, seriesTitle st
 		}
 		baseName := SanitizeFileName(fmt.Sprintf("%s - S%02dE%02d", seriesTitle, seasonNum, epNum))
 		strmName := baseName + ".strm"
-		strmContent := []byte(fmt.Sprintf("%s/stream/%s?id=%s\n", v.cfg.BaseURL, prov.ID(), url.QueryEscape(streamID)))
+		strmContent := []byte(fmt.Sprintf("%s/stream/%s?id=%s\n", v.baseURL(ctx), prov.ID(), url.QueryEscape(streamID)))
 		out[strmName] = NewVirtualFile(strmName, strmContent, v.bootTime)
 	}
 	return out
 }
 
-func (v *AnthologyVFS) buildMovieFiles(prov providers.Provider, detail *providers.MediaDetail) map[string]*VirtualFile {
+func (v *AnthologyVFS) buildMovieFiles(ctx context.Context, prov providers.Provider, detail *providers.MediaDetail) map[string]*VirtualFile {
 	out := make(map[string]*VirtualFile)
 	baseTitle := SanitizeFileName(detail.Title)
 	if detail.Year != "" && !strings.Contains(baseTitle, fmt.Sprintf("(%s)", detail.Year)) {
@@ -841,7 +854,7 @@ func (v *AnthologyVFS) buildMovieFiles(prov providers.Provider, detail *provider
 		streamID = detail.ID
 	}
 	strmName := baseTitle + ".strm"
-	strmContent := []byte(fmt.Sprintf("%s/stream/%s?id=%s\n", v.cfg.BaseURL, prov.ID(), url.QueryEscape(streamID)))
+	strmContent := []byte(fmt.Sprintf("%s/stream/%s?id=%s\n", v.baseURL(ctx), prov.ID(), url.QueryEscape(streamID)))
 	out[strmName] = NewVirtualFile(strmName, strmContent, v.bootTime)
 	return out
 }

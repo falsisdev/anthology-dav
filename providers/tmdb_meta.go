@@ -204,8 +204,8 @@ func PrewarmLibraryItemMetadata(ctx context.Context, item *config.LibraryItem) {
 		}
 		u := fmt.Sprintf("https://api.themoviedb.org/3/movie/%d?api_key=%s&language=tr-TR&append_to_response=alternative_titles,translations", item.TMDBID, config.DefaultTMDBAPIKey)
 		var mData struct {
-			Title        string `json:"title"`
-			OriginalTitle string `json:"original_title"`
+			Title             string `json:"title"`
+			OriginalTitle     string `json:"original_title"`
 			AlternativeTitles struct {
 				Titles []struct {
 					ISO3166_1 string `json:"iso_3166_1"`
@@ -331,15 +331,15 @@ func SearchTMDBUnified(ctx context.Context, query string) ([]TMDBSearchResult, e
 		u := fmt.Sprintf("https://api.themoviedb.org/3/search/movie?api_key=%s&language=tr-TR&query=%s", config.DefaultTMDBAPIKey, url.QueryEscape(cleanQuery))
 		var res struct {
 			Results []struct {
-				ID          int     `json:"id"`
-				Title       string  `json:"title"`
-				OrigTitle   string  `json:"original_title"`
-				ReleaseDate string  `json:"release_date"`
-				PosterPath  string  `json:"poster_path"`
-				BackdropPath string `json:"backdrop_path"`
-				Overview    string  `json:"overview"`
-				VoteAverage float64 `json:"vote_average"`
-				GenreIDs    []int   `json:"genre_ids"`
+				ID           int     `json:"id"`
+				Title        string  `json:"title"`
+				OrigTitle    string  `json:"original_title"`
+				ReleaseDate  string  `json:"release_date"`
+				PosterPath   string  `json:"poster_path"`
+				BackdropPath string  `json:"backdrop_path"`
+				Overview     string  `json:"overview"`
+				VoteAverage  float64 `json:"vote_average"`
+				GenreIDs     []int   `json:"genre_ids"`
 			} `json:"results"`
 		}
 		if err := FetchJSON(ctx, u, nil, &res); err == nil {

@@ -84,10 +84,26 @@ func Get() *Config {
 }
 
 // SetBind updates the host and port and recomputes BaseURL.
+// Wildcard bind addresses (0.0.0.0, ::, empty) are not connectable, so the
+// client-facing BaseURL (written into .strm files) falls back to 127.0.0.1.
 func (c *Config) SetBind(host string, port int) {
 	c.Host = host
 	c.Port = port
-	c.BaseURL = fmt.Sprintf("http://%s:%d", host, port)
+	publicHost := host
+	switch host {
+	case "", "0.0.0.0", "::", "[::]":
+		publicHost = DefaultHost
+	}
+	c.BaseURL = fmt.Sprintf("http://%s:%d", publicHost, port)
+}
+
+// SetPublicURL overrides the client-facing BaseURL (e.g. http://192.168.1.10:8085
+// so other devices on the LAN such as Apple TV can open .strm links).
+func (c *Config) SetPublicURL(u string) {
+	u = strings.TrimRight(strings.TrimSpace(u), "/")
+	if u != "" {
+		c.BaseURL = u
+	}
 }
 
 // Addr returns the host:port string for net/http Server.

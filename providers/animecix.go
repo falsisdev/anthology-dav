@@ -195,53 +195,50 @@ func (p *AnimecixProvider) GetDetails(ctx context.Context, mediaID string) (*Med
 	}
 
 	seasonMap := make(map[int][]Episode)
-	seenEp := make(map[string]bool)
-	for _, v := range t.Videos {
-		sNum := v.SeasonNum
-		if sNum <= 0 {
-			sNum = 1
-		}
-		eNum := v.EpisodeNum
-		if eNum <= 0 {
-			eNum = 1
-		}
-		key := fmt.Sprintf("%d_%d", sNum, eNum)
-		if seenEp[key] {
-			continue
-		}
-		seenEp[key] = true
-		epTitle := v.Name
-		if epTitle == "" {
-			epTitle = fmt.Sprintf("Bölüm %d", eNum)
-		}
-		seasonMap[sNum] = append(seasonMap[sNum], Episode{
-			ID:       fmt.Sprintf("%s:%d:%d", cleanID, sNum, eNum),
-			StreamID: fmt.Sprintf("%s:%d:%d", cleanID, sNum, eNum),
-			Title:    epTitle,
-			Season:   sNum,
-			Number:   eNum,
-		})
-	}
-
 	for _, s := range t.Seasons {
 		sNum := s.Number
 		if sNum <= 0 {
 			sNum = 1
 		}
-		if len(seasonMap[sNum]) == 0 {
-			cnt := s.EpisodeCount
-			if cnt <= 0 {
-				cnt = 12
+		cnt := s.EpisodeCount
+		if cnt <= 0 {
+			cnt = 12
+		}
+		for ep := 1; ep <= cnt; ep++ {
+			seasonMap[sNum] = append(seasonMap[sNum], Episode{
+				ID:       fmt.Sprintf("%s:%d:%d", cleanID, sNum, ep),
+				StreamID: fmt.Sprintf("%s:%d:%d", cleanID, sNum, ep),
+				Title:    fmt.Sprintf("%d. Sezon %d. Bölüm", sNum, ep),
+				Season:   sNum,
+				Number:   ep,
+			})
+		}
+	}
+
+	if len(seasonMap) == 0 {
+		seenEp := make(map[string]bool)
+		for _, v := range t.Videos {
+			if v.EpisodeNum <= 0 || v.SeasonNum <= 0 {
+				continue
 			}
-			for ep := 1; ep <= cnt; ep++ {
-				seasonMap[sNum] = append(seasonMap[sNum], Episode{
-					ID:       fmt.Sprintf("%s:%d:%d", cleanID, sNum, ep),
-					StreamID: fmt.Sprintf("%s:%d:%d", cleanID, sNum, ep),
-					Title:    fmt.Sprintf("%d. Sezon %d. Bölüm", sNum, ep),
-					Season:   sNum,
-					Number:   ep,
-				})
+			sNum := v.SeasonNum
+			eNum := v.EpisodeNum
+			key := fmt.Sprintf("%d_%d", sNum, eNum)
+			if seenEp[key] {
+				continue
 			}
+			seenEp[key] = true
+			epTitle := v.Name
+			if epTitle == "" {
+				epTitle = fmt.Sprintf("Bölüm %d", eNum)
+			}
+			seasonMap[sNum] = append(seasonMap[sNum], Episode{
+				ID:       fmt.Sprintf("%s:%d:%d", cleanID, sNum, eNum),
+				StreamID: fmt.Sprintf("%s:%d:%d", cleanID, sNum, eNum),
+				Title:    epTitle,
+				Season:   sNum,
+				Number:   eNum,
+			})
 		}
 	}
 

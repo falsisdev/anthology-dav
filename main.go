@@ -27,10 +27,12 @@ func main() {
 	portFlag := flag.Int("port", config.DefaultPort, "Bind port number")
 	watchlistFlag := flag.String("watchlist", "", "Path to watchlist.json file")
 	libraryFlag := flag.String("library", "", "Path to library.json file")
+	publicURLFlag := flag.String("public-url", os.Getenv("ANTHOLOGY_PUBLIC_URL"), "Client-facing base URL written into .strm files (e.g. http://192.168.1.10:8085)")
 	flag.Parse()
 
 	cfg := config.Get()
 	cfg.SetBind(*hostFlag, *portFlag)
+	cfg.SetPublicURL(*publicURLFlag)
 	if *watchlistFlag != "" {
 		cfg.WatchlistPath = *watchlistFlag
 	}
@@ -91,7 +93,8 @@ func main() {
 		http.Redirect(w, r, "/dav/", http.StatusMovedPermanently)
 	})
 	mux.HandleFunc("/dav/", func(w http.ResponseWriter, r *http.Request) {
-		davHandler.ServeHTTP(w, r)
+		ctx := context.WithValue(r.Context(), vfs.RequestHostKey, r.Host)
+		davHandler.ServeHTTP(w, r.WithContext(ctx))
 	})
 
 	// Stream and resolver endpoints
@@ -133,7 +136,8 @@ func main() {
 			return
 		}
 		if strings.HasPrefix(r.URL.Path, "/dav") {
-			davHandler.ServeHTTP(w, r)
+			ctx := context.WithValue(r.Context(), vfs.RequestHostKey, r.Host)
+			davHandler.ServeHTTP(w, r.WithContext(ctx))
 			return
 		}
 		if strings.HasPrefix(r.URL.Path, "/api") {

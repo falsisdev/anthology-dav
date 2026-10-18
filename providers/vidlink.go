@@ -151,19 +151,18 @@ func (p *VidLinkProvider) ResolveStream(ctx context.Context, streamID string) (*
 	}
 
 	var sources []StreamSource
-	headers := map[string]string{
-		"Referer": "https://vidlink.pro/",
-		"Origin":  "https://vidlink.pro",
-	}
 	if parsed.Stream.Playlist != "" {
 		sources = append(sources, StreamSource{
-			Name:      "VidLink Auto HLS",
-			Title:     "VidLink • 1080p HLS",
-			URL:       parsed.Stream.Playlist,
-			Quality:   "1080p",
-			Format:    "hls",
-			IsHLS:     true,
-			Headers:   headers,
+			Name:    "VidLink Auto HLS",
+			Title:   "VidLink • 1080p HLS",
+			URL:     parsed.Stream.Playlist,
+			Quality: "1080p",
+			Format:  "hls",
+			IsHLS:   true,
+			Headers: map[string]string{
+				"Referer": "https://vidlink.pro/",
+				"Origin":  "https://vidlink.pro",
+			},
 			Subtitles: subs,
 		})
 	}
@@ -176,7 +175,7 @@ func (p *VidLinkProvider) ResolveStream(ctx context.Context, streamID string) (*
 				Quality:   q,
 				Format:    "mp4",
 				IsHLS:     false,
-				Headers:   headers,
+				Headers:   nil,
 				Subtitles: subs,
 			})
 		}

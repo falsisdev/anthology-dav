@@ -123,9 +123,11 @@ func (mr *MultiResolver) HandleResolve(w http.ResponseWriter, r *http.Request) {
 	// 1. Check Cache
 	cacheKey := fmt.Sprintf("resolve:%s:%d:%s:%d:%d:%s", mediaType, tmdbID, title, season, episode, preferredProv)
 	if val, ok := mr.proxy.cache.Get(cacheKey); ok {
-		if res, ok := val.(*providers.StreamResult); ok && res != nil && res.Primary.URL != "" {
-			mr.proxy.ServeStreamResult(w, r, res)
-			return
+		if res, ok := val.(*providers.StreamResult); ok && res != nil && res.Primary.URL != "" && hasHealthySource(res) {
+			if err := mr.proxy.ServeStreamResult(w, r, res); err == nil {
+				return
+			}
+			mr.proxy.cache.Delete(cacheKey)
 		}
 	}
 
@@ -202,11 +204,27 @@ func (mr *MultiResolver) HandleResolve(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	var foundResults []resolveResult
-	for res := range resultCh {
-		foundResults = append(foundResults, res)
-		q := strings.ToLower(res.result.Primary.Quality)
-		if strings.Contains(q, "1080") || strings.Contains(q, "4k") || strings.Contains(q, "2160") || strings.Contains(q, "1440") {
-			break
+	var grace <-chan time.Time
+collect:
+	for {
+		select {
+		case res, ok := <-resultCh:
+			if !ok {
+				break collect
+			}
+			foundResults = append(foundResults, res)
+			if grace == nil && hasHealthySource(res.result) {
+				// Once we have a first hit, give other providers a short window to
+				// contribute fallback sources (in case the first CDN is rate-limited).
+				wait := 4 * time.Second
+				q := strings.ToLower(res.result.Primary.Quality)
+				if strings.Contains(q, "1080") || strings.Contains(q, "4k") || strings.Contains(q, "2160") || strings.Contains(q, "1440") {
+					wait = 2500 * time.Millisecond
+				}
+				grace = time.After(wait)
+			}
+		case <-grace:
+			break collect
 		}
 	}
 
@@ -228,11 +246,24 @@ func (mr *MultiResolver) HandleResolve(w http.ResponseWriter, r *http.Request) {
 		bestResult = foundResults[0].result
 	}
 
-	// Cache resolved stream for 45 minutes
-	mr.proxy.cache.Set(cacheKey, bestResult, 45*time.Minute)
+	// Deliver stream to client: try bestResult first, then fall back to each individual provider result
+	if err := mr.proxy.ServeStreamResult(w, r, bestResult); err == nil {
+		mr.proxy.cache.Set(cacheKey, bestResult, 45*time.Minute)
+		return
+	}
 
-	// Deliver stream to client
-	mr.proxy.ServeStreamResult(w, r, bestResult)
+	for _, fr := range foundResults {
+		if fr.result == bestResult {
+			continue
+		}
+		if err := mr.proxy.ServeStreamResult(w, r, fr.result); err == nil {
+			mr.proxy.cache.Set(cacheKey, fr.result, 45*time.Minute)
+			return
+		}
+	}
+
+	mr.proxy.cache.Delete(cacheKey)
+	http.Error(w, fmt.Sprintf("stream resolver: playback failed for '%s' S%02dE%02d across %d candidates", title, season, episode, len(allSources)), http.StatusBadGateway)
 }
 
 // DiscoverSources concurrently checks all candidate providers for a movie or episode,
@@ -652,4 +683,3 @@ func isStrictTitleMatch(knownTitles []string, expectedYear, candidateTitle, cand
 
 	return false
 }
-

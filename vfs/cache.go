@@ -49,6 +49,12 @@ func (c *MemoryCache) Set(key string, value interface{}, ttl time.Duration) {
 	c.mu.Unlock()
 }
 
+func (c *MemoryCache) Delete(key string) {
+	c.mu.Lock()
+	delete(c.items, key)
+	c.mu.Unlock()
+}
+
 func (c *MemoryCache) DeletePrefix(prefix string) {
 	c.mu.Lock()
 	for k := range c.items {
