@@ -80,18 +80,18 @@ func (h *ProxyHandler) HandleStream(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// ServeStreamResult delivers a StreamResult to media players or HTTP clients via HLS rewriter, Range Proxy, or 302 Redirect.
-// All HLS playlists are proxied with CORS and segment rewriting to guarantee cross-device and browser playback.
+// ServeStreamResult delivers a StreamResult to media players (Infuse, Kodi, etc.) or HTTP clients
+// via local Range Proxy or HLS rewriter. It proxies all streams locally with proper headers and CORS
+// to guarantee that players never fail due to CDN hotlink/CORS/User-Agent restrictions.
 func (h *ProxyHandler) ServeStreamResult(w http.ResponseWriter, r *http.Request, res *providers.StreamResult) error {
 	if res == nil || res.Primary.URL == "" {
 		return fmt.Errorf("empty stream result")
 	}
 
-	candidates := orderByHealth(append([]providers.StreamSource{res.Primary}, res.Alternates...))
+	candidates := append([]providers.StreamSource{res.Primary}, res.Alternates...)
 	var lastErr error
 
 	for i, candidate := range candidates {
-		isLast := i == len(candidates)-1
 		isHLS := candidate.IsHLS || strings.Contains(strings.ToLower(candidate.URL), ".m3u8")
 		if isHLS {
 			err := h.serveHLSManifest(w, r, candidate.URL, candidate.Headers)
@@ -99,35 +99,21 @@ func (h *ProxyHandler) ServeStreamResult(w http.ResponseWriter, r *http.Request,
 				return nil
 			}
 			lastErr = err
-			markHostBad(candidate.URL)
-			log.Printf("[STREAM] HLS candidate %d failed (%s %s): %v", i, candidate.Quality, hostOf(candidate.URL), err)
+			log.Printf("[STREAM] HLS candidate %d failed (%s): %v", i, candidate.Quality, err)
 			continue
-		}
-
-		if len(candidate.Headers) == 0 {
-			if isHostBad(candidate.URL) && !isLast {
-				log.Printf("[STREAM] skipping bad direct host (%s): %s", candidate.Quality, hostOf(candidate.URL))
-				continue
-			}
-			http.Redirect(w, r, candidate.URL, http.StatusFound)
-			return nil
 		}
 
 		resp, err := h.openUpstream(r, candidate.URL, candidate.Headers)
 		if err != nil || resp.StatusCode >= 400 {
 			if err == nil {
 				err = fmt.Errorf("upstream returned %d", resp.StatusCode)
-				if isBadUpstreamStatus(resp.StatusCode) {
-					markHostBad(candidate.URL)
-				}
 				resp.Body.Close()
-			} else if r.Context().Err() == nil {
-				markHostBad(candidate.URL)
 			}
 			lastErr = err
-			log.Printf("[STREAM] proxied candidate %d failed (%s): %v", i, candidate.Quality, err)
+			log.Printf("[STREAM] Range proxy candidate %d failed (%s): %v", i, candidate.Quality, err)
 			continue
 		}
+
 		h.writeUpstream(w, r, resp)
 		return nil
 	}
@@ -138,31 +124,6 @@ func (h *ProxyHandler) ServeStreamResult(w http.ResponseWriter, r *http.Request,
 	return fmt.Errorf("stream playback failed across all candidates")
 }
 
-// probeUpstream performs a tiny ranged GET to verify a direct URL is playable.
-func (h *ProxyHandler) probeUpstream(ctx context.Context, targetURL string, customHeaders map[string]string) (int, error) {
-	pctx, cancel := context.WithTimeout(ctx, 6*time.Second)
-	defer cancel()
-	req, err := http.NewRequestWithContext(pctx, http.MethodGet, targetURL, nil)
-	if err != nil {
-		return 0, err
-	}
-	req.Header.Set("User-Agent", h.cfg.UserAgent)
-	for k, v := range customHeaders {
-		if v != "" {
-			req.Header.Set(k, v)
-		}
-	}
-	req.Header.Set("Range", "bytes=0-0")
-	resp, err := h.httpClient.Do(req)
-	if err != nil {
-		return 0, err
-	}
-	resp.Body.Close()
-	if resp.StatusCode >= 400 {
-		return resp.StatusCode, fmt.Errorf("upstream returned %d", resp.StatusCode)
-	}
-	return resp.StatusCode, nil
-}
 
 // HandleSub handles /sub/{provider_id}?id={stream_id}&url={direct_url}
 func (h *ProxyHandler) HandleSub(w http.ResponseWriter, r *http.Request) {

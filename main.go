@@ -147,9 +147,19 @@ func main() {
 		http.NotFound(w, r)
 	})
 
+	loggingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		sw := &statusWriter{ResponseWriter: w, code: http.StatusOK}
+		mux.ServeHTTP(sw, r)
+		dur := time.Since(start)
+		if strings.HasPrefix(r.URL.Path, "/stream") || strings.HasPrefix(r.URL.Path, "/proxy") || (strings.HasPrefix(r.URL.Path, "/dav") && r.Method != "PROPFIND") {
+			log.Printf("[REQ] %s %s -> %d (%v) Range=%q UA=%s", r.Method, r.URL.RequestURI(), sw.code, dur, r.Header.Get("Range"), r.UserAgent())
+		}
+	})
+
 	srv := &http.Server{
 		Addr:              cfg.Addr(),
-		Handler:           mux,
+		Handler:           loggingHandler,
 		ReadHeaderTimeout: 15 * time.Second,
 	}
 
@@ -177,4 +187,14 @@ func main() {
 		log.Printf("[WARN] Graceful shutdown error: %v", err)
 	}
 	log.Printf("[INFO] Server stopped cleanly.")
+}
+
+type statusWriter struct {
+	http.ResponseWriter
+	code int
+}
+
+func (w *statusWriter) WriteHeader(code int) {
+	w.code = code
+	w.ResponseWriter.WriteHeader(code)
 }

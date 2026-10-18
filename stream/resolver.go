@@ -34,40 +34,28 @@ func NewMultiResolver(proxy *ProxyHandler) *MultiResolver {
 	return &MultiResolver{proxy: proxy}
 }
 
-// CandidateProvidersForType returns all 34 registered VOD providers in a unified pool without separating movie, series, and anime sources.
+// CandidateProvidersForType returns the ordered list of candidate provider IDs for a given media type.
+// High-priority providers for the specific category come first to guarantee fast, native Turkish sub/dub sources.
 func CandidateProvidersForType(mediaType string) []string {
-	unifiedOrder := []string{
-		// Direct TMDB/IMDb cloud resolvers & hybrid
-		"vidlink", "vidmody", "sinewix",
-		// Anime & Asian providers
-		"animecix", "anizium", "sonanime", "animom",
-		"seicode", "anizm", "asyaanimeleri", "animeprax",
-		// Series & hybrid providers
-		"diziwatch", "diziboxizle", "diziyou", "dizimom",
-		"dizipod", "dizibak", "yabancidizi",
-		"ddizi", "puhutv", "trdiziizle", "tvdiziler", "anthology_diziler",
-		// Movie & hybrid providers
-		"filmmodu", "hdfilmcehennemi", "hdfilmizle", "hdfilmdelisi",
-		"webteizle", "setfilmizle", "kultfilmler", "liderfilmizle",
-		"sinemacx", "youtube_dizifilm", "anthology_m3u",
-	}
-
-	seen := make(map[string]bool, len(unifiedOrder))
-	var result []string
-	for _, id := range unifiedOrder {
-		if !seen[id] {
-			seen[id] = true
-			result = append(result, id)
+	switch strings.ToLower(strings.TrimSpace(mediaType)) {
+	case "anime":
+		return []string{
+			"animecix", "anizium", "sonanime", "animom",
+			"seicode", "anizm", "asyaanimeleri", "animeprax", "vidlink",
+		}
+	case "series", "tv":
+		return []string{
+			"diziwatch", "diziboxizle", "diziyou", "dizimom",
+			"dizipod", "dizibak", "yabancidizi", "vidlink", "vidmody",
+			"ddizi", "puhutv", "trdiziizle", "tvdiziler", "anthology_diziler",
+		}
+	default: // "movie"
+		return []string{
+			"filmmodu", "hdfilmcehennemi", "hdfilmizle", "hdfilmdelisi",
+			"vidlink", "vidmody", "webteizle", "setfilmizle",
+			"kultfilmler", "liderfilmizle", "sinemacx", "sinewix",
 		}
 	}
-	for _, p := range providers.All() {
-		id := p.ID()
-		if !seen[id] {
-			seen[id] = true
-			result = append(result, id)
-		}
-	}
-	return result
 }
 
 // HandleResolve handles /stream/resolve?type={movie|series|anime}&tmdb_id={id}&title={title}&original_title={orig}&year={year}&season={s}&episode={e}&provider={prov}
@@ -123,7 +111,7 @@ func (mr *MultiResolver) HandleResolve(w http.ResponseWriter, r *http.Request) {
 	// 1. Check Cache
 	cacheKey := fmt.Sprintf("resolve:%s:%d:%s:%d:%d:%s", mediaType, tmdbID, title, season, episode, preferredProv)
 	if val, ok := mr.proxy.cache.Get(cacheKey); ok {
-		if res, ok := val.(*providers.StreamResult); ok && res != nil && res.Primary.URL != "" && hasHealthySource(res) {
+		if res, ok := val.(*providers.StreamResult); ok && res != nil && res.Primary.URL != "" {
 			if err := mr.proxy.ServeStreamResult(w, r, res); err == nil {
 				return
 			}
@@ -146,14 +134,30 @@ func (mr *MultiResolver) HandleResolve(w http.ResponseWriter, r *http.Request) {
 	} else {
 		baseCandidates := CandidateProvidersForType(mediaType)
 		if len(workingProvs) > 0 {
-			seen := make(map[string]bool)
+			var regularWorking []string
+			var fallbackWorking []string
 			for _, wp := range workingProvs {
+				if wp == "vidlink" || wp == "vidmody" {
+					fallbackWorking = append(fallbackWorking, wp)
+				} else {
+					regularWorking = append(regularWorking, wp)
+				}
+			}
+			seen := make(map[string]bool)
+			for _, wp := range regularWorking {
 				seen[wp] = true
 				candidates = append(candidates, wp)
 			}
 			for _, bc := range baseCandidates {
-				if !seen[bc] {
+				if !seen[bc] && bc != "vidlink" && bc != "vidmody" {
+					seen[bc] = true
 					candidates = append(candidates, bc)
+				}
+			}
+			for _, wp := range fallbackWorking {
+				if !seen[wp] {
+					seen[wp] = true
+					candidates = append(candidates, wp)
 				}
 			}
 		} else {
@@ -204,27 +208,16 @@ func (mr *MultiResolver) HandleResolve(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	var foundResults []resolveResult
-	var grace <-chan time.Time
-collect:
-	for {
-		select {
-		case res, ok := <-resultCh:
-			if !ok {
-				break collect
+	for res := range resultCh {
+		foundResults = append(foundResults, res)
+		// Only fast-break if we got a high-definition stream from a reliable native provider.
+		// Cloud resolvers (vidlink/vidmody) return in ~100ms but often hit rate limits (429/428),
+		// so do not abandon other concurrent providers on vidlink hits.
+		if res.providerID != "vidlink" && res.providerID != "vidmody" {
+			q := strings.ToLower(res.result.Primary.Quality)
+			if strings.Contains(q, "1080") || strings.Contains(q, "4k") || strings.Contains(q, "2160") || strings.Contains(q, "1440") {
+				break
 			}
-			foundResults = append(foundResults, res)
-			if grace == nil && hasHealthySource(res.result) {
-				// Once we have a first hit, give other providers a short window to
-				// contribute fallback sources (in case the first CDN is rate-limited).
-				wait := 4 * time.Second
-				q := strings.ToLower(res.result.Primary.Quality)
-				if strings.Contains(q, "1080") || strings.Contains(q, "4k") || strings.Contains(q, "2160") || strings.Contains(q, "1440") {
-					wait = 2500 * time.Millisecond
-				}
-				grace = time.After(wait)
-			}
-		case <-grace:
-			break collect
 		}
 	}
 
@@ -234,12 +227,19 @@ collect:
 	}
 
 	var allSources []providers.StreamSource
+	var fallbackSources []providers.StreamSource
 	for _, fr := range foundResults {
 		if fr.result.Primary.URL != "" {
-			allSources = append(allSources, fr.result.Primary)
+			if fr.providerID == "vidlink" || fr.providerID == "vidmody" {
+				fallbackSources = append(fallbackSources, fr.result.Primary)
+				fallbackSources = append(fallbackSources, fr.result.Alternates...)
+			} else {
+				allSources = append(allSources, fr.result.Primary)
+				allSources = append(allSources, fr.result.Alternates...)
+			}
 		}
-		allSources = append(allSources, fr.result.Alternates...)
 	}
+	allSources = append(allSources, fallbackSources...)
 
 	bestResult, err := providers.SelectBestStream(allSources)
 	if err != nil || bestResult == nil || bestResult.Primary.URL == "" {
