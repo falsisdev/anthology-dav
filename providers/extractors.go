@@ -1734,103 +1734,169 @@ func FindSportChannelMapping(rawKey string) (SportChannelMap, bool) {
 	return SportChannelMap{}, false
 }
 
-// ResolveMultiSportStreams resolves live streams across Taraftarium24, ArdaSports, Alemdar, Mahsun, and Papaz.
+// ResolveTaraftariumDynamic queries teletv yayinlink API dynamically to resolve active Taraftarium24 streams.
+func ResolveTaraftariumDynamic(ctx context.Context, channelID string) *StreamSource {
+	if channelID == "" {
+		return nil
+	}
+	t24API := config.RemoteString("urls.live.taraftarium.api", "https://teletv15.top")
+	apiURL := fmt.Sprintf("%s/load/yayinlink.php?id=%s", strings.TrimRight(t24API, "/"), url.QueryEscape(channelID))
+
+	tCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+	defer cancel()
+
+	b, code, _, _, err := FetchBytes(tCtx, http.MethodGet, apiURL, map[string]string{
+		"User-Agent": config.DefaultUserAgent,
+		"Accept":     "*/*",
+	}, nil)
+	if err != nil || code != 200 || len(b) == 0 {
+		return nil
+	}
+
+	var data struct {
+		Deismackanal string `json:"deismackanal"`
+		Error        string `json:"error"`
+	}
+	if err := json.Unmarshal(b, &data); err != nil || data.Deismackanal == "" {
+		return nil
+	}
+
+	streamURL := data.Deismackanal
+	if !strings.Contains(streamURL, ".m3u8") {
+		return nil
+	}
+
+	return &StreamSource{
+		Name:    "Taraftarium24",
+		Title:   "[Taraftarium24 • Canlı FHD]",
+		URL:     streamURL,
+		Quality: "1080p",
+		Format:  "hls",
+		IsHLS:   true,
+		IsLive:  true,
+		Headers: map[string]string{
+			"User-Agent": config.DefaultUserAgent,
+			"Referer":    "https://taraftarium24-245.top/",
+			"Origin":     "https://taraftarium24-245.top",
+		},
+	}
+}
+
+var (
+	alemdarCdnMu   sync.RWMutex
+	alemdarCdnTpl  string
+	alemdarCdnTime time.Time
+)
+
+// ResolveAlemdarDynamic scrapes AlemdarSport to extract live flotfUrl CDN template.
+func ResolveAlemdarDynamic(ctx context.Context, channelID string) *StreamSource {
+	if channelID == "" {
+		return nil
+	}
+
+	alemdarCdnMu.RLock()
+	tpl := alemdarCdnTpl
+	recent := time.Since(alemdarCdnTime) < 15*time.Minute
+	alemdarCdnMu.RUnlock()
+
+	if !recent || tpl == "" {
+		alemdarBase := config.RemoteString("urls.live.alemdarsport.base", "https://alemdarsport.cfd")
+		pageURL := fmt.Sprintf("%s/channel.php?id=%s", strings.TrimRight(alemdarBase, "/"), url.QueryEscape(channelID))
+
+		tCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+		defer cancel()
+
+		htmlText, code, err := FetchString(tCtx, pageURL, map[string]string{
+			"User-Agent": config.DefaultUserAgent,
+		})
+		if err == nil && code == 200 && htmlText != "" {
+			re := regexp.MustCompile("flotfUrl\\s*=\\s*[`'\"](https://[^`'\"]+index\\.m3u8)")
+			if m := re.FindStringSubmatch(htmlText); len(m) > 1 {
+				tpl = m[1]
+				alemdarCdnMu.Lock()
+				alemdarCdnTpl = tpl
+				alemdarCdnTime = time.Now()
+				alemdarCdnMu.Unlock()
+			}
+		}
+	}
+
+	if tpl == "" {
+		tpl = "https://alemdar.e56334ad5bbbc0ca4c80f717246c2500.cfd/mdalemdar/${cid}/index.m3u8"
+	}
+
+	directURL := strings.ReplaceAll(tpl, "${cid}", channelID)
+	return &StreamSource{
+		Name:    "AlemdarSport",
+		Title:   "[AlemdarSport • Canlı FHD]",
+		URL:     directURL,
+		Quality: "1080p",
+		Format:  "hls",
+		IsHLS:   true,
+		IsLive:  true,
+		Headers: map[string]string{
+			"User-Agent": config.DefaultUserAgent,
+			"Referer":    "https://alemdarsport.cfd/",
+			"Origin":     "https://alemdarsport.cfd",
+		},
+	}
+}
+
+// ResolveMultiSportStreams resolves live streams concurrently across Taraftarium24, Alemdar, and Mahsun.
 func ResolveMultiSportStreams(ctx context.Context, rawKey, displayTitle string) []StreamSource {
 	mapping, ok := FindSportChannelMapping(rawKey)
 	if !ok {
 		return nil
 	}
 
-	t24Domain := config.RemoteString("urls.live.sport_platforms.t24_amp", "https://taraftarium24.xyz")
-	t24CDN := config.RemoteString("urls.live.sport_platforms.t24_cdn", "https://dga1op10s1u3leo.38274925784390534.sbs")
-	ardaDomain := config.RemoteString("urls.live.sport_platforms.arda_domain", "https://www.ardasports294.xyz")
-	ardaCDN := config.RemoteString("urls.live.sport_platforms.arda_cdn", "https://ardastream.live")
-	alemdarDomain := config.RemoteString("urls.live.sport_platforms.alemdar_domain", "https://alemdarsport11.xyz")
-	alemdarCDN := config.RemoteString("urls.live.sport_platforms.alemdar_cdn", "https://alemdarstream.cfd")
-	mahsunDomain := config.RemoteString("urls.live.sport_platforms.mahsun_domain", "https://www.mahsunsports13.xyz")
-	mahsunCDN := config.RemoteString("urls.live.sport_platforms.mahsun_cdn", "https://uzunsaclimahsun.click")
-	papazDomain := config.RemoteString("urls.live.sport_platforms.papaz_domain", "https://papazsports16.xyz")
-	papazCDN := config.RemoteString("urls.live.sport_platforms.papaz_cdn", "https://papaz-live.29384718294028.sbs")
-
 	var out []StreamSource
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
 	if mapping.T24 != "" {
-		out = append(out, StreamSource{
-			Name:    "Taraftarium24",
-			Title:   displayTitle + " [Taraftarium24 • FHD]",
-			URL:     fmt.Sprintf("%s/live/%s/playlist.m3u8", t24CDN, mapping.T24),
-			Quality: "1080p",
-			Format:  "hls",
-			IsHLS:   true,
-			IsLive:  true,
-			Headers: map[string]string{
-				"User-Agent": config.DefaultUserAgent,
-				"Referer":    t24Domain + "/",
-				"Origin":     t24Domain,
-			},
-		})
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if src := ResolveTaraftariumDynamic(ctx, mapping.T24); src != nil {
+				src.Title = displayTitle + " " + src.Title
+				mu.Lock()
+				out = append(out, *src)
+				mu.Unlock()
+			}
+		}()
 	}
+
 	if mapping.Arda != "" {
-		out = append(out, StreamSource{
-			Name:    "ArdaSports",
-			Title:   displayTitle + " [ArdaSports • FHD]",
-			URL:     fmt.Sprintf("%s/%s/index.m3u8", ardaCDN, mapping.Arda),
-			Quality: "1080p",
-			Format:  "hls",
-			IsHLS:   true,
-			IsLive:  true,
-			Headers: map[string]string{
-				"User-Agent": config.DefaultUserAgent,
-				"Referer":    ardaDomain + "/",
-				"Origin":     ardaDomain,
-			},
-		})
-		out = append(out, StreamSource{
-			Name:    "AlemdarSport",
-			Title:   displayTitle + " [AlemdarSport • HD]",
-			URL:     fmt.Sprintf("%s/live/%s/playlist.m3u8", alemdarCDN, mapping.Arda),
-			Quality: "720p",
-			Format:  "hls",
-			IsHLS:   true,
-			IsLive:  true,
-			Headers: map[string]string{
-				"User-Agent": config.DefaultUserAgent,
-				"Referer":    alemdarDomain + "/",
-				"Origin":     alemdarDomain,
-			},
-		})
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if src := ResolveAlemdarDynamic(ctx, mapping.Arda); src != nil {
+				src.Title = displayTitle + " " + src.Title
+				mu.Lock()
+				out = append(out, *src)
+				mu.Unlock()
+			}
+		}()
 	}
+
+	wg.Wait()
+
 	if mapping.Mahsun != "" {
+		mahsunURL := fmt.Sprintf("https://andro.evrenesoglu149.click/checklist/%s.m3u8", mapping.Mahsun)
 		out = append(out, StreamSource{
 			Name:    "MahsunSports",
 			Title:   displayTitle + " [MahsunSports • HD]",
-			URL:     fmt.Sprintf("%s/%s/playlist.m3u8", mahsunCDN, mapping.Mahsun),
+			URL:     mahsunURL,
 			Quality: "720p",
 			Format:  "hls",
 			IsHLS:   true,
 			IsLive:  true,
 			Headers: map[string]string{
 				"User-Agent": config.DefaultUserAgent,
-				"Referer":    mahsunDomain + "/",
-				"Origin":     mahsunDomain,
 			},
 		})
 	}
-	if mapping.Papaz != "" {
-		out = append(out, StreamSource{
-			Name:    "PapazSports",
-			Title:   displayTitle + " [PapazSports • HD]",
-			URL:     fmt.Sprintf("%s/%s/index.m3u8", papazCDN, mapping.Papaz),
-			Quality: "720p",
-			Format:  "hls",
-			IsHLS:   true,
-			IsLive:  true,
-			Headers: map[string]string{
-				"User-Agent": config.DefaultUserAgent,
-				"Referer":    papazDomain + "/",
-				"Origin":     papazDomain,
-			},
-		})
-	}
+
 	return out
 }
 

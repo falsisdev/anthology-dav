@@ -375,6 +375,7 @@ const glassmorphismHTML = `<!DOCTYPE html>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;500;600;700&family=SF+Pro+Text:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <style>
     :root {
       --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
@@ -383,7 +384,6 @@ const glassmorphismHTML = `<!DOCTYPE html>
       --glass-panel-hover: rgba(255, 255, 255, 0.09);
       --glass-border: rgba(255, 255, 255, 0.12);
       --glass-border-subtle: rgba(255, 255, 255, 0.07);
-      --glass-glow: rgba(0, 122, 255, 0.25);
       --accent-blue: #0A84FF;
       --accent-purple: #BF5AF2;
       --accent-pink: #FF375F;
@@ -412,33 +412,6 @@ const glassmorphismHTML = `<!DOCTYPE html>
       display: flex;
       flex-direction: column;
       position: relative;
-    }
-
-    /* Ambient Dynamic Glows */
-    body::before {
-      content: "";
-      position: fixed;
-      top: -20%;
-      left: 15%;
-      width: 60vw;
-      height: 60vh;
-      background: radial-gradient(circle, rgba(10, 132, 255, 0.18) 0%, rgba(191, 90, 242, 0.12) 50%, transparent 75%);
-      filter: blur(100px);
-      z-index: 0;
-      pointer-events: none;
-    }
-
-    body::after {
-      content: "";
-      position: fixed;
-      bottom: -15%;
-      right: 10%;
-      width: 50vw;
-      height: 50vh;
-      background: radial-gradient(circle, rgba(255, 55, 95, 0.15) 0%, rgba(100, 210, 255, 0.10) 60%, transparent 80%);
-      filter: blur(110px);
-      z-index: 0;
-      pointer-events: none;
     }
 
     /* Modern SwiftUI App Root Container */
@@ -687,7 +660,7 @@ const glassmorphismHTML = `<!DOCTYPE html>
       transform: translateY(-6px) scale(1.02);
       background: var(--glass-panel-hover);
       border-color: var(--glass-border);
-      box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.7), 0 0 30px -5px var(--glass-glow);
+      box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.75);
     }
 
     .poster-box {
@@ -1170,6 +1143,49 @@ const glassmorphismHTML = `<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- Live TV Video Player Glass Modal -->
+  <div class="modal-backdrop" id="livePlayerModal" onclick="if(event.target===this) closeLivePlayer()">
+    <div class="modal-glass" style="max-width: 820px;">
+      <div class="modal-header">
+        <div style="display:flex; align-items:center; gap: 12px; min-width: 0;">
+          <div class="provider-logo-box" style="width:38px; height:38px; border-radius:10px;">
+            <img id="livePlayerLogo" class="provider-logo-img" src="" alt="Logo" style="width:24px; height:24px; display:none;">
+            <div id="livePlayerFallbackIcon" class="provider-fallback-icon" style="font-size:18px;">📺</div>
+          </div>
+          <div style="min-width:0;">
+            <div class="modal-title" id="livePlayerTitle">Canlı TV</div>
+            <div style="font-size: 11.5px; color: var(--text-secondary); display:flex; gap:6px; align-items:center; margin-top: 2px;">
+              <span id="livePlayerGroup" class="provider-cat-tag">Canlı Yayın</span>
+              <span>•</span>
+              <span style="color:var(--accent-green); font-weight:600;">● CANLI YAYIN</span>
+            </div>
+          </div>
+        </div>
+        <button class="modal-close" onclick="closeLivePlayer()">✕</button>
+      </div>
+
+      <div style="background: #000; position: relative; width: 100%; aspect-ratio: 16/9; max-height: 60vh; display:flex; align-items:center; justify-content:center; overflow:hidden;">
+        <video id="liveVideo" controls autoplay playsinline style="width: 100%; height: 100%; object-fit: contain; outline:none;"></video>
+        <div id="liveVideoSpinner" style="position:absolute; color:#fff; display:none; flex-direction:column; align-items:center; gap:10px; font-size:13px; background:rgba(10,12,18,0.75); padding:16px 24px; border-radius:14px; backdrop-filter:blur(15px); border:1px solid rgba(255,255,255,0.1);">
+          <span>⏳ Canlı Yayın Başlatılıyor...</span>
+        </div>
+      </div>
+
+      <div class="modal-controls" style="justify-content: space-between;">
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button class="btn-mini primary" onclick="openInInfuse()" title="Apple Silicon & iOS Infuse ile aç">⚡ Infuse ile Aç</button>
+          <button class="btn-mini" onclick="openInVLC()" title="VLC veya IINA ile aç">⚡ VLC ile Aç</button>
+          <button class="btn-mini" onclick="copyCurrentLiveStream()" title="HLS Proxy adresini kopyala">📋 Proxy Linki</button>
+          <button class="btn-mini" onclick="copyDirectLiveStream()" title="Doğrudan ham CDN linkini kopyala">📡 Ham CDN</button>
+        </div>
+        <div style="font-size: 11px; color: var(--text-secondary); display:flex; align-items:center; gap:6px;">
+          <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--accent-green);"></span>
+          <span id="livePlayerStreamInfo">HLS Proxy Aktif (CORS Açık)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="app-container">
     <!-- SwiftUI App Navigation Header -->
     <header class="app-header">
@@ -1274,6 +1290,7 @@ const glassmorphismHTML = `<!DOCTYPE html>
       }
       if (e.key === 'Escape') {
         closeSourceModal();
+        closeLivePlayer();
       }
     });
 
@@ -1602,16 +1619,22 @@ const glassmorphismHTML = `<!DOCTYPE html>
       }
     }
 
+    let activeHls = null;
+    let currentLiveStreamUrl = '';
+    let currentLiveDirectUrl = '';
+    let currentLiveChannelName = '';
+
     async function loadLive() {
       const grid = document.getElementById('liveGrid');
       grid.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding: 30px;">Kanallar yükleniyor...</div>';
       try {
         const res = await fetch('/api/live');
         const list = await res.json() || [];
-        grid.innerHTML = list.slice(0, 60).map(ch => {
+        grid.innerHTML = list.slice(0, 100).map(ch => {
           const name = ch.Name || ch.name || 'Bilinmeyen Kanal';
           const group = ch.Group || ch.group || 'Canlı TV';
           const logo = ch.Logo || ch.logo || '';
+          const streamUrl = ch.URL || ch.url || '';
 
           let logoHtml = '';
           if (logo) {
@@ -1625,9 +1648,12 @@ const glassmorphismHTML = `<!DOCTYPE html>
             logoHtml = '<div class="provider-logo-box"><div class="provider-fallback-icon">📺</div></div>';
           }
 
-          const streamUrl = ch.URL || ch.url || '';
+          const nameEsc = name.replace(/'/g, "\\'");
+          const groupEsc = group.replace(/'/g, "\\'");
+          const logoEsc = logo.replace(/'/g, "\\'");
+          const urlEsc = streamUrl.replace(/'/g, "\\'");
 
-          return '<div class="live-card" onclick="copyLiveStream(\'' + name.replace(/'/g, "\\'") + '\', \'' + streamUrl.replace(/'/g, "\\'") + '\')">' +
+          return '<div class="live-card" onclick="openLiveChannel(\'' + nameEsc + '\', \'' + groupEsc + '\', \'' + logoEsc + '\', \'' + urlEsc + '\')">' +
             logoHtml +
             '<div class="live-info">' +
               '<div class="live-title" title="' + name + '">' + name + '</div>' +
@@ -1637,7 +1663,7 @@ const glassmorphismHTML = `<!DOCTYPE html>
                 '<span>HLS Canlı</span>' +
               '</div>' +
             '</div>' +
-            '<button class="status-badge" style="border:none; cursor:pointer;" title="Infuse / VLC URL Kopyala">OYNAT</button>' +
+            '<button class="status-badge" style="border:none; cursor:pointer;" onclick="event.stopPropagation(); openLiveChannel(\'' + nameEsc + '\', \'' + groupEsc + '\', \'' + logoEsc + '\', \'' + urlEsc + '\')">OYNAT</button>' +
           '</div>';
         }).join('');
       } catch (e) {
@@ -1645,16 +1671,135 @@ const glassmorphismHTML = `<!DOCTYPE html>
       }
     }
 
-    function copyLiveStream(name, url) {
-      if (!url) {
-        showToast(name + ' için aktif akış adresi bulunamadı!', '✕');
-        return;
+    function openLiveChannel(name, group, logo, directUrl) {
+      currentLiveChannelName = name;
+      currentLiveDirectUrl = directUrl;
+      document.getElementById('livePlayerTitle').textContent = name;
+      document.getElementById('livePlayerGroup').textContent = group || 'Canlı TV';
+
+      const logoImg = document.getElementById('livePlayerLogo');
+      const fallbackIcon = document.getElementById('livePlayerFallbackIcon');
+      if (logo) {
+        logoImg.src = logo;
+        logoImg.style.display = 'block';
+        fallbackIcon.style.display = 'none';
+        logoImg.onerror = () => {
+          logoImg.style.display = 'none';
+          fallbackIcon.style.display = 'flex';
+        };
+      } else {
+        logoImg.style.display = 'none';
+        fallbackIcon.style.display = 'flex';
       }
-      navigator.clipboard.writeText(url).then(() => {
-        showToast(name + ' yayın linki kopyalandı! (Infuse veya IINA/VLC ile açabilirsiniz)', '▶');
+
+      const video = document.getElementById('liveVideo');
+      const spinner = document.getElementById('liveVideoSpinner');
+      spinner.style.display = 'flex';
+
+      // Route through our WebDAV HLS CORS Proxy
+      const proxyStreamUrl = window.location.origin + '/stream/m3u_list?id=' + encodeURIComponent(name + '|||' + directUrl);
+      currentLiveStreamUrl = proxyStreamUrl;
+
+      if (activeHls) {
+        activeHls.destroy();
+        activeHls = null;
+      }
+
+      if (window.Hls && Hls.isSupported()) {
+        activeHls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: true,
+          backBufferLength: 60
+        });
+        activeHls.loadSource(proxyStreamUrl);
+        activeHls.attachMedia(video);
+        activeHls.on(Hls.Events.MANIFEST_PARSED, () => {
+          spinner.style.display = 'none';
+          video.play().catch(e => console.log('Autoplay deferred:', e));
+        });
+        activeHls.on(Hls.Events.ERROR, (event, data) => {
+          if (data.fatal) {
+            console.warn('HLS stream error:', data);
+            switch (data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                activeHls.startLoad();
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                activeHls.recoverMediaError();
+                break;
+              default:
+                if (video.src !== directUrl) {
+                  video.src = directUrl;
+                  video.play().catch(() => {});
+                }
+                break;
+            }
+          }
+        });
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = proxyStreamUrl;
+        video.addEventListener('loadedmetadata', () => {
+          spinner.style.display = 'none';
+          video.play().catch(e => console.log('Autoplay deferred:', e));
+        }, { once: true });
+      } else {
+        spinner.style.display = 'none';
+        showToast('Tarayıcınız HLS video desteklemiyor, Infuse ile açabilirsiniz.', '⚠️');
+      }
+
+      document.getElementById('livePlayerModal').classList.add('open');
+    }
+
+    function closeLivePlayer() {
+      const modal = document.getElementById('livePlayerModal');
+      if (!modal) return;
+      modal.classList.remove('open');
+      const video = document.getElementById('liveVideo');
+      if (video) {
+        video.pause();
+        video.removeAttribute('src');
+        video.load();
+      }
+      if (activeHls) {
+        activeHls.destroy();
+        activeHls = null;
+      }
+      currentLiveStreamUrl = '';
+      currentLiveDirectUrl = '';
+    }
+
+    function openInInfuse() {
+      if (!currentLiveStreamUrl) return;
+      window.location.href = 'infuse://x-callback-url/play?url=' + encodeURIComponent(currentLiveStreamUrl);
+      showToast('Infuse başlatılıyor...', '⚡');
+    }
+
+    function openInVLC() {
+      if (!currentLiveStreamUrl) return;
+      window.location.href = 'vlc://' + currentLiveStreamUrl;
+      showToast('VLC başlatılıyor...', '⚡');
+    }
+
+    function copyCurrentLiveStream() {
+      if (!currentLiveStreamUrl) return;
+      navigator.clipboard.writeText(currentLiveStreamUrl).then(() => {
+        showToast(currentLiveChannelName + ' proxy akış linki kopyalandı!', '📋');
       }).catch(() => {
-        prompt('Yayın Linki (Kopyalayıp VLC/Infuse ile açabilirsiniz):', url);
+        prompt('Yayın Proxy Linki:', currentLiveStreamUrl);
       });
+    }
+
+    function copyDirectLiveStream() {
+      if (!currentLiveDirectUrl) return;
+      navigator.clipboard.writeText(currentLiveDirectUrl).then(() => {
+        showToast(currentLiveChannelName + ' doğrudan CDN linki kopyalandı!', '📡');
+      }).catch(() => {
+        prompt('Doğrudan CDN Linki:', currentLiveDirectUrl);
+      });
+    }
+
+    function copyLiveStream(name, url) {
+      openLiveChannel(name, 'Canlı TV', '', url);
     }
 
     async function loadProviders() {

@@ -13,6 +13,8 @@
         <string>8085</string>
         <string>-watchlist</string>
         <string>{{PROJECT_DIR}}/watchlist.json</string>
+        <string>-library</string>
+        <string>{{PROJECT_DIR}}/library.json</string>
     </array>
     <key>WorkingDirectory</key>
     <string>{{PROJECT_DIR}}</string>

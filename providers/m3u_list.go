@@ -118,6 +118,8 @@ func (p *LiveM3UProvider) ResolveStream(ctx context.Context, streamID string) (*
 	}
 
 	var sources []StreamSource
+
+	// 1. Direct URL from streamID (if provided)
 	if strings.HasPrefix(u, "http") {
 		sources = append(sources, StreamSource{
 			Name:    p.name,
@@ -129,9 +131,45 @@ func (p *LiveM3UProvider) ResolveStream(ctx context.Context, streamID string) (*
 			IsLive:  true,
 		})
 	}
-	if p.includeSport {
+
+	// 2. Lookup channel in canli.m3u for backup streams
+	if channels, err := p.loadChannels(ctx); err == nil {
+		for _, ch := range channels {
+			if strings.EqualFold(ch.Name, title) || strings.EqualFold(ch.ID, title) || (u != "" && ch.URL == u) {
+				if ch.URL != "" && ch.URL != u {
+					sources = append(sources, StreamSource{
+						Name:    p.name,
+						Title:   ch.Name,
+						URL:     ch.URL,
+						Quality: "1080p",
+						Format:  "hls",
+						IsHLS:   true,
+						IsLive:  true,
+					})
+				}
+				for _, b := range ch.Backups {
+					if b != "" && b != u && b != ch.URL {
+						sources = append(sources, StreamSource{
+							Name:    p.name + " (Yedek)",
+							Title:   ch.Name + " [Yedek]",
+							URL:     b,
+							Quality: "720p",
+							Format:  "hls",
+							IsHLS:   true,
+							IsLive:  true,
+						})
+					}
+				}
+				break
+			}
+		}
+	}
+
+	// 3. Multi-platform Sport engine resolver
+	if p.includeSport || strings.Contains(strings.ToUpper(title), "SPOR") || strings.Contains(strings.ToUpper(title), "BEIN") {
 		sportStreams := ResolveMultiSportStreams(ctx, title, title)
 		sources = append(sources, sportStreams...)
 	}
+
 	return SelectBestStream(sources)
 }

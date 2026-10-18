@@ -42,6 +42,14 @@ func NewProxyHandler(cfg *config.Config, cache *vfs.MemoryCache) *ProxyHandler {
 
 // HandleStream handles /stream/{provider_id}?id={stream_id}
 func (h *ProxyHandler) HandleStream(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodOptions {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "*")
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
 	providerID := strings.TrimPrefix(r.URL.Path, "/stream/")
 	providerID = strings.Trim(providerID, "/")
 	streamID := r.URL.Query().Get("id")
@@ -69,26 +77,45 @@ func (h *ProxyHandler) HandleStream(w http.ResponseWriter, r *http.Request) {
 	h.ServeStreamResult(w, r, res)
 }
 
-// ServeStreamResult delivers a StreamResult to Infuse or HTTP client via 302 Redirect, Range Proxy, or HLS rewriter.
+// ServeStreamResult delivers a StreamResult to Infuse or HTTP client via HLS rewriter, Range Proxy, or 302 Redirect.
+// All HLS playlists are proxied with CORS and segment rewriting to guarantee cross-device and browser playback.
 func (h *ProxyHandler) ServeStreamResult(w http.ResponseWriter, r *http.Request, res *providers.StreamResult) {
 	if res == nil || res.Primary.URL == "" {
 		http.Error(w, "empty stream result", http.StatusBadGateway)
 		return
 	}
 
-	best := res.Primary
-	hasCustomHeaders := len(best.Headers) > 0
+	candidates := append([]providers.StreamSource{res.Primary}, res.Alternates...)
+	var lastErr error
 
-	if !hasCustomHeaders {
-		http.Redirect(w, r, best.URL, http.StatusFound)
+	for i, candidate := range candidates {
+		isHLS := candidate.IsHLS || strings.Contains(strings.ToLower(candidate.URL), ".m3u8") || candidate.IsLive
+		if isHLS {
+			err := h.serveHLSManifest(w, r, candidate.URL, candidate.Headers)
+			if err == nil {
+				return
+			}
+			lastErr = err
+			if i < len(candidates)-1 {
+				continue
+			}
+			break
+		}
+
+		if len(candidate.Headers) == 0 {
+			http.Redirect(w, r, candidate.URL, http.StatusFound)
+			return
+		}
+
+		h.serveRangeStream(w, r, candidate.URL, candidate.Headers)
 		return
 	}
 
-	if best.IsHLS || strings.Contains(strings.ToLower(best.URL), ".m3u8") {
-		h.serveHLSManifest(w, r, best.URL, best.Headers)
-		return
+	if lastErr != nil {
+		http.Error(w, fmt.Sprintf("stream playback failed: %v", lastErr), http.StatusBadGateway)
+	} else {
+		http.Error(w, "stream playback failed", http.StatusBadGateway)
 	}
-	h.serveRangeStream(w, r, best.URL, best.Headers)
 }
 
 // HandleSub handles /sub/{provider_id}?id={stream_id}&url={direct_url}
@@ -134,6 +161,14 @@ func (h *ProxyHandler) HandleSub(w http.ResponseWriter, r *http.Request) {
 // HandleProxyMedia handles rewritten HLS segments/sub-manifests and direct proxied media URLs:
 // /proxy/media?u={base64_url}&h={base64_headers_json}
 func (h *ProxyHandler) HandleProxyMedia(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodOptions {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "*")
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
 	uB64 := r.URL.Query().Get("u")
 	hB64 := r.URL.Query().Get("h")
 	if uB64 == "" {
@@ -156,7 +191,9 @@ func (h *ProxyHandler) HandleProxyMedia(w http.ResponseWriter, r *http.Request) 
 
 	lowerURL := strings.ToLower(targetURL)
 	if strings.Contains(lowerURL, ".m3u8") {
-		h.serveHLSManifest(w, r, targetURL, headers)
+		if err := h.serveHLSManifest(w, r, targetURL, headers); err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+		}
 		return
 	}
 	h.serveRangeStream(w, r, targetURL, headers)
@@ -240,11 +277,10 @@ func (h *ProxyHandler) serveRangeStream(w http.ResponseWriter, r *http.Request, 
 	_, _ = io.CopyBuffer(w, resp.Body, buf)
 }
 
-func (h *ProxyHandler) serveHLSManifest(w http.ResponseWriter, r *http.Request, manifestURL string, customHeaders map[string]string) {
+func (h *ProxyHandler) serveHLSManifest(w http.ResponseWriter, r *http.Request, manifestURL string, customHeaders map[string]string) error {
 	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, manifestURL, nil)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return err
 	}
 	req.Header.Set("User-Agent", h.cfg.UserAgent)
 	for k, v := range customHeaders {
@@ -255,20 +291,31 @@ func (h *ProxyHandler) serveHLSManifest(w http.ResponseWriter, r *http.Request, 
 
 	resp, err := h.httpClient.Do(req)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadGateway)
-		return
+		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		http.Error(w, fmt.Sprintf("upstream HLS returned %d", resp.StatusCode), resp.StatusCode)
-		return
+		return fmt.Errorf("upstream HLS returned %d", resp.StatusCode)
 	}
 
-	baseURL, err := url.Parse(manifestURL)
+	targetManifestURL := manifestURL
+	if resp.Request != nil && resp.Request.URL != nil {
+		targetManifestURL = resp.Request.URL.String()
+	}
+
+	baseURL, err := url.Parse(targetManifestURL)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return err
+	}
+
+	baseURLPrefix := h.cfg.BaseURL
+	if r.Host != "" {
+		scheme := "http"
+		if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+			scheme = "https"
+		}
+		baseURLPrefix = fmt.Sprintf("%s://%s", scheme, r.Host)
 	}
 
 	headersJSON, _ := json.Marshal(customHeaders)
@@ -285,7 +332,7 @@ func (h *ProxyHandler) serveHLSManifest(w http.ResponseWriter, r *http.Request, 
 		}
 		resolved := baseURL.ResolveReference(refURL).String()
 		uB64 := base64.RawURLEncoding.EncodeToString([]byte(resolved))
-		return fmt.Sprintf("%s/proxy/media?u=%s&h=%s", h.cfg.BaseURL, uB64, hB64)
+		return fmt.Sprintf("%s/proxy/media?u=%s&h=%s", baseURLPrefix, uB64, hB64)
 	}
 
 	var out strings.Builder
@@ -312,11 +359,14 @@ func (h *ProxyHandler) serveHLSManifest(w http.ResponseWriter, r *http.Request, 
 	w.Header().Set("Content-Type", "application/vnd.apple.mpegurl; charset=utf-8")
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(content)))
 	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "*")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.WriteHeader(http.StatusOK)
 	if r.Method != http.MethodHead {
 		_, _ = io.WriteString(w, content)
 	}
+	return nil
 }
 
 func rewriteTagURI(tagLine string, rewriteFn func(string) string) string {
