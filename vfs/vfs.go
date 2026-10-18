@@ -123,7 +123,7 @@ func (v *AnthologyVFS) Mkdir(ctx context.Context, name string, perm os.FileMode)
 	return os.ErrPermission
 }
 
-// RemoveAll removes a movie, series, or anime from the library when deleted from Infuse / Finder.
+// RemoveAll removes a movie, series, or anime from the library when deleted via WebDAV (Finder, Explorer, media players).
 func (v *AnthologyVFS) RemoveAll(ctx context.Context, name string) error {
 	segs := v.cleanSegments(name)
 	if len(segs) == 2 {

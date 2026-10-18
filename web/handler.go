@@ -1173,7 +1173,7 @@ const glassmorphismHTML = `<!DOCTYPE html>
 
       <div class="modal-controls" style="justify-content: space-between;">
         <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-          <button class="btn-mini primary" onclick="openInInfuse()" title="Apple Silicon & iOS Infuse ile aç">⚡ Infuse ile Aç</button>
+          <button class="btn-mini primary" onclick="openInInfuse()" title="Infuse ile aç">⚡ Infuse ile Aç</button>
           <button class="btn-mini" onclick="openInVLC()" title="VLC veya IINA ile aç">⚡ VLC ile Aç</button>
           <button class="btn-mini" onclick="copyCurrentLiveStream()" title="HLS Proxy adresini kopyala">📋 Proxy Linki</button>
           <button class="btn-mini" onclick="copyDirectLiveStream()" title="Doğrudan ham CDN linkini kopyala">📡 Ham CDN</button>
@@ -1257,7 +1257,7 @@ const glassmorphismHTML = `<!DOCTYPE html>
       <div id="tab-live" style="display:none;">
         <div class="section-header">
           <h2 class="section-title">Canlı TV Yayınları</h2>
-          <span style="color:var(--text-tertiary); font-size:13px;">Infuse WebDAV: /dav/Canli_TV/</span>
+          <span style="color:var(--text-tertiary); font-size:13px;">WebDAV Klasörü: /dav/Canli_TV/</span>
         </div>
         <div id="liveGrid" class="live-grid"></div>
       </div>
@@ -1393,7 +1393,7 @@ const glassmorphismHTML = `<!DOCTYPE html>
           provOptions += '<option value="' + p.id + '" ' + selected + '>' + prefix + (p.title || p.name) + suffix + '</option>';
         });
 
-        const workInfo = workingSet.size > 0 ? (workingSet.size + ' çalışan kaynak') : 'Infuse Hazır';
+        const workInfo = workingSet.size > 0 ? (workingSet.size + ' çalışan kaynak') : 'Yayına Hazır';
 
         return '<div class="media-card">' +
           '<div class="poster-box">' +
@@ -1580,7 +1580,7 @@ const glassmorphismHTML = `<!DOCTYPE html>
           body: JSON.stringify(payload)
         });
         if (res.ok) {
-          showToast(it.title + ' kütüphanenize eklendi! Infuse ile hemen izleyebilirsiniz.');
+          showToast(it.title + ' kütüphanenize eklendi! Medya oynatıcınızdan hemen izleyebilirsiniz.');
           await loadLibrary();
           const q = document.getElementById('searchInput').value.trim();
           if (q) doSearch(q);
@@ -1744,7 +1744,7 @@ const glassmorphismHTML = `<!DOCTYPE html>
         }, { once: true });
       } else {
         spinner.style.display = 'none';
-        showToast('Tarayıcınız HLS video desteklemiyor, Infuse ile açabilirsiniz.', '⚠️');
+        showToast('Tarayıcınız HLS video desteklemiyor, harici medya oynatıcı ile açabilirsiniz.', '⚠️');
       }
 
       document.getElementById('livePlayerModal').classList.add('open');

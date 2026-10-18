@@ -116,7 +116,7 @@ func (mr *MultiResolver) HandleResolve(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Fast-path for Infuse metadata indexing: do NOT trigger multi-provider scraping on HEAD probes!
+	// Fast-path for media player metadata indexing (HEAD probes): do NOT trigger multi-provider scraping!
 	if r.Method == http.MethodHead {
 		w.Header().Set("Content-Type", "video/mp4")
 		w.Header().Set("Accept-Ranges", "bytes")

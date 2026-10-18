@@ -253,7 +253,7 @@ Arayüzün üst barında **4 ana sekme** bulunur:
 ### 📺 3. Canlı TV Sekmesi
 - Canlı TV kanallarının TMDB gibi bir dizi/film veritabanıyla ilgisi olmadığı için **arama yapmanıza veya kütüphaneye tek tek eklemenize gerek yoktur.** Tüm kanallar zaten hazırdır!
 - **Web Arayüzünde:** Kanal logoları ve gruplarıyla listelenen kartlardan herhangi birine veya üzerindeki **"OYNAT"** butonuna tıkladığınızda, o kanalın canlı HLS (`.m3u8`) yayın adresi otomatik olarak panonuza kopyalanır. Bu adresi VLC, IINA veya Infuse'da (`⌘N` / Ağ Akışı Aç) yapıştırarak anında izleyebilirsiniz.
-- **Infuse / WebDAV İçinde:** WebDAV'da `/dav/Canli_TV/` klasörüne girdiğinizde tüm kanallar kategorilerine ayrılmış hazır `.strm` dosyaları olarak doğrudan karşınıza çıkar; tıklayıp anında izleyebilirsiniz.
+- **WebDAV Destekli Medya Oynatıcılarda (Infuse, Kodi, Nova vb.):** WebDAV'da `/dav/Canli_TV/` klasörüne girdiğinizde tüm kanallar kategorilerine ayrılmış hazır `.strm` dosyaları olarak doğrudan karşınıza çıkar; tıklayıp anında izleyebilirsiniz.
 
 ### ⚙️ 4. Sağlayıcılar Sekmesi
 - Sistemde aktif olan **41 sağlayıcı motorunun** tamamını, resmi logolarını, hizmet verdikleri kategoriyi (`Film`, `Dizi`, `Anime`, `Canlı TV`), güncel alan adlarını ve çalışma durumlarını (`AKTİF`) görebilirsiniz.
@@ -295,7 +295,7 @@ Medya oynatıcınızla veya dosya yöneticinizle `/dav/` adresine bağlandığı
 │   ├── Muzik_ve_Eglence/                       # Müzik ve yaşam kanalları
 │   └── Tum_Kanallar/                           # Birleştirilmiş tam M3U kanal arşivi
 │
-├── Watchlist/                                  # Finder/Infuse içinden yeni klasör açarak arama dizini
+├── Watchlist/                                  # Finder/Dosya Yöneticisi içinden yeni klasör açarak arama dizini
 └── _Tum_Saglayicilar/                          # 41 sağlayıcının vitrinlerini tek tek gezmek isteyenler için arşiv
 ```
 
@@ -309,7 +309,7 @@ Projenin kurulu olduğu klasörde yalnızca şu küçük yapılandırma dosyalar
 
 ## 🎬 8. Uygulama Bazlı Bağlantı Rehberleri
 
-### 1. Infuse (macOS, iPhone, iPad, Apple TV) — *En Çok Tavsiye Edilen*
+### 1. Infuse (macOS, iPhone, iPad, Apple TV)
 1. **Infuse** uygulamasını açın.
 2. **Ayarlar (Settings) ⚙️ -> Paylaşımlar (Shares) -> Paylaşım Ekle (Add Share) -> WebDAV** seçeneğine tıklayın.
 3. Bilgileri şu şekilde doldurun:
@@ -322,7 +322,7 @@ Projenin kurulu olduğu klasörde yalnızca şu küçük yapılandırma dosyalar
 4. **Kaydet (Save)** butonuna basın.
 5. Açılan klasör listesinden **`Filmler`**, **`Diziler`**, **`Animeler`** ve **`Canli_TV`** klasörlerinin üzerine sağ tıklayıp (veya basılı tutup) **"Favorilere Ekle" (Add to Favorites)** seçin.
    > [!TIP]
-   > **`_Tum_Saglayicilar` klasörünü favorilere eklemeyin!** Böylece Infuse 41 sağlayıcının binlerce vitrin içeriğini taramakla vakit kaybetmez, sadece sizin kütüphanenize eklediğiniz içerikleri saniyeler içinde indeksler.
+   > **`_Tum_Saglayicilar` klasörünü favorilere eklemeyin!** Böylece oynatıcınız 41 sağlayıcının binlerce vitrin içeriğini taramakla vakit kaybetmez, sadece sizin kütüphanenize eklediğiniz içerikleri saniyeler içinde indeksler.
 
 ### 2. VidHub & SenPlayer (macOS, iOS, iPadOS, Apple TV)
 1. Uygulamayı açıp **File Source / Medya Kaynağı Ekle -> WebDAV** bölümüne girin.
@@ -356,7 +356,7 @@ Projenin kurulu olduğu klasörde yalnızca şu küçük yapılandırma dosyalar
   2. Sunucu adresine `http://127.0.0.1:8085/dav/` yazıp **Bağlan**'a tıklayın.
   3. Sorulduğunda **"Konuk Olarak" (Guest)** seçeneğini işaretleyip bağlanın. Artık Finder sol menüsünde disk olarak görünecektir!
   > [!TIP]
-  > **Doğrudan Finder veya Infuse İçinden Silme:** Finder'da veya Infuse'da `/dav/Filmler/` veya `/dav/Diziler/` içindeki bir klasörü sildiğinizde (`⌘ + Backspace`), o içerik otomatik olarak `library.json` kütüphanenizden de kalıcı olarak silinir!
+  > **Doğrudan Dosya Yöneticisi veya Medya Oynatıcı İçinden Silme:** Finder, Dosya Gezgini veya WebDAV silme destekleyen medya oynatıcılarda (Infuse vb.) `/dav/Filmler/` veya `/dav/Diziler/` içindeki bir klasörü sildiğinizde, o içerik otomatik olarak `library.json` kütüphanenizden de kalıcı olarak silinir!
 - **Windows Dosya Gezgini:**
   1. **Bu Bilgisayar (This PC)** ekranında üst menüden **Ağ Sürücüsüne Bağlan (Map Network Drive)** seçeneğine tıklayın.
   2. Klasör kutusuna `http://127.0.0.1:8085/dav` yazıp **Son** butonuna basın.
@@ -372,17 +372,18 @@ Fiziksel bir sabit diskte dosyalar önceden oluşturulmuştur. Anthology WebDAV'
 - Siz kütüphanenize 5 sezonluk bir dizi eklediğinizde ve o klasöre **ilk kez** girdiğinizde, sunucu TMDB veritabanına bağlanıp 5 sezonun tamamındaki bölüm sayılarını ve isimlerini çeker, ardından yüzlerce `.strm` dosyasını o anda RAM üzerinde inşa eder.
 - **Önbellek (Cache) Avantajı:** İlk girişte çekilen bu sezon/bölüm verisi **6 saat boyunca RAM önbelleğinde** tutulur. Klasöre ikinci kez girdiğinizde bekleme süresi **0 saniyedir** (anında açılır).
 
-### 2. Infuse'da "Gömülü Metadata" (Embedded Metadata) Tuzağı — *MUTLAKA KAPATIN!*
-Infuse veya benzeri bir oynatıcı yeni eklenen bölümleri tararken eğer **"Gömülü Metaveri / Embedded Metadata"** ayarı açıksa, her bir `.strm` dosyasının sadece ismine bakmakla yetinmez; video dosyasının içine girip codec/çözünürlük bilgisi okumaya çalışır. Bu da Infuse'un arka planda 50 bölümün tamamını aynı anda oynatmaya çalışıp 41 sağlayıcıya yüzlerce istek atmasına ve taramanın çok yavaşlamasına yol açar!
+### 2. Medya Oynatıcılarda "Gömülü Metadata" (Embedded Metadata) Ayarı — *Önemli Performans İpucu*
+Infuse, VidHub, Kodi veya benzeri bir medya oynatıcı yeni eklenen bölümleri tararken eğer **"Gömülü Metaveri / Embedded Metadata"** ayarı açıksa, her bir `.strm` dosyasının sadece ismine bakmakla yetinmez; video dosyasının içine girip codec/çözünürlük bilgisi okumaya çalışır. Bu da oynatıcının arka planda 50 bölümün tamamını aynı anda oynatmaya çalışıp sağlayıcılara gereksiz yüzlerce istek atmasına ve taramanın çok yavaşlamasına yol açar!
 
 > [!IMPORTANT]
-> **Infuse Hızlandırma Ayarı (10 Kat Daha Hızlı Poster Yükleme):**
-> 1. Infuse **Ayarlar (Settings) -> Genel (General)** menüsüne girin.
-> 2. **Metadata Getirme (Metadata Fetching)** seçeneğini **Açık (On)** tutun.
-> 3. **Gömülü Metadata (Embedded Metadata)** seçeneğini mutlaka **KAPALI (Off)** yapın!
-> 4. **Önizleme Görselleri (Pre-Cache Details / Video Previews)** seçeneğini kapatın.
+> **Tüm Medya Oynatıcılar İçin Hızlandırma Ayarı (10 Kat Daha Hızlı Poster Yükleme):**
+> 1. Medya oynatıcınızın ayarlarında **Metadata Getirme (Metadata Fetching / Scraper)** seçeneğini **Açık (On)** tutun (TMDB üzerinden poster ve özetlerin anında inmesi için).
+> 2. Varsa **Gömülü Metadata (Embedded Metadata / Read Local Tags)** seçeneğini mutlaka **KAPALI (Off)** yapın!
+> 3. **Önizleme / Küçük Resim Üretimi (Pre-Cache Details / Video Previews / Extract Thumbnails)** ayarını kapatın.
 >
-> Bu ayarı kapattığınızda Infuse dosyaların içine istek atmaz; doğrudan `Breaking Bad - S01E01.strm` dosya adından posteri ve Türkçe özeti **milisaniyeler içinde** çeker!
+> *(Örneğin Infuse'da: **Ayarlar -> Genel -> Gömülü Metadata: KAPALI**)*
+>
+> Bu ayarı kapattığınızda oynatıcı dosyaların içine ağ isteği atmaz; doğrudan `Breaking Bad - S01E01.strm` dosya adından posteri ve Türkçe özeti **milisaniyeler içinde** çeker!
 
 ### 3. İlk Oynatma (Cold Start) vs. Önbellekli Oynatma (Warm Cache)
 - Bir filme veya bölüme **ilk kez** tıkladığınızda (`Cold Start`), Anthology WebDAV arka planda 8 ila 14 farklı sağlayıcı sitesine aynı anda bağlanır, arama yapar, şifreli player kodlarını (VidMoly, CloseLoad, TauVideo, Vidrame XOR vb.) çözer ve en yüksek çözünürlüklü akışı seçer. Bu işlem kaynak sitelerin yanıt hızına göre **1.5 ile 4 saniye** sürer.
@@ -475,7 +476,7 @@ Anthology WebDAV içerisinde yer alan tüm sağlayıcılar ve kategorileri:
 ## 🛠️ 13. Sorun Giderme (Troubleshooting) ve Sıkça Sorulan Sorular (SSS)
 
 <details>
-<summary><strong>❓ 1. Infuse'da bir bölüme tıkladığımda "Video yüklenirken bir hata oluştu" diyor, ne yapmalıyım?</strong></summary>
+<summary><strong>❓ 1. Medya oynatıcıda (Infuse, Kodi, VLC vb.) bir bölüme tıkladığımda "Video yüklenirken bir hata oluştu" diyor, ne yapmalıyım?</strong></summary>
 
 1. Öncelikle terminalde `make logs` (veya `tail -f /tmp/anthology-dav.log`) komutuyla sunucu kayıtlarına bakın.
 2. Eğer o içerik varsayılan `Oto / Çoklu Çözücü` modundaysa ve ilk dönen sağlayıcının videosu kırık/silinmiş ise, **[http://localhost:8085/](http://localhost:8085/)** adresinden **Kütüphanem** sekmesine girin ve o içerik için açılır menüden alternatif bir sağlayıcı (örneğin `HDFilmCehennemi`, `FilmModu`, `DiziBox` veya `AnimeciX`) seçip tekrar deneyin.
@@ -483,9 +484,9 @@ Anthology WebDAV içerisinde yer alan tüm sağlayıcılar ve kategorileri:
 </details>
 
 <details>
-<summary><strong>❓ 2. Kütüphaneye yeni bir film veya dizi ekledim ama Infuse'da hemen görünmedi?</strong></summary>
+<summary><strong>❓ 2. Kütüphaneye yeni bir film veya dizi ekledim ama medya oynatıcıda hemen görünmedi?</strong></summary>
 
-Infuse klasör listesini kendi önbelleğinde tutar. Infuse içinde ilgili favori klasörün (`Filmler`, `Diziler` veya `Animeler`) içine girip sağ üstteki **Yenile (Refresh / ↻)** butonuna tıklayın veya ekranı aşağı çekerek yenileyin; yeni eklediğiniz içerik anında belirecektir.
+Medya oynatıcılar (Infuse, Kodi, VidHub vb.) klasör listesini kendi yerel önbelleğinde tutabilir. Oynatıcı içinde ilgili klasörün (`Filmler`, `Diziler` veya `Animeler`) içine girip **Yenile (Refresh / ↻)** butonuna tıklayın veya ekranı aşağı çekerek yenileyin; yeni eklediğiniz içerik anında belirecektir.
 </details>
 
 <details>

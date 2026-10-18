@@ -77,7 +77,7 @@ func (h *ProxyHandler) HandleStream(w http.ResponseWriter, r *http.Request) {
 	h.ServeStreamResult(w, r, res)
 }
 
-// ServeStreamResult delivers a StreamResult to Infuse or HTTP client via HLS rewriter, Range Proxy, or 302 Redirect.
+// ServeStreamResult delivers a StreamResult to media players or HTTP clients via HLS rewriter, Range Proxy, or 302 Redirect.
 // All HLS playlists are proxied with CORS and segment rewriting to guarantee cross-device and browser playback.
 func (h *ProxyHandler) ServeStreamResult(w http.ResponseWriter, r *http.Request, res *providers.StreamResult) {
 	if res == nil || res.Primary.URL == "" {

@@ -153,7 +153,7 @@ func main() {
 		log.Printf("================================================================")
 		log.Printf("Anthology WebDAV started on %s", cfg.BaseURL)
 		log.Printf("Web UI:               %s/", cfg.BaseURL)
-		log.Printf("WebDAV Root (Infuse): %s/dav/", cfg.BaseURL)
+		log.Printf("WebDAV Root:        %s/dav/", cfg.BaseURL)
 		log.Printf("Registered Providers: %d", providers.Count())
 		log.Printf("Library Items Count:  %d", len(config.Library().All()))
 		log.Printf("================================================================")

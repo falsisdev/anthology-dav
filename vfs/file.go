@@ -168,7 +168,7 @@ func (f *VirtualFile) Write(p []byte) (n int, err error) {
 	return 0, os.ErrPermission
 }
 
-// SanitizeFileName cleans characters that are invalid or problematic on macOS Finder, Infuse, and WebDAV.
+// SanitizeFileName cleans characters that are invalid or problematic on WebDAV, file systems, and media players.
 func SanitizeFileName(name string) string {
 	name = strings.TrimSpace(name)
 	if name == "" {
