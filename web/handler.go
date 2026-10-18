@@ -1,14 +1,12 @@
 package web
 
 import (
-	"context"
 	_ "embed"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"anthology-dav/config"
 	"anthology-dav/providers"
@@ -95,8 +93,6 @@ func (h *Handler) HandleAPI(w http.ResponseWriter, r *http.Request) {
 		h.handleLibraryProvider(w, r)
 	case path == "/providers":
 		h.handleProviders(w, r)
-	case path == "/live":
-		h.handleLive(w, r)
 	case path == "/status":
 		h.handleStatus(w, r)
 	default:
@@ -307,22 +303,6 @@ func (h *Handler) handleProviders(w http.ResponseWriter, r *http.Request) {
 			cat, cleanTitle, icon, domain = "Film", "YouTube Dizi & Film", "▶️", "youtube.com"
 		case "anthology_m3u":
 			cat, cleanTitle, icon, domain = "Film", "Anthology M3U Arşivi", "📁", "github.com/falsisdev/anthology"
-
-		// Canlı TV & Spor
-		case "anthology_ulusal":
-			cat, cleanTitle, icon, domain = "Canlı TV", "Ulusal Kanallar", "📡", "canli.m3u"
-		case "anthology_spor":
-			cat, cleanTitle, icon, domain = "Canlı TV", "Spor Kanalları & Canlı Maç", "⚽", "taraftarium24.xyz"
-		case "anthology_sinema":
-			cat, cleanTitle, icon, domain = "Canlı TV", "Sinema TV Kanalları", "🎞️", "canli.m3u"
-		case "anthology_belgesel_cocuk":
-			cat, cleanTitle, icon, domain = "Canlı TV", "Belgesel & Çocuk", "🦁", "canli.m3u"
-		case "anthology_haber":
-			cat, cleanTitle, icon, domain = "Canlı TV", "Haber Kanalları", "📰", "canli.m3u"
-		case "anthology_muzik":
-			cat, cleanTitle, icon, domain = "Canlı TV", "Müzik & Eğlence", "🎵", "canli.m3u"
-		case "m3u_list":
-			cat, cleanTitle, icon, domain = "Canlı TV", "Tüm Canlı Kanallar (M3U)", "📺", "canli.m3u"
 		default:
 			cat, cleanTitle, icon, domain = "Diğer", p.Name(), "⚡", ""
 		}
@@ -337,18 +317,6 @@ func (h *Handler) handleProviders(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	_ = json.NewEncoder(w).Encode(list)
-}
-
-func (h *Handler) handleLive(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-	defer cancel()
-	m3u, err := providers.FetchCanliM3U(ctx)
-	if err != nil {
-		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
-		return
-	}
-	channels := providers.ParseCanliM3UChannels(m3u, nil)
-	_ = json.NewEncoder(w).Encode(channels)
 }
 
 func (h *Handler) handleStatus(w http.ResponseWriter, r *http.Request) {
@@ -375,7 +343,6 @@ const glassmorphismHTML = `<!DOCTYPE html>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;500;600;700&family=SF+Pro+Text:wght@400;500;600&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <style>
     :root {
       --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
@@ -827,14 +794,14 @@ const glassmorphismHTML = `<!DOCTYPE html>
       transform: translateX(-50%) translateY(0);
     }
 
-    /* Live TV & Providers Grid */
-    .live-grid, .providers-grid {
+    /* Providers Grid */
+    .providers-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
       gap: 14px;
     }
 
-    .live-card, .provider-card {
+    .provider-card {
       background: var(--glass-panel);
       border: 1px solid var(--glass-border-subtle);
       border-radius: 16px;
@@ -848,22 +815,14 @@ const glassmorphismHTML = `<!DOCTYPE html>
       transition: all 0.25s var(--spring-curve);
     }
 
-    .live-card {
-      cursor: pointer;
-    }
-
-    .live-card:hover, .provider-card:hover {
+    .provider-card:hover {
       background: var(--glass-panel-hover);
       border-color: var(--glass-border);
       transform: translateY(-2px);
       box-shadow: 0 10px 24px -6px rgba(0, 0, 0, 0.4);
     }
 
-    .live-card:active {
-      transform: scale(0.98);
-    }
-
-    .provider-logo-box, .live-badge {
+    .provider-logo-box {
       width: 46px;
       height: 46px;
       border-radius: 12px;
@@ -893,7 +852,7 @@ const glassmorphismHTML = `<!DOCTYPE html>
       justify-content: center;
     }
 
-    .provider-info, .live-info {
+    .provider-info {
       flex: 1;
       min-width: 0;
       display: flex;
@@ -901,7 +860,7 @@ const glassmorphismHTML = `<!DOCTYPE html>
       gap: 3px;
     }
 
-    .provider-title, .live-title {
+    .provider-title {
       font-size: 13.5px;
       font-weight: 600;
       color: #FFFFFF;
@@ -911,7 +870,7 @@ const glassmorphismHTML = `<!DOCTYPE html>
       letter-spacing: -0.2px;
     }
 
-    .provider-meta, .live-meta {
+    .provider-meta {
       font-size: 11.5px;
       color: var(--text-secondary);
       white-space: nowrap;
@@ -1143,49 +1102,6 @@ const glassmorphismHTML = `<!DOCTYPE html>
     </div>
   </div>
 
-  <!-- Live TV Video Player Glass Modal -->
-  <div class="modal-backdrop" id="livePlayerModal" onclick="if(event.target===this) closeLivePlayer()">
-    <div class="modal-glass" style="max-width: 820px;">
-      <div class="modal-header">
-        <div style="display:flex; align-items:center; gap: 12px; min-width: 0;">
-          <div class="provider-logo-box" style="width:38px; height:38px; border-radius:10px;">
-            <img id="livePlayerLogo" class="provider-logo-img" src="" alt="Logo" style="width:24px; height:24px; display:none;">
-            <div id="livePlayerFallbackIcon" class="provider-fallback-icon" style="font-size:18px;">📺</div>
-          </div>
-          <div style="min-width:0;">
-            <div class="modal-title" id="livePlayerTitle">Canlı TV</div>
-            <div style="font-size: 11.5px; color: var(--text-secondary); display:flex; gap:6px; align-items:center; margin-top: 2px;">
-              <span id="livePlayerGroup" class="provider-cat-tag">Canlı Yayın</span>
-              <span>•</span>
-              <span style="color:var(--accent-green); font-weight:600;">● CANLI YAYIN</span>
-            </div>
-          </div>
-        </div>
-        <button class="modal-close" onclick="closeLivePlayer()">✕</button>
-      </div>
-
-      <div style="background: #000; position: relative; width: 100%; aspect-ratio: 16/9; max-height: 60vh; display:flex; align-items:center; justify-content:center; overflow:hidden;">
-        <video id="liveVideo" controls autoplay playsinline style="width: 100%; height: 100%; object-fit: contain; outline:none;"></video>
-        <div id="liveVideoSpinner" style="position:absolute; color:#fff; display:none; flex-direction:column; align-items:center; gap:10px; font-size:13px; background:rgba(10,12,18,0.75); padding:16px 24px; border-radius:14px; backdrop-filter:blur(15px); border:1px solid rgba(255,255,255,0.1);">
-          <span>⏳ Canlı Yayın Başlatılıyor...</span>
-        </div>
-      </div>
-
-      <div class="modal-controls" style="justify-content: space-between;">
-        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-          <button class="btn-mini primary" onclick="openInInfuse()" title="Infuse ile aç">⚡ Infuse ile Aç</button>
-          <button class="btn-mini" onclick="openInVLC()" title="VLC veya IINA ile aç">⚡ VLC ile Aç</button>
-          <button class="btn-mini" onclick="copyCurrentLiveStream()" title="HLS Proxy adresini kopyala">📋 Proxy Linki</button>
-          <button class="btn-mini" onclick="copyDirectLiveStream()" title="Doğrudan ham CDN linkini kopyala">📡 Ham CDN</button>
-        </div>
-        <div style="font-size: 11px; color: var(--text-secondary); display:flex; align-items:center; gap:6px;">
-          <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--accent-green);"></span>
-          <span id="livePlayerStreamInfo">HLS Proxy Aktif (CORS Açık)</span>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <div class="app-container">
     <!-- SwiftUI App Navigation Header -->
     <header class="app-header">
@@ -1203,10 +1119,6 @@ const glassmorphismHTML = `<!DOCTYPE html>
         <button class="segment-btn" onclick="switchTab('library')">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>
           Kütüphanem (<span id="libCountBadge">0</span>)
-        </button>
-        <button class="segment-btn" onclick="switchTab('live')">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect width="20" height="15" x="2" y="7" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg>
-          Canlı TV
         </button>
         <button class="segment-btn" onclick="switchTab('providers')">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -1253,19 +1165,10 @@ const glassmorphismHTML = `<!DOCTYPE html>
         <div id="libraryGrid" class="media-grid"></div>
       </div>
 
-      <!-- TAB 3: LIVE TV -->
-      <div id="tab-live" style="display:none;">
-        <div class="section-header">
-          <h2 class="section-title">Canlı TV Yayınları</h2>
-          <span style="color:var(--text-tertiary); font-size:13px;">WebDAV Klasörü: /dav/Canli_TV/</span>
-        </div>
-        <div id="liveGrid" class="live-grid"></div>
-      </div>
-
-      <!-- TAB 4: PROVIDERS -->
+      <!-- TAB 3: PROVIDERS -->
       <div id="tab-providers" style="display:none;">
         <div class="section-header">
-          <h2 class="section-title">Kayıtlı 41 Sağlayıcı Motoru</h2>
+          <h2 class="section-title">Kayıtlı 34 Sağlayıcı Motoru</h2>
           <span style="color:var(--text-tertiary); font-size:13px;">Anthology Akıllı Çözücü Aktif</span>
         </div>
         <div id="providersGrid" class="providers-grid"></div>
@@ -1290,7 +1193,6 @@ const glassmorphismHTML = `<!DOCTYPE html>
       }
       if (e.key === 'Escape') {
         closeSourceModal();
-        closeLivePlayer();
       }
     });
 
@@ -1319,17 +1221,14 @@ const glassmorphismHTML = `<!DOCTYPE html>
         btn.classList.toggle('active', 
           (tab === 'search' && idx === 0) ||
           (tab === 'library' && idx === 1) ||
-          (tab === 'live' && idx === 2) ||
-          (tab === 'providers' && idx === 3)
+          (tab === 'providers' && idx === 2)
         );
       });
       document.getElementById('tab-search').style.display = tab === 'search' ? 'block' : 'none';
       document.getElementById('tab-library').style.display = tab === 'library' ? 'block' : 'none';
-      document.getElementById('tab-live').style.display = tab === 'live' ? 'block' : 'none';
       document.getElementById('tab-providers').style.display = tab === 'providers' ? 'block' : 'none';
 
       if (tab === 'library') loadLibrary();
-      if (tab === 'live') loadLive();
       if (tab === 'providers') loadProviders();
     }
 
@@ -1351,16 +1250,6 @@ const glassmorphismHTML = `<!DOCTYPE html>
       renderLibrary();
     }
 
-    function isProviderRelevantForType(p, mediaType) {
-      if (mediaType === 'anime') {
-        return p.category === 'Anime' || p.id === 'vidlink';
-      }
-      if (mediaType === 'series') {
-        return p.category === 'Dizi' || p.id === 'vidlink' || p.id === 'vidmody';
-      }
-      return p.category === 'Film';
-    }
-
     function renderLibrary() {
       const grid = document.getElementById('libraryGrid');
       let filtered = libraryItems;
@@ -1379,8 +1268,8 @@ const glassmorphismHTML = `<!DOCTYPE html>
         const poster = it.poster_url || 'https://via.placeholder.com/300x450/111/444?text=Poster';
         const workingSet = new Set(it.working_providers || []);
 
-        // Filter providers by category (or keep only working ones if discovered)
-        let relevantProvs = providerList.filter(p => isProviderRelevantForType(p, it.type));
+        // Include all 34 providers without separating movie, series, and anime sources
+        let relevantProvs = [...providerList];
         if (workingSet.size > 0) {
           relevantProvs.sort((a, b) => (workingSet.has(b.id) ? 1 : 0) - (workingSet.has(a.id) ? 1 : 0));
         }
@@ -1619,189 +1508,6 @@ const glassmorphismHTML = `<!DOCTYPE html>
       }
     }
 
-    let activeHls = null;
-    let currentLiveStreamUrl = '';
-    let currentLiveDirectUrl = '';
-    let currentLiveChannelName = '';
-
-    async function loadLive() {
-      const grid = document.getElementById('liveGrid');
-      grid.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding: 30px;">Kanallar yükleniyor...</div>';
-      try {
-        const res = await fetch('/api/live');
-        const list = await res.json() || [];
-        grid.innerHTML = list.slice(0, 100).map(ch => {
-          const name = ch.Name || ch.name || 'Bilinmeyen Kanal';
-          const group = ch.Group || ch.group || 'Canlı TV';
-          const logo = ch.Logo || ch.logo || '';
-          const streamUrl = ch.URL || ch.url || '';
-
-          let logoHtml = '';
-          if (logo) {
-            logoHtml = '<div class="provider-logo-box">' +
-              '<img class="provider-logo-img" src="' + logo + '" alt="' + name + '" ' +
-                'onload="this.style.display=\'block\'; if(this.nextElementSibling) this.nextElementSibling.style.display=\'none\';" ' +
-                'onerror="this.style.display=\'none\'; if(this.nextElementSibling) this.nextElementSibling.style.display=\'flex\';">' +
-              '<div class="provider-fallback-icon" style="display:none;">📺</div>' +
-            '</div>';
-          } else {
-            logoHtml = '<div class="provider-logo-box"><div class="provider-fallback-icon">📺</div></div>';
-          }
-
-          const nameEsc = name.replace(/'/g, "\\'");
-          const groupEsc = group.replace(/'/g, "\\'");
-          const logoEsc = logo.replace(/'/g, "\\'");
-          const urlEsc = streamUrl.replace(/'/g, "\\'");
-
-          return '<div class="live-card" onclick="openLiveChannel(\'' + nameEsc + '\', \'' + groupEsc + '\', \'' + logoEsc + '\', \'' + urlEsc + '\')">' +
-            logoHtml +
-            '<div class="live-info">' +
-              '<div class="live-title" title="' + name + '">' + name + '</div>' +
-              '<div class="live-meta">' +
-                '<span class="provider-cat-tag">' + group + '</span>' +
-                '<span>•</span>' +
-                '<span>HLS Canlı</span>' +
-              '</div>' +
-            '</div>' +
-            '<button class="status-badge" style="border:none; cursor:pointer;" onclick="event.stopPropagation(); openLiveChannel(\'' + nameEsc + '\', \'' + groupEsc + '\', \'' + logoEsc + '\', \'' + urlEsc + '\')">OYNAT</button>' +
-          '</div>';
-        }).join('');
-      } catch (e) {
-        grid.innerHTML = '<div style="color:var(--accent-pink);">Canlı yayınlar yüklenemedi.</div>';
-      }
-    }
-
-    function openLiveChannel(name, group, logo, directUrl) {
-      currentLiveChannelName = name;
-      currentLiveDirectUrl = directUrl;
-      document.getElementById('livePlayerTitle').textContent = name;
-      document.getElementById('livePlayerGroup').textContent = group || 'Canlı TV';
-
-      const logoImg = document.getElementById('livePlayerLogo');
-      const fallbackIcon = document.getElementById('livePlayerFallbackIcon');
-      if (logo) {
-        logoImg.src = logo;
-        logoImg.style.display = 'block';
-        fallbackIcon.style.display = 'none';
-        logoImg.onerror = () => {
-          logoImg.style.display = 'none';
-          fallbackIcon.style.display = 'flex';
-        };
-      } else {
-        logoImg.style.display = 'none';
-        fallbackIcon.style.display = 'flex';
-      }
-
-      const video = document.getElementById('liveVideo');
-      const spinner = document.getElementById('liveVideoSpinner');
-      spinner.style.display = 'flex';
-
-      // Route through our WebDAV HLS CORS Proxy
-      const proxyStreamUrl = window.location.origin + '/stream/m3u_list?id=' + encodeURIComponent(name + '|||' + directUrl);
-      currentLiveStreamUrl = proxyStreamUrl;
-
-      if (activeHls) {
-        activeHls.destroy();
-        activeHls = null;
-      }
-
-      if (window.Hls && Hls.isSupported()) {
-        activeHls = new Hls({
-          enableWorker: true,
-          lowLatencyMode: true,
-          backBufferLength: 60
-        });
-        activeHls.loadSource(proxyStreamUrl);
-        activeHls.attachMedia(video);
-        activeHls.on(Hls.Events.MANIFEST_PARSED, () => {
-          spinner.style.display = 'none';
-          video.play().catch(e => console.log('Autoplay deferred:', e));
-        });
-        activeHls.on(Hls.Events.ERROR, (event, data) => {
-          if (data.fatal) {
-            console.warn('HLS stream error:', data);
-            switch (data.type) {
-              case Hls.ErrorTypes.NETWORK_ERROR:
-                activeHls.startLoad();
-                break;
-              case Hls.ErrorTypes.MEDIA_ERROR:
-                activeHls.recoverMediaError();
-                break;
-              default:
-                if (video.src !== directUrl) {
-                  video.src = directUrl;
-                  video.play().catch(() => {});
-                }
-                break;
-            }
-          }
-        });
-      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        video.src = proxyStreamUrl;
-        video.addEventListener('loadedmetadata', () => {
-          spinner.style.display = 'none';
-          video.play().catch(e => console.log('Autoplay deferred:', e));
-        }, { once: true });
-      } else {
-        spinner.style.display = 'none';
-        showToast('Tarayıcınız HLS video desteklemiyor, harici medya oynatıcı ile açabilirsiniz.', '⚠️');
-      }
-
-      document.getElementById('livePlayerModal').classList.add('open');
-    }
-
-    function closeLivePlayer() {
-      const modal = document.getElementById('livePlayerModal');
-      if (!modal) return;
-      modal.classList.remove('open');
-      const video = document.getElementById('liveVideo');
-      if (video) {
-        video.pause();
-        video.removeAttribute('src');
-        video.load();
-      }
-      if (activeHls) {
-        activeHls.destroy();
-        activeHls = null;
-      }
-      currentLiveStreamUrl = '';
-      currentLiveDirectUrl = '';
-    }
-
-    function openInInfuse() {
-      if (!currentLiveStreamUrl) return;
-      window.location.href = 'infuse://x-callback-url/play?url=' + encodeURIComponent(currentLiveStreamUrl);
-      showToast('Infuse başlatılıyor...', '⚡');
-    }
-
-    function openInVLC() {
-      if (!currentLiveStreamUrl) return;
-      window.location.href = 'vlc://' + currentLiveStreamUrl;
-      showToast('VLC başlatılıyor...', '⚡');
-    }
-
-    function copyCurrentLiveStream() {
-      if (!currentLiveStreamUrl) return;
-      navigator.clipboard.writeText(currentLiveStreamUrl).then(() => {
-        showToast(currentLiveChannelName + ' proxy akış linki kopyalandı!', '📋');
-      }).catch(() => {
-        prompt('Yayın Proxy Linki:', currentLiveStreamUrl);
-      });
-    }
-
-    function copyDirectLiveStream() {
-      if (!currentLiveDirectUrl) return;
-      navigator.clipboard.writeText(currentLiveDirectUrl).then(() => {
-        showToast(currentLiveChannelName + ' doğrudan CDN linki kopyalandı!', '📡');
-      }).catch(() => {
-        prompt('Doğrudan CDN Linki:', currentLiveDirectUrl);
-      });
-    }
-
-    function copyLiveStream(name, url) {
-      openLiveChannel(name, 'Canlı TV', '', url);
-    }
-
     async function loadProviders() {
       const grid = document.getElementById('providersGrid');
       grid.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding: 30px;">Sağlayıcılar taranıyor...</div>';
@@ -1812,7 +1518,7 @@ const glassmorphismHTML = `<!DOCTYPE html>
           const title = p.title || p.name;
           const icon = p.icon || '⚡';
           const domain = p.domain || '';
-          const hasFavicon = domain && !domain.endsWith('.m3u') && !domain.includes('github.com');
+          const hasFavicon = domain && !domain.includes('github.com');
           const faviconUrl = hasFavicon ? 'https://www.google.com/s2/favicons?domain=' + encodeURIComponent(domain) + '&sz=64' : '';
 
           let logoHtml = '';

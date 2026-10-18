@@ -5,7 +5,7 @@
 
   <p>
     <img src="https://img.shields.io/badge/Go-1.24+-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go 1.24+" />
-    <img src="https://img.shields.io/badge/Sağlayıcı-41_Aktif_Motor-0A84FF?style=for-the-badge" alt="41 Aktif Sağlayıcı" />
+    <img src="https://img.shields.io/badge/Sağlayıcı-34_Aktif_Motor-0A84FF?style=for-the-badge" alt="34 Aktif Sağlayıcı" />
     <img src="https://img.shields.io/badge/Depolama-Sıfır_Disk_(In--Memory_VFS)-30D158?style=for-the-badge" alt="Sıfır Disk" />
     <img src="https://img.shields.io/badge/Protokol-WebDAV_%26_HLS/Range_Proxy-BF5AF2?style=for-the-badge" alt="WebDAV & Proxy" />
   </p>
@@ -26,14 +26,14 @@
 9. [Metadata, Posterler ve Videolar Neden Bazen Geç Yüklenir? (Nasıl Hızlandırılır?)](#-9-metadata-posterler-ve-videolar-neden-bazen-geç-yüklenir-nasıl-hızlandırılır)
 10. [Bölümleri ve Filmleri Cihaza Nasıl İndirirsiniz? (Çevrimdışı İzleme Rehberi)](#-10-bölümleri-ve-filmleri-cihaza-nasıl-indirirsiniz-çevrimdışı-izleme-rehberi)
 11. [Kullanım Kolaylığı İçin Kısayollar, Uygulama Modu ve Pratik İpuçları](#-11-kullanım-kolaylığı-için-kısayollar-uygulama-modu-ve-pratik-ipuçları)
-12. [Kayıtlı 41 Sağlayıcı Motoru](#-12-kayıtlı-41-sağlayıcı-motoru)
+12. [Kayıtlı 34 Sağlayıcı Motoru](#-12-kayıtlı-34-sağlayıcı-motoru)
 13. [Sorun Giderme (Troubleshooting) ve Sıkça Sorulan Sorular (SSS)](#-13-sorun-giderme-troubleshooting-ve-sıkça-sorulan-sorular-sss)
 
 ---
 
 ## 🎯 1. Bu Proje Ne İçin Yapıldı? (Vizyon ve Amaç)
 
-İnternet üzerinden Türkçe dublaj veya altyazılı bir film, yabancı dizi, yerli dizi, anime ya da canlı TV yayını izlemek istediğinizde genellikle şu sorunlarla karşılaşırsınız:
+İnternet üzerinden Türkçe dublaj veya altyazılı bir film, yabancı dizi, yerli dizi veya anime izlemek istediğinizde genellikle şu sorunlarla karşılaşırsınız:
 - Tarayıcıda açılan onlarca reklam penceresi, sahte "Oynat" butonları ve düşük kaliteli web oynatıcıları,
 - Bir sitenin kapanması veya videonun silinmesi yüzünden başka sitelerde tek tek bölüm arama zahmeti,
 - Videoları bilgisayarınıza veya telefonunuza indirmeye kalktığınızda yüzlerce gigabaytlık disk alanının dolması,
@@ -42,7 +42,7 @@
 **Anthology WebDAV**, tüm bu sorunları kökten çözmek için geliştirilmiş **sıfır disk alanı harcayan (Zero-Disk / In-Memory)** yerel bir medya sunucusu ve akıllı yayın çözücüsüdür:
 
 1. **Sıfır Disk Alanı Tüketimi:** Bilgisayarınızın SSD/HDD'sine **tek bir megabayt bile video indirmez**. Tüm klasörler ve dosyalar sanal olarak RAM üzerinde üretilir.
-2. **41 Kaynak Tek Merkezde:** Türkiye'nin en popüler **8 anime, 12 dizi, 14 film ve 7 canlı TV/spor** kaynağını tek bir Go mikroservisi içinde birleştirir.
+2. **34 Kaynak Tek Merkezde:** Türkiye'nin en popüler **8 anime, 12 dizi ve 14 film** kaynağını tek bir Go mikroservisi içinde birleştirir.
 3. **Sıfır Karmaşa (Akıllı Kütüphane):** Binlerce izlemeyeceğiniz filmin klasörleriyle medya oynatıcınızı çöplüğe çevirmez. Web arayüzünden sadece izlemek istediğiniz filmi, diziyi veya animeyi aratıp **"+ Kütüphaneme Ekle"** dersiniz; o içeriğin tüm sezon ve bölümleri saniyesinde medya oynatıcınıza hazır düşer.
 4. **En Üst Düzey Oynatıcı Deneyimi:** Tarayıcıların hantal video oynatıcıları yerine videoları doğrudan **Infuse, Kodi, IINA, VLC, VidHub, Nova Video Player** gibi profesyonel medya oynatıcılarında; donanım hızlandırmalı, 1080p/4K kalitesinde, reklamsız ve tam ekran olarak izlemenizi sağlar.
 5. **%100 Otomatik Poster ve Konu Özeti (Metadata):** Klasör ve dosya isimleri uluslararası medya standartlarında (`{Başlık} ({Yıl})/Season 01/{Başlık} - S01E01.strm`) üretildiği için medya oynatıcınız afişleri, arka plan görsellerini, IMDb puanlarını, oyuncu kadrosunu ve Türkçe bölüm özetlerini otomatik olarak bulup eşleştirir.
@@ -63,7 +63,7 @@ flowchart LR
     A["Kullanıcı (Web Arayüzü)"] -- "1. İçeriği Kütüphaneye Ekler" --> B["Anthology WebDAV Sunucusu (RAM VFS)"]
     C["Medya Oynatıcı (Infuse / Kodi / VLC)"] -- "2. /dav/ Klasörünü Tarar" --> B
     B -- "3. Sanal .strm Dosyalarını Gösterir" --> C
-    C -- "4. Bölüme Tıklar (/stream/resolve)" --> D["Çoklu Kaynak Çözücü (41 Sağlayıcı)"]
+    C -- "4. Bölüme Tıklar (/stream/resolve)" --> D["Çoklu Kaynak Çözücü (34 Sağlayıcı)"]
     D -- "5. En İyi 1080p Kaynağı Bulur & Şifreyi Çözer" --> E["Stream & HLS Proxy (HTTP 206 Range)"]
     E -- "6. Kesintisiz Video Akışı" --> C
 ```
@@ -235,7 +235,7 @@ Varsayılan olarak sunucu sadece kendi bilgisayarınızdan erişim için `127.0.
 
 Sunucu çalışırken tarayıcınızdan **[http://localhost:8085/](http://localhost:8085/)** adresini açın. Karşınıza modern, hızlı ve sade **Anthology WebDAV** yönetim arayüzü çıkacaktır.
 
-Arayüzün üst barında **4 ana sekme** bulunur:
+Arayüzün üst barında **3 ana sekme** bulunur:
 
 ### 🔍 1. Keşfet & Ara Sekmesi
 - Ortadaki geniş arama çubuğuna izlemek istediğiniz herhangi bir **film, dizi veya anime** adını yazın (Türkçe veya orijinal İngilizce/Japonca adıyla aratabilirsiniz).
@@ -245,18 +245,13 @@ Arayüzün üst barında **4 ana sekme** bulunur:
 
 ### 📚 2. Kütüphanem Sekmesi
 - Eklediğiniz tüm içerikleri tek bir ekranda görebilir, sağ üstteki filtre haplarıyla (**Tümü**, **🎬 Filmler**, **📺 Diziler**, **⛩️ Animeler**) süzebilirsiniz.
-- **Kaynak Seçici (Provider Selector):** Her içeriğin kartında bir açılır menü (`Oto / Çoklu Çözücü`) bulunur:
-  - **`Oto / Çoklu Çözücü` (Varsayılan & Tavsiye Edilen):** Videoyu açtığınızda tüm uygun sağlayıcıları aynı anda tarar ve en yüksek kaliteli çalışan yayını otomatik seçer.
+- **Kaynak Seçici (Provider Selector) & Çalışan Kaynakları Bul:** Her içeriğin kartında bir açılır menü ve **"🔍 Çalışan Kaynakları Bul"** butonu bulunur:
+  - **`Otomatik (En İyi Çalışan Kaynak)` (Varsayılan & Tavsiye Edilen):** Videoyu açtığınızda tüm uygun sağlayıcıları aynı anda tarar ve en yüksek kaliteli çalışan yayını otomatik seçer.
   - **Belirli Bir Sağlayıcıya Sabitleme:** Örneğin bir animenin sadece *AnimeciX* veya *Anizium* çevirisiyle, ya da bir filmin sadece *FilmModu* kaynağıyla açılmasını istiyorsanız menüden o sağlayıcıyı seçebilirsiniz. Tercihiniz anında kaydedilir.
-- **Kütüphaneden Sil:** İzlemeyi bitirdiğiniz bir içeriği **"Kütüphaneden Sil"** butonuyla kaldırabilirsiniz.
+- **Kütüphaneden Çıkar:** İzlemeyi bitirdiğiniz bir içeriği **"Kütüphaneden Çıkar"** butonuyla kaldırabilirsiniz.
 
-### 📺 3. Canlı TV Sekmesi
-- Canlı TV kanallarının TMDB gibi bir dizi/film veritabanıyla ilgisi olmadığı için **arama yapmanıza veya kütüphaneye tek tek eklemenize gerek yoktur.** Tüm kanallar zaten hazırdır!
-- **Web Arayüzünde:** Kanal logoları ve gruplarıyla listelenen kartlardan herhangi birine veya üzerindeki **"OYNAT"** butonuna tıkladığınızda, o kanalın canlı HLS (`.m3u8`) yayın adresi otomatik olarak panonuza kopyalanır. Bu adresi VLC, IINA veya Infuse'da (`⌘N` / Ağ Akışı Aç) yapıştırarak anında izleyebilirsiniz.
-- **WebDAV Destekli Medya Oynatıcılarda (Infuse, Kodi, Nova vb.):** WebDAV'da `/dav/Canli_TV/` klasörüne girdiğinizde tüm kanallar kategorilerine ayrılmış hazır `.strm` dosyaları olarak doğrudan karşınıza çıkar; tıklayıp anında izleyebilirsiniz.
-
-### ⚙️ 4. Sağlayıcılar Sekmesi
-- Sistemde aktif olan **41 sağlayıcı motorunun** tamamını, resmi logolarını, hizmet verdikleri kategoriyi (`Film`, `Dizi`, `Anime`, `Canlı TV`), güncel alan adlarını ve çalışma durumlarını (`AKTİF`) görebilirsiniz.
+### ⚙️ 3. Sağlayıcılar Sekmesi
+- Sistemde aktif olan **34 sağlayıcı motorunun** tamamını, resmi logolarını, hizmet verdikleri kategoriyi (`Film`, `Dizi`, `Anime`), güncel alan adlarını ve çalışma durumlarını (`AKTİF`) görebilirsiniz.
 
 ---
 
@@ -275,28 +270,20 @@ Medya oynatıcınızla veya dosya yöneticinizle `/dav/` adresine bağlandığı
 ├── Diziler/                                    # Kütüphanenize eklediğiniz yabancı ve yerli diziler
 │   └── Breaking Bad (2008)/
 │       ├── Season 01/
-│       │   ├── Breaking Bad - S01E01.strm
-│       │   ├── Breaking Bad - S01E02.strm
+│       │   ├── Breaking Bad (2008) - S01E01.strm
+│       │   ├── Breaking Bad (2008) - S01E02.strm
 │       │   └── ...
 │       └── Season 02/
 │
 ├── Animeler/                                   # Kütüphanenize eklediğiniz animeler
 │   └── Solo Leveling (2024)/
 │       └── Season 01/
-│           ├── Solo Leveling - S01E01.strm
+│           ├── Solo Leveling (2024) - S01E01.strm
 │           └── ...
 │
-├── Canli_TV/                                   # Otomatik hazır Canlı TV ve Spor kategorileri
-│   ├── Ulusal_Kanallar/                        # TRT 1, ATV, Kanal D, Show TV, Star, NOW vb.
-│   ├── Spor_Kanallari/                         # Canlı maç yayınları ve spor kanalları (5 ayrı motor)
-│   ├── Sinema_Kanallari/                       # Film ve dizi kanalları
-│   ├── Belgesel_ve_Cocuk/                      # Belgesel ve çizgi film kanalları
-│   ├── Haber_Kanallari/                        # Haber kanalları
-│   ├── Muzik_ve_Eglence/                       # Müzik ve yaşam kanalları
-│   └── Tum_Kanallar/                           # Birleştirilmiş tam M3U kanal arşivi
-│
+├── _Kaynak_Sec_/                               # İsteğe bağlı doğrulanmış kaynak seçici klasörü
 ├── Watchlist/                                  # Finder/Dosya Yöneticisi içinden yeni klasör açarak arama dizini
-└── _Tum_Saglayicilar/                          # 41 sağlayıcının vitrinlerini tek tek gezmek isteyenler için arşiv
+└── _Tum_Saglayicilar/                          # 34 sağlayıcının vitrinlerini tek tek gezmek isteyenler için arşiv
 ```
 
 ### B. Proje Klasöründeki Fiziksel Dosyalar
@@ -320,9 +307,9 @@ Projenin kurulu olduğu klasörde yalnızca şu küçük yapılandırma dosyalar
    - **Gelişmiş (Advanced) -> Port:** `8085`
    - **Gelişmiş (Advanced) -> Yol (Path):** `/dav`
 4. **Kaydet (Save)** butonuna basın.
-5. Açılan klasör listesinden **`Filmler`**, **`Diziler`**, **`Animeler`** ve **`Canli_TV`** klasörlerinin üzerine sağ tıklayıp (veya basılı tutup) **"Favorilere Ekle" (Add to Favorites)** seçin.
+5. Açılan klasör listesinden **`Filmler`**, **`Diziler`** ve **`Animeler`** klasörlerinin üzerine sağ tıklayıp (veya basılı tutup) **"Favorilere Ekle" (Add to Favorites)** seçin.
    > [!TIP]
-   > **`_Tum_Saglayicilar` klasörünü favorilere eklemeyin!** Böylece oynatıcınız 41 sağlayıcının binlerce vitrin içeriğini taramakla vakit kaybetmez, sadece sizin kütüphanenize eklediğiniz içerikleri saniyeler içinde indeksler.
+   > **`_Tum_Saglayicilar` klasörünü favorilere eklemeyin!** Böylece oynatıcınız 34 sağlayıcının binlerce vitrin içeriğini taramakla vakit kaybetmez, sadece sizin kütüphanenize eklediğiniz içerikleri saniyeler içinde indeksler.
 
 ### 2. VidHub & SenPlayer (macOS, iOS, iPadOS, Apple TV)
 1. Uygulamayı açıp **File Source / Medya Kaynağı Ekle -> WebDAV** bölümüne girin.
@@ -347,7 +334,7 @@ Projenin kurulu olduğu klasörde yalnızca şu küçük yapılandırma dosyalar
 3. `Filmler` ve `Diziler` klasörlerine sağ tıklayıp **"Kütüphaneye İndeksle" (Index folder)** seçeneğine basın.
 
 ### 5. VLC Media Player & IINA
-- **Doğrudan Bağlantı / Canlı TV:** Web arayüzündeki **Canlı TV** sekmesinden kopyaladığınız yayın adresini VLC'de `⌘N` (`Ctrl+N`) veya IINA'da `⌘O` ("URL Aç...") penceresine yapıştırarak anında oynatabilirsiniz.
+- **Doğrudan Bağlantı (Ağ Akışı):** Web arayüzündeki **Çalışan Kaynakları Bul** penceresinden kopyaladığınız doğrulanmış yayın adresini VLC'de `⌘N` (`Ctrl+N`) veya IINA'da `⌘O` ("URL Aç...") penceresine yapıştırarak anında oynatabilirsiniz.
 - **Finder / Dosya Gezgini Üzerinden:** WebDAV'ı işletim sisteminize disk olarak bağladığınızda (bkz. alt madde), klasör içindeki `.strm` dosyalarını doğrudan VLC veya IINA penceresine sürükleyip bırakarak oynatabilirsiniz.
 
 ### 6. İşletim Sistemine Doğrudan Disk Sürücüsü Olarak Bağlama
@@ -369,8 +356,8 @@ Anthology WebDAV kullanırken bazı durumlarda dizi klasörlerinin açılmasın�
 
 ### 1. Sıfır Disk ve İstek Üzerine Üretim (On-Demand / Lazy Loading)
 Fiziksel bir sabit diskte dosyalar önceden oluşturulmuştur. Anthology WebDAV'da ise diskinizde hiçbir dosya yoktur:
-- Siz kütüphanenize 5 sezonluk bir dizi eklediğinizde ve o klasöre **ilk kez** girdiğinizde, sunucu TMDB veritabanına bağlanıp 5 sezonun tamamındaki bölüm sayılarını ve isimlerini çeker, ardından yüzlerce `.strm` dosyasını o anda RAM üzerinde inşa eder.
-- **Önbellek (Cache) Avantajı:** İlk girişte çekilen bu sezon/bölüm verisi **6 saat boyunca RAM önbelleğinde** tutulur. Klasöre ikinci kez girdiğinizde bekleme süresi **0 saniyedir** (anında açılır).
+- Siz kütüphanenize 5 sezonluk bir dizi eklediğinizde, sunucu TMDB veritabanına bağlanıp sezon ve bölüm sayılarını çeker ve `library.json` içine önbellekler.
+- **Önbellek (Cache) Avantajı:** Sezon/bölüm verisi doğrudan yerel önbellekten okunduğu için klasör gezinme süresi **0 milisaniyedir** (anında açılır).
 
 ### 2. Medya Oynatıcılarda "Gömülü Metadata" (Embedded Metadata) Ayarı — *Önemli Performans İpucu*
 Infuse, VidHub, Kodi veya benzeri bir medya oynatıcı yeni eklenen bölümleri tararken eğer **"Gömülü Metaveri / Embedded Metadata"** ayarı açıksa, her bir `.strm` dosyasının sadece ismine bakmakla yetinmez; video dosyasının içine girip codec/çözünürlük bilgisi okumaya çalışır. Bu da oynatıcının arka planda 50 bölümün tamamını aynı anda oynatmaya çalışıp sağlayıcılara gereksiz yüzlerce istek atmasına ve taramanın çok yavaşlamasına yol açar!
@@ -383,7 +370,7 @@ Infuse, VidHub, Kodi veya benzeri bir medya oynatıcı yeni eklenen bölümleri 
 >
 > *(Örneğin Infuse'da: **Ayarlar -> Genel -> Gömülü Metadata: KAPALI**)*
 >
-> Bu ayarı kapattığınızda oynatıcı dosyaların içine ağ isteği atmaz; doğrudan `Breaking Bad - S01E01.strm` dosya adından posteri ve Türkçe özeti **milisaniyeler içinde** çeker!
+> Bu ayarı kapattığınızda oynatıcı dosyaların içine ağ isteği atmaz; doğrudan `Breaking Bad (2008) - S01E01.strm` dosya adından posteri ve Türkçe özeti **milisaniyeler içinde** çeker!
 
 ### 3. İlk Oynatma (Cold Start) vs. Önbellekli Oynatma (Warm Cache)
 - Bir filme veya bölüme **ilk kez** tıkladığınızda (`Cold Start`), Anthology WebDAV arka planda 8 ila 14 farklı sağlayıcı sitesine aynı anda bağlanır, arama yapar, şifreli player kodlarını (VidMoly, CloseLoad, TauVideo, Vidrame XOR vb.) çözer ve en yüksek çözünürlüklü akışı seçer. Bu işlem kaynak sitelerin yanıt hızına göre **1.5 ile 4 saniye** sürer.
@@ -442,7 +429,7 @@ curl -s -I "http://127.0.0.1:8085/stream/resolve?type=movie&tmdb_id=27205&title=
 ## ⌨️ 11. Kullanım Kolaylığı İçin Kısayollar, Uygulama Modu ve Pratik İpuçları
 
 ### 1. Klavye Kısayolları
-- **`⌘K` (macOS) / `Ctrl + K` (Windows/Linux):** Web arayüzünde hangi sekmede olursanız olun (`Kütüphanem`, `Canlı TV` veya `Sağlayıcılar`), bu kısayola bastığınızda otomatik olarak **Keşfet & Ara** sekmesine geçilir ve imleç doğrudan arama kutusuna odaklanır.
+- **`⌘K` (macOS) / `Ctrl + K` (Windows/Linux):** Web arayüzünde hangi sekmede olursanız olun (`Kütüphanem` veya `Sağlayıcılar`), bu kısayola bastığınızda otomatik olarak **Keşfet & Ara** sekmesine geçilir ve imleç doğrudan arama kutusuna odaklanır.
 
 ### 2. Web Arayüzünü Bağımsız Masaüstü Uygulamasına Dönüştürme (Dock / Görev Çubuğu)
 Her seferinde tarayıcıda sekme aramak yerine **Anthology WebDAV** arayüzünü gerçek bir masaüstü uygulaması gibi Dock'unuza veya görev çubuğunuza sabitleyebilirsiniz:
@@ -460,7 +447,7 @@ Tarayıcıdan veya terminalden `http://127.0.0.1:8085/health` adresini açarak a
 
 ---
 
-## 🧩 12. Kayıtlı 41 Sağlayıcı Motoru
+## 🧩 12. Kayıtlı 34 Sağlayıcı Motoru
 
 Anthology WebDAV içerisinde yer alan tüm sağlayıcılar ve kategorileri:
 
@@ -469,7 +456,6 @@ Anthology WebDAV içerisinde yer alan tüm sağlayıcılar ve kategorileri:
 | **⛩️ Anime** | **8** | `AnimeciX`, `Anizium`, `SonAnime`, `AniMom`, `Anizm`, `SeiCode`, `AsyaAnimeleri`, `AnimePrax` |
 | **📺 Yabancı & Yerli Dizi** | **12** | `DiziWatch`, `DiziBox`, `DiziYou`, `DiziMom`, `DiziPod`, `DiziBak`, `Yabancı Dizi`, `DDizi`, `PuhuTV`, `TrDiziİzle`, `TvDiziler`, `Anthology Dizi Arşivi` |
 | **🎬 Film & Sinema** | **14** | `FilmModu`, `HDFilmCehennemi`, `HDFilmİzle`, `HDFilmDelisi`, `Kült Filmler`, `LiderFilmİzle`, `SetFilmİzle`, `SinemaCX`, `SineWix`, `VidLink Cloud`, `Vidmody`, `Webteİzle`, `YouTube Dizi & Film`, `Anthology M3U Arşivi` |
-| **📡 Canlı TV & Spor** | **7** | `Ulusal Kanallar`, `Spor Kanalları & Canlı Maç (5 Platformlu Motor)`, `Sinema TV Kanalları`, `Belgesel & Çocuk`, `Haber Kanalları`, `Müzik & Eğlence`, `Tüm Canlı Kanallar (M3U)` |
 
 ---
 

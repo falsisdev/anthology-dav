@@ -7,7 +7,6 @@ const (
 	MediaTypeMovie  MediaType = "movie"
 	MediaTypeSeries MediaType = "series"
 	MediaTypeAnime  MediaType = "anime"
-	MediaTypeLive   MediaType = "live"
 )
 
 // MediaItem represents a catalog or search result item.
@@ -27,7 +26,7 @@ type Season struct {
 	Episodes []Episode `json:"episodes,omitempty"`
 }
 
-// Episode represents a single episode or movie/live playable entry.
+// Episode represents a single episode or movie playable entry.
 type Episode struct {
 	ID        string     `json:"id"`
 	StreamID  string     `json:"stream_id"`
@@ -63,7 +62,6 @@ type StreamSource struct {
 	Quality   string            `json:"quality"` // e.g. "2160p", "1080p", "720p", "480p", "Auto"
 	Format    string            `json:"format"`  // "hls", "mp4", "mkv"
 	IsHLS     bool              `json:"is_hls"`
-	IsLive    bool              `json:"is_live,omitempty"`
 	Headers   map[string]string `json:"headers,omitempty"`
 	Subtitles []Subtitle        `json:"subtitles,omitempty"`
 }

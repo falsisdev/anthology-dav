@@ -89,7 +89,7 @@ func (h *ProxyHandler) ServeStreamResult(w http.ResponseWriter, r *http.Request,
 	var lastErr error
 
 	for i, candidate := range candidates {
-		isHLS := candidate.IsHLS || strings.Contains(strings.ToLower(candidate.URL), ".m3u8") || candidate.IsLive
+		isHLS := candidate.IsHLS || strings.Contains(strings.ToLower(candidate.URL), ".m3u8")
 		if isHLS {
 			err := h.serveHLSManifest(w, r, candidate.URL, candidate.Headers)
 			if err == nil {

@@ -249,7 +249,7 @@ func PrewarmLibraryItemMetadata(ctx context.Context, item *config.LibraryItem) {
 			add(engTitle)
 			add(item.OriginalTitle)
 			for _, a := range mData.AlternativeTitles.Titles {
-				if a.ISO3166_1 == "US" || a.ISO3166_1 == "GB" || a.ISO3166_1 == "TR" {
+				if a.ISO3166_1 == "US" || a.ISO3166_1 == "GB" || a.ISO3166_1 == "TR" || a.ISO3166_1 == "JP" || a.ISO3166_1 == "ROM" {
 					add(a.Title)
 				}
 			}

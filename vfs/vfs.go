@@ -23,7 +23,6 @@ const (
 	FolderMovies     = "Filmler"
 	FolderSeries     = "Diziler"
 	FolderAnime      = "Animeler"
-	FolderLiveTV     = "Canli_TV"
 	FolderSourcePick = "_Kaynak_Sec_"
 	FolderLegacyAll  = "_Tum_Saglayicilar"
 	FolderCatalog    = "Populer_ve_Vitrin"
@@ -189,7 +188,6 @@ func (v *AnthologyVFS) OpenFile(ctx context.Context, name string, flag int, perm
 			NewDirFileInfo(FolderMovies, v.bootTime),
 			NewDirFileInfo(FolderSeries, v.bootTime),
 			NewDirFileInfo(FolderAnime, v.bootTime),
-			NewDirFileInfo(FolderLiveTV, v.bootTime),
 			NewDirFileInfo(FolderSourcePick, v.bootTime),
 			NewDirFileInfo(FolderWatchlist, v.bootTime),
 			NewDirFileInfo(FolderLegacyAll, v.bootTime),
@@ -205,8 +203,6 @@ func (v *AnthologyVFS) OpenFile(ctx context.Context, name string, flag int, perm
 		return v.handleLibrarySeriesOrAnime(ctx, "series", FolderSeries, segs[1:])
 	case FolderAnime:
 		return v.handleLibrarySeriesOrAnime(ctx, "anime", FolderAnime, segs[1:])
-	case FolderLiveTV:
-		return v.handleLiveTV(ctx, segs[1:])
 	case FolderSourcePick:
 		return v.handleSourcePicker(ctx, segs[1:])
 	case FolderWatchlist:
@@ -556,47 +552,6 @@ func parseEpisodeFolderNumber(name string) int {
 	}
 	num, _ := strconv.Atoi(upper)
 	return num
-}
-
-// ── Live TV Handler (/dav/Canli_TV/...) ──────────────────────────────────────
-
-type liveCategory struct {
-	Folder     string
-	ProviderID string
-}
-
-var liveCategories = []liveCategory{
-	{Folder: "Ulusal_Kanallar", ProviderID: "anthology_ulusal"},
-	{Folder: "Spor_Kanallari", ProviderID: "anthology_spor"},
-	{Folder: "Sinema_Kanallari", ProviderID: "anthology_sinema"},
-	{Folder: "Belgesel_ve_Cocuk", ProviderID: "anthology_belgesel_cocuk"},
-	{Folder: "Haber_Kanallari", ProviderID: "anthology_haber"},
-	{Folder: "Muzik_ve_Eglence", ProviderID: "anthology_muzik"},
-	{Folder: "Tum_Kanallar", ProviderID: "m3u_list"},
-}
-
-func (v *AnthologyVFS) handleLiveTV(ctx context.Context, rest []string) (webdav.File, error) {
-	if len(rest) == 0 {
-		var children []fs.FileInfo
-		for _, lc := range liveCategories {
-			children = append(children, NewDirFileInfo(lc.Folder, v.bootTime))
-		}
-		return NewVirtualDir(FolderLiveTV, children, v.bootTime), nil
-	}
-
-	subFolder := rest[0]
-	var targetProv providers.Provider
-	for _, lc := range liveCategories {
-		if strings.EqualFold(lc.Folder, subFolder) {
-			targetProv, _ = providers.GetByID(lc.ProviderID)
-			break
-		}
-	}
-	if targetProv == nil {
-		return nil, os.ErrNotExist
-	}
-
-	return v.handleProviderCatalog(ctx, targetProv, rest[1:])
 }
 
 // ── Legacy Provider Explorer (/dav/_Tum_Saglayicilar/...) ─────────────────────

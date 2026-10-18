@@ -34,27 +34,40 @@ func NewMultiResolver(proxy *ProxyHandler) *MultiResolver {
 	return &MultiResolver{proxy: proxy}
 }
 
-// CandidateProvidersForType returns the ordered list of candidate provider IDs for a given media type.
+// CandidateProvidersForType returns all 34 registered VOD providers in a unified pool without separating movie, series, and anime sources.
 func CandidateProvidersForType(mediaType string) []string {
-	switch strings.ToLower(strings.TrimSpace(mediaType)) {
-	case "anime":
-		return []string{
-			"animecix", "anizium", "sonanime", "animom",
-			"seicode", "anizm", "asyaanimeleri", "animeprax", "vidlink",
-		}
-	case "series", "tv":
-		return []string{
-			"diziwatch", "diziboxizle", "diziyou", "dizimom",
-			"dizipod", "dizibak", "yabancidizi", "vidlink", "vidmody",
-			"ddizi", "puhutv", "trdiziizle", "tvdiziler", "anthology_diziler",
-		}
-	default: // "movie"
-		return []string{
-			"filmmodu", "hdfilmcehennemi", "hdfilmizle", "hdfilmdelisi",
-			"vidlink", "vidmody", "webteizle", "setfilmizle",
-			"kultfilmler", "liderfilmizle", "sinemacx", "sinewix",
+	unifiedOrder := []string{
+		// Direct TMDB/IMDb cloud resolvers & hybrid
+		"vidlink", "vidmody", "sinewix",
+		// Anime & Asian providers
+		"animecix", "anizium", "sonanime", "animom",
+		"seicode", "anizm", "asyaanimeleri", "animeprax",
+		// Series & hybrid providers
+		"diziwatch", "diziboxizle", "diziyou", "dizimom",
+		"dizipod", "dizibak", "yabancidizi",
+		"ddizi", "puhutv", "trdiziizle", "tvdiziler", "anthology_diziler",
+		// Movie & hybrid providers
+		"filmmodu", "hdfilmcehennemi", "hdfilmizle", "hdfilmdelisi",
+		"webteizle", "setfilmizle", "kultfilmler", "liderfilmizle",
+		"sinemacx", "youtube_dizifilm", "anthology_m3u",
+	}
+
+	seen := make(map[string]bool, len(unifiedOrder))
+	var result []string
+	for _, id := range unifiedOrder {
+		if !seen[id] {
+			seen[id] = true
+			result = append(result, id)
 		}
 	}
+	for _, p := range providers.All() {
+		id := p.ID()
+		if !seen[id] {
+			seen[id] = true
+			result = append(result, id)
+		}
+	}
+	return result
 }
 
 // HandleResolve handles /stream/resolve?type={movie|series|anime}&tmdb_id={id}&title={title}&original_title={orig}&year={year}&season={s}&episode={e}&provider={prov}
@@ -442,18 +455,33 @@ func (mr *MultiResolver) resolveFromProvider(ctx context.Context, prov providers
 
 	if mediaType == "movie" {
 		streamID := matchedItem.ID
-		if det, err := prov.GetDetails(ctx, matchedItem.ID); err == nil && det != nil {
+		var det *providers.MediaDetail
+		if d, err := prov.GetDetails(ctx, matchedItem.ID); err == nil && d != nil {
+			det = d
 			if det.StreamID != "" {
 				streamID = det.StreamID
 			}
 		}
-		return prov.ResolveStream(ctx, streamID)
+		if res, err := prov.ResolveStream(ctx, streamID); err == nil && res != nil && res.Primary.URL != "" {
+			return res, nil
+		}
+		// Fallback for anime/series providers that store movies as Season 1 Episode 1
+		eps, _ := prov.GetEpisodes(ctx, matchedItem.ID, 1)
+		if len(eps) == 0 && det != nil && len(det.Seasons) > 0 {
+			eps = det.Seasons[0].Episodes
+		}
+		if len(eps) > 0 && eps[0].StreamID != "" {
+			return prov.ResolveStream(ctx, eps[0].StreamID)
+		}
+		return nil, fmt.Errorf("%s: could not resolve movie stream for '%s'", prov.Name(), title)
 	}
 
-	// 4. Series / Anime strict season & episode resolution
+	// 4. Series / Anime strict season & episode resolution (with single-entry fallback for S01E01)
+	var det *providers.MediaDetail
 	episodes, err := prov.GetEpisodes(ctx, matchedItem.ID, season)
 	if err != nil || len(episodes) == 0 {
-		if det, err := prov.GetDetails(ctx, matchedItem.ID); err == nil && det != nil {
+		if d, err := prov.GetDetails(ctx, matchedItem.ID); err == nil && d != nil {
+			det = d
 			for _, s := range det.Seasons {
 				if s.Number == season {
 					episodes = s.Episodes
@@ -468,6 +496,19 @@ func (mr *MultiResolver) resolveFromProvider(ctx context.Context, prov providers
 	}
 
 	if len(episodes) == 0 {
+		// If requesting S01E01 and the provider stores it as a single direct stream (e.g., movie/hybrid provider)
+		if season == 1 && episode == 1 {
+			streamID := matchedItem.ID
+			if det == nil {
+				det, _ = prov.GetDetails(ctx, matchedItem.ID)
+			}
+			if det != nil && det.StreamID != "" {
+				streamID = det.StreamID
+			}
+			if res, err := prov.ResolveStream(ctx, streamID); err == nil && res != nil && res.Primary.URL != "" {
+				return res, nil
+			}
+		}
 		return nil, fmt.Errorf("%s: season %d not found", prov.Name(), season)
 	}
 
