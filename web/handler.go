@@ -122,8 +122,8 @@ func (h *Handler) handleDiscoverSources(w http.ResponseWriter, r *http.Request) 
 	title := strings.TrimSpace(q.Get("title"))
 	origTitle := strings.TrimSpace(q.Get("original_title"))
 	year := strings.TrimSpace(q.Get("year"))
-	season, _ := strconv.Atoi(q.Get("season"))
-	episode, _ := strconv.Atoi(q.Get("episode"))
+	season, _ := strconv.Atoi(strings.TrimSpace(q.Get("season")))
+	episode, _ := strconv.Atoi(strings.TrimSpace(q.Get("episode")))
 
 	if season <= 0 {
 		season = 1

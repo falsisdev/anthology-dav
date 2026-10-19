@@ -62,12 +62,14 @@ func CandidateProvidersForType(mediaType string) []string {
 func (mr *MultiResolver) HandleResolve(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	mediaType := strings.ToLower(strings.TrimSpace(q.Get("type")))
-	tmdbID, _ := strconv.Atoi(q.Get("tmdb_id"))
+	tmdbID, _ := strconv.Atoi(strings.TrimSpace(q.Get("tmdb_id")))
 	title := strings.TrimSpace(q.Get("title"))
 	origTitle := strings.TrimSpace(q.Get("original_title"))
 	year := strings.TrimSpace(q.Get("year"))
-	season, _ := strconv.Atoi(q.Get("season"))
-	episode, _ := strconv.Atoi(q.Get("episode"))
+	// TrimSpace is critical: players forward the .strm trailing newline as "%0A" (e.g. "9\n"),
+	// which made Atoi fail and silently fall back to episode 1.
+	season, _ := strconv.Atoi(strings.TrimSpace(q.Get("season")))
+	episode, _ := strconv.Atoi(strings.TrimSpace(q.Get("episode")))
 	preferredProv := strings.TrimSpace(q.Get("provider"))
 
 	if season <= 0 {
@@ -119,13 +121,8 @@ func (mr *MultiResolver) HandleResolve(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Fast-path for media player metadata indexing (HEAD probes): do NOT trigger multi-provider scraping!
-	if r.Method == http.MethodHead {
-		w.Header().Set("Content-Type", "video/mp4")
-		w.Header().Set("Accept-Ranges", "bytes")
-		w.WriteHeader(http.StatusOK)
-		return
-	}
+	// NOTE: HEAD is resolved fully (no fast-path). Infuse sends HEAD before playback and aborts
+	// if it receives an empty 200 without a real Content-Length.
 
 	// 2. Determine Candidate Providers
 	var candidates []string
@@ -239,7 +236,14 @@ func (mr *MultiResolver) HandleResolve(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	allSources = append(allSources, fallbackSources...)
+	// Native providers strictly match title + season + episode; cloud resolvers (VidLink/Vidmody)
+	// are only used when no native provider returned a stream (they often mis-map episodes).
+	if len(allSources) == 0 {
+		allSources = fallbackSources
+	}
+	sort.SliceStable(foundResults, func(i, j int) bool {
+		return !isCloudResolver(foundResults[i].providerID) && isCloudResolver(foundResults[j].providerID)
+	})
 
 	bestResult, err := providers.SelectBestStream(allSources)
 	if err != nil || bestResult == nil || bestResult.Primary.URL == "" {
@@ -377,13 +381,26 @@ func (mr *MultiResolver) DiscoverSources(ctx context.Context, mediaType string, 
 
 	wg.Wait()
 
-	// Sort discovered sources by quality (1080p > 720p > HD > 480p)
+	// Sort discovered sources: native (strict title+episode matched) providers first, then by quality.
+	// Cloud resolvers (VidLink/Vidmody) frequently mis-map anime/series episodes (e.g. E09 -> E01).
 	sort.SliceStable(discovered, func(i, j int) bool {
+		ci, cj := isCloudResolver(discovered[i].ProviderID), isCloudResolver(discovered[j].ProviderID)
+		if ci != cj {
+			return !ci
+		}
 		return qualityWeight(discovered[i].Quality) > qualityWeight(discovered[j].Quality)
 	})
 
-	if len(allSources) > 0 {
-		if bestResult, err := providers.SelectBestStream(allSources); err == nil && bestResult != nil && bestResult.Primary.URL != "" {
+	if len(allSources) > 0 && len(discovered) > 0 {
+		bestSources := allSources
+		if !isCloudResolver(discovered[0].ProviderID) {
+			if v, ok := mr.proxy.cache.Get(fmt.Sprintf("resolve:%s:%d:%s:%d:%d:%s", mediaType, tmdbID, title, season, episode, discovered[0].ProviderID)); ok {
+				if r, ok := v.(*providers.StreamResult); ok && r != nil {
+					bestSources = append([]providers.StreamSource{r.Primary}, r.Alternates...)
+				}
+			}
+		}
+		if bestResult, err := providers.SelectBestStream(bestSources); err == nil && bestResult != nil && bestResult.Primary.URL != "" {
 			autoKey1 := fmt.Sprintf("resolve:%s:%d:%s:%d:%d:auto", mediaType, tmdbID, title, season, episode)
 			autoKey2 := fmt.Sprintf("resolve:%s:%d:%s:%d:%d:", mediaType, tmdbID, title, season, episode)
 			mr.proxy.cache.Set(autoKey1, bestResult, 45*time.Minute)
@@ -682,4 +699,10 @@ func isStrictTitleMatch(knownTitles []string, expectedYear, candidateTitle, cand
 	}
 
 	return false
+}
+
+// isCloudResolver reports whether a provider is a TMDB-ID based cloud resolver (VidLink/Vidmody).
+// These are used only as last-resort fallbacks because their anime/series episode mapping is unreliable.
+func isCloudResolver(id string) bool {
+	return id == "vidlink" || id == "vidmody"
 }
