@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -24,7 +25,13 @@ import (
 
 func main() {
 	hostFlag := flag.String("host", config.DefaultHost, "Bind host address")
-	portFlag := flag.Int("port", config.DefaultPort, "Bind port number")
+	defaultPort := config.DefaultPort
+	if envPort := os.Getenv("PORT"); envPort != "" {
+		if p, err := strconv.Atoi(envPort); err == nil && p > 0 {
+			defaultPort = p
+		}
+	}
+	portFlag := flag.Int("port", defaultPort, "Bind port number")
 	watchlistFlag := flag.String("watchlist", "", "Path to watchlist.json file")
 	libraryFlag := flag.String("library", "", "Path to library.json file")
 	publicURLFlag := flag.String("public-url", os.Getenv("ANTHOLOGY_PUBLIC_URL"), "Client-facing base URL written into .strm files (e.g. http://192.168.1.10:8085)")
