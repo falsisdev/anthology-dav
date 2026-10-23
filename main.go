@@ -93,6 +93,23 @@ func main() {
 		http.Redirect(w, r, "/dav/", http.StatusMovedPermanently)
 	})
 	mux.HandleFunc("/dav/", func(w http.ResponseWriter, r *http.Request) {
+		lowPath := strings.ToLower(strings.TrimSuffix(r.URL.Path, "/"))
+		isMediaFile := strings.HasSuffix(lowPath, ".strm") || strings.HasSuffix(lowPath, ".vtt") || strings.HasSuffix(lowPath, ".srt") || strings.HasSuffix(lowPath, ".m3u")
+		if (r.Method == http.MethodGet || r.Method == http.MethodHead) && !isMediaFile {
+			// Standard WebDAV clients use PROPFIND on directories; x/net/webdav returns 405 on GET for directories.
+			// Serving the M3U playlist on GET /dav/ allows VLC Network Stream users who enter /dav/ to load the library seamlessly.
+			q := r.URL.Query()
+			if strings.HasPrefix(lowPath, "/dav/filmler") {
+				q.Set("type", "movie")
+			} else if strings.HasPrefix(lowPath, "/dav/diziler") {
+				q.Set("type", "series")
+			} else if strings.HasPrefix(lowPath, "/dav/animeler") {
+				q.Set("type", "anime")
+			}
+			r.URL.RawQuery = q.Encode()
+			webHandler.HandlePlaylistM3U(w, r)
+			return
+		}
 		ctx := context.WithValue(r.Context(), vfs.RequestHostKey, r.Host)
 		davHandler.ServeHTTP(w, r.WithContext(ctx))
 	})
@@ -103,6 +120,10 @@ func main() {
 	mux.HandleFunc("/sub/", proxyHandler.HandleSub)
 	mux.HandleFunc("/proxy/media", proxyHandler.HandleProxyMedia)
 
+	// VLC / M3U Playlist endpoints (/playlist.m3u and /playlist.m3u8)
+	mux.HandleFunc("/playlist.m3u", webHandler.HandlePlaylistM3U)
+	mux.HandleFunc("/playlist.m3u8", webHandler.HandlePlaylistM3U)
+
 	// API endpoints for Web UI
 	mux.HandleFunc("/api/", webHandler.HandleAPI)
 
@@ -110,12 +131,13 @@ func main() {
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		all := providers.All()
 		libCount := len(config.Library().All())
+		lan := config.DetectLANAddresses(cfg.Port)
 		var provList []map[string]string
 		for _, p := range all {
 			provList = append(provList, map[string]string{
 				"id":   p.ID(),
 				"name": p.Name(),
-				"dav":  fmt.Sprintf("%s/dav/%s/", cfg.BaseURL, vfs.SanitizeFileName(p.Name())),
+				"dav":  fmt.Sprintf("%s/dav/%s/", lan.PrimaryURL, vfs.SanitizeFileName(p.Name())),
 			})
 		}
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -123,8 +145,10 @@ func main() {
 			"status":         "ok",
 			"provider_count": len(all),
 			"library_count":  libCount,
-			"webdav_url":     cfg.BaseURL + "/dav/",
-			"web_ui_url":     cfg.BaseURL + "/",
+			"webdav_url":     lan.PrimaryURL + "/dav/",
+			"playlist_url":   lan.PrimaryURL + "/playlist.m3u",
+			"web_ui_url":     lan.PrimaryURL + "/",
+			"lan":            lan,
 			"providers":      provList,
 		})
 	})
@@ -133,6 +157,10 @@ func main() {
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/" || r.URL.Path == "/logo.png" || r.URL.Path == "/favicon.ico" || strings.HasPrefix(r.URL.Path, "/assets/") {
 			webHandler.ServeHTTP(w, r)
+			return
+		}
+		if r.URL.Path == "/playlist.m3u" || r.URL.Path == "/playlist.m3u8" {
+			webHandler.HandlePlaylistM3U(w, r)
 			return
 		}
 		if strings.HasPrefix(r.URL.Path, "/dav") {
@@ -152,7 +180,7 @@ func main() {
 		sw := &statusWriter{ResponseWriter: w, code: http.StatusOK}
 		mux.ServeHTTP(sw, r)
 		dur := time.Since(start)
-		if strings.HasPrefix(r.URL.Path, "/stream") || strings.HasPrefix(r.URL.Path, "/proxy") || (strings.HasPrefix(r.URL.Path, "/dav") && r.Method != "PROPFIND") {
+		if strings.HasPrefix(r.URL.Path, "/stream") || strings.HasPrefix(r.URL.Path, "/proxy") || strings.HasPrefix(r.URL.Path, "/playlist") || (strings.HasPrefix(r.URL.Path, "/dav") && r.Method != "PROPFIND") {
 			log.Printf("[REQ] %s %s -> %d (%v) Range=%q UA=%s", r.Method, r.URL.RequestURI(), sw.code, dur, r.Header.Get("Range"), r.UserAgent())
 		}
 	})
@@ -164,10 +192,13 @@ func main() {
 	}
 
 	go func() {
+		lan := config.DetectLANAddresses(cfg.Port)
 		log.Printf("================================================================")
 		log.Printf("Anthology WebDAV started on %s", cfg.BaseURL)
-		log.Printf("Web UI:               %s/", cfg.BaseURL)
-		log.Printf("WebDAV Root:        %s/dav/", cfg.BaseURL)
+		log.Printf("Web UI (Local):       %s/", cfg.BaseURL)
+		log.Printf("Web UI (LAN/Tablet):  %s/", lan.PrimaryURL)
+		log.Printf("WebDAV Root (LAN):    %s/dav/", lan.PrimaryURL)
+		log.Printf("VLC M3U Playlist:     %s/playlist.m3u", lan.PrimaryURL)
 		log.Printf("Registered Providers: %d", providers.Count())
 		log.Printf("Library Items Count:  %d", len(config.Library().All()))
 		log.Printf("================================================================")

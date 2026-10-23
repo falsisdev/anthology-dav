@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -13,7 +14,7 @@ import (
 )
 
 const (
-	DefaultHost       = "127.0.0.1"
+	DefaultHost       = "0.0.0.0"
 	DefaultPort       = 8085
 	DefaultUserAgent  = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 	DefaultTMDBAPIKey = "500330721680edb6d5f7f12ba7cd9023"
@@ -71,7 +72,7 @@ func Get() *Config {
 		globalCfg = &Config{
 			Host:          DefaultHost,
 			Port:          DefaultPort,
-			BaseURL:       fmt.Sprintf("http://%s:%d", DefaultHost, DefaultPort),
+			BaseURL:       fmt.Sprintf("http://127.0.0.1:%d", DefaultPort),
 			UserAgent:     DefaultUserAgent,
 			CatalogTTL:    1 * time.Hour,
 			DetailsTTL:    6 * time.Hour,
@@ -92,9 +93,90 @@ func (c *Config) SetBind(host string, port int) {
 	publicHost := host
 	switch host {
 	case "", "0.0.0.0", "::", "[::]":
-		publicHost = DefaultHost
+		publicHost = "127.0.0.1"
 	}
 	c.BaseURL = fmt.Sprintf("http://%s:%d", publicHost, port)
+}
+
+// LANInfo holds detected local network / Hotspot addresses for connecting from tablets, phones, and TVs.
+type LANInfo struct {
+	PrimaryIP  string   `json:"primary_ip"`
+	PrimaryURL string   `json:"primary_url"`
+	AllIPs     []string `json:"all_ips"`
+}
+
+// DetectLANAddresses discovers the active physical Wi-Fi / LAN / Hotspot IPv4 address
+// (ignoring virtual bridges like bridge0, bridge100, utun, vmnet, docker).
+func DetectLANAddresses(port int) LANInfo {
+	info := LANInfo{
+		AllIPs: []string{},
+	}
+	seen := make(map[string]bool)
+
+	// 1. Outbound route UDP probe (zero packets sent, reveals OS active route interface IP)
+	if conn, err := net.DialTimeout("udp", "8.8.8.8:80", 300*time.Millisecond); err == nil {
+		if udpAddr, ok := conn.LocalAddr().(*net.UDPAddr); ok && udpAddr.IP != nil {
+			ip := udpAddr.IP.To4()
+			if ip != nil && !ip.IsLoopback() {
+				ipStr := ip.String()
+				info.PrimaryIP = ipStr
+				info.AllIPs = append(info.AllIPs, ipStr)
+				seen[ipStr] = true
+			}
+		}
+		_ = conn.Close()
+	}
+
+	// 2. Enumerate active physical interfaces (en0, eth0, wlan0, etc.) excluding virtual bridges/tunnels
+	if ifaces, err := net.Interfaces(); err == nil {
+		for _, iface := range ifaces {
+			if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+				continue
+			}
+			lowName := strings.ToLower(iface.Name)
+			if strings.HasPrefix(lowName, "bridge") ||
+				strings.HasPrefix(lowName, "utun") ||
+				strings.HasPrefix(lowName, "awdl") ||
+				strings.HasPrefix(lowName, "llw") ||
+				strings.HasPrefix(lowName, "veth") ||
+				strings.HasPrefix(lowName, "docker") ||
+				strings.HasPrefix(lowName, "vmnet") ||
+				strings.HasPrefix(lowName, "vboxnet") ||
+				strings.HasPrefix(lowName, "anpi") ||
+				strings.HasPrefix(lowName, "ap") {
+				continue
+			}
+			addrs, err := iface.Addrs()
+			if err != nil {
+				continue
+			}
+			for _, a := range addrs {
+				ipNet, ok := a.(*net.IPNet)
+				if !ok || ipNet.IP == nil {
+					continue
+				}
+				ip4 := ipNet.IP.To4()
+				if ip4 == nil || ip4.IsLoopback() || ip4.IsLinkLocalUnicast() {
+					continue
+				}
+				ipStr := ip4.String()
+				if !seen[ipStr] {
+					seen[ipStr] = true
+					info.AllIPs = append(info.AllIPs, ipStr)
+					if info.PrimaryIP == "" {
+						info.PrimaryIP = ipStr
+					}
+				}
+			}
+		}
+	}
+
+	if info.PrimaryIP == "" {
+		info.PrimaryIP = "127.0.0.1"
+	}
+	info.PrimaryURL = fmt.Sprintf("http://%s:%d", info.PrimaryIP, port)
+
+	return info
 }
 
 // SetPublicURL overrides the client-facing BaseURL (e.g. http://192.168.1.10:8085

@@ -210,41 +210,48 @@ make install-service
 
 ---
 
-## 🌐 5. Ev Ağındaki (LAN) Diğer Cihazlardan (TV, Telefon, Tablet) Bağlanma
+## 🌐 5. Ev Ağındaki (LAN) ve Mobil Hotspot Üzerindeki Diğer Cihazlardan (TV, Telefon, Tablet) Bağlanma
 
-Varsayılan olarak sunucu sadece kendi bilgisayarınızdan erişim için `127.0.0.1` (localhost) üzerinde başlar. Ancak sunucuyu **Apple TV, Android TV, iPhone, iPad veya evdeki başka bir bilgisayardan** kullanmak istiyorsanız:
+Anthology WebDAV varsayılan olarak `0.0.0.0:8085` (tüm yerel ağ arayüzleri) üzerinde başlar ve hangi cihazdan bağlanırsanız yayın linklerini o IP adresine göre otomatik üretir. Sunucuyu **Apple TV, Android TV, Android Tablet/Telefon, iPhone veya iPad** üzerinden kullanmak için:
 
-1. **Sunucuyu Tüm Ağ Kartlarını Dinleyecek Şekilde (`0.0.0.0`) Başlatın:**
-   ```bash
-   ./anthology-dav -host 0.0.0.0 -port 8085
-   ```
-   *(Arka plan servisi kullanıyorsanız `scripts/com.falsisdev.anthology-dav.plist` içindeki `127.0.0.1` değerini bilgisayarınızın yerel IP adresi veya `0.0.0.0` ile değiştirebilirsiniz.)*
+1. **Gerçek Yerel Ağ / Hotspot IP Adresinizi Öğrenin:**
+   - **En Kolay Yöntem (Web Arayüzü):** Bilgisayarınızda `http://localhost:8085/` adresini açıp sağ üstteki **`📱 VLC & Cihaz Bağlantısı`** butonuna tıklayın. Sunucu; `bridge0`, `utun` veya sanal makine gibi sanal ağ kartlarını otomatik filtreler ve diğer cihazlardan bağlanabileceğiniz yerel ağ bağlantısını doğrudan ekranda gösterir.
+   - **Terminal Üzerinden:**
+     - **macOS:** `ipconfig getifaddr en0` *(veya Bonjour adıyla: `http://<BilgisayarAdı>.local:8085`)*
+     - **Windows:** `ipconfig` (Wi-Fi IPv4 satırı)
+     - **Linux:** `hostname -I`
 
-2. **Bilgisayarınızın Yerel IP Adresini Öğrenin:**
-   - **macOS:** Terminal'e `ipconfig getifaddr en0` yazın (Örn: `192.168.1.45`).
-   - **Windows:** Komut İstemi'ne `ipconfig` yazıp **IPv4 Address** satırına bakın.
-   - **Linux:** `hostname -I` yazın.
+2. **Diğer Cihazlardan Erişin:**
+   - Tablet, telefon veya TV'nizde `127.0.0.1` (localhost) **yazmayın** (`127.0.0.1` yalnızca sunucunun çalıştığı bilgisayarın kendisini ifade eder). Bunun yerine Web Arayüzünde gösterilen gerçek yerel IP adresinizi girin.
+   - Tablet veya telefonunuzun tarayıcısından `http://<Bilgisayar_IP>:8085/` adresine girerek kütüphanenize yeni film/dizi ekleyebilir ve tek dokunuşla **"▶ VLC'de Oynat"** butonunu kullanabilirsiniz!
 
-3. **Diğer Cihazlardan Erişin:**
-   - Telefon veya TV'nizdeki medya oynatıcıya WebDAV adresi olarak `127.0.0.1` yerine bilgisayarınızın yerel IP adresini (`192.168.1.45`) girin!
-   - Hatta telefonunuzun tarayıcısından `http://192.168.1.45:8085/` adresine girerek koltuğunuzdan kalkmadan televizyonda izleyeceğiniz filmi kütüphanenize ekleyebilirsiniz!
+3. **📡 Mobil İnternet Paylaşımı (Hotspot) Kullanırken Dikkat Edilmesi Gerekenler:**
+   - Hem bilgisayarınızı hem de tabletinizi telefonunuzun mobil internet paylaşımına (Hotspot) bağladığınızda bilgisayarınız genellikle `10.x.x.x` veya `172.20.10.x` bloğundan bir IP alır (Web arayüzünün sağ üst köşesinde otomatik görünür).
+   - **Android Telefon Hotspot'u:** Bağlı cihazların (bilgisayar ve tablet) birbiriyle yerel IP üzerinden konuşmasına doğrudan izin verir.
+   - **iPhone (iOS Kişisel Erişim Noktası) İstemci İzolasyonu:** iOS güvenlik gereği Wi-Fi hotspot'a bağlanan iki cihazın birbirine doğrudan erişmesini engelleyebilir (*AP Client Isolation*). Eğer iPhone Hotspot kullanırken tablette arayüz açılmazsa:
+     1. Önce Bonjour adresini deneyin: `http://<BilgisayarAdı>.local:8085/`
+     2. Telefonu Mac'e **USB kablosuyla** bağlayıp interneti Mac'e verin, ardından Mac'te **Sistem Ayarları -> Genel -> Paylaşma -> İnternet Paylaşımı**'nı açıp Wi-Fi üzerinden tablete paylaşın.
+     3. Veya her iki cihaza ücretsiz **Tailscale** kurarak ağ kısıtlamalarından tamamen bağımsız sabit IP ile bağlanın.
 
 ---
 
 ## 🖥️ 6. Web Arayüzünün (`Anthology WebDAV`) Kullanımı
 
-Sunucu çalışırken tarayıcınızdan **[http://localhost:8085/](http://localhost:8085/)** adresini açın. Karşınıza modern, hızlı ve sade **Anthology WebDAV** yönetim arayüzü çıkacaktır.
+Sunucu çalışırken tarayıcınızdan **[http://localhost:8085/](http://localhost:8085/)** *(veya tablet/telefonunuzdan `http://<Bilgisayar_IP>:8085/`)* adresini açın. Karşınıza modern, hızlı ve sade **Anthology WebDAV** yönetim arayüzü çıkacaktır.
 
-Arayüzün üst barında **3 ana sekme** bulunur:
+Arayüzün üst barında **3 ana sekme** ve sağ üstte **`📱 VLC & Ağ`** bağlantı rehberi bulunur:
 
 ### 🔍 1. Keşfet & Ara Sekmesi
 - Ortadaki geniş arama çubuğuna izlemek istediğiniz herhangi bir **film, dizi veya anime** adını yazın (Türkçe veya orijinal İngilizce/Japonca adıyla aratabilirsiniz).
 - Siz yazarken **300ms** içinde sonuçlar posterleri, yayın yılları, IMDb/TMDB puanları ve tür etiketleriyle (`🎬 FILM`, `📺 DIZI`, `⛩️ ANIME`) listelenir.
 - **Akıllı Anime Algılama:** Sistem, Japon animasyonlarını normal dizilerden otomatik olarak ayırır ve `⛩️ ANIME` etiketiyle işaretler.
-- İzlemek istediğiniz içeriğin altındaki **"+ Kütüphaneme Ekle"** butonuna tıklayın. Buton anında yeşile dönerek **"✓ Kütüphanede"** olur ve içerik WebDAV sunucunuza eklenir!
+- İzlemek istediğiniz içeriğin altındaki **"+ Kütüphaneme Ekle"** butonuna tıklayın. Buton anında yeşile dönerek **"✓ Kütüphanede"** olur ve içerik WebDAV sunucunuza ve M3U oynatma listenize eklenir!
 
-### 📚 2. Kütüphanem Sekmesi
+### 📚 2. Kütüphanem Sekmesi & Doğrudan VLC Entegrasyonu
 - Eklediğiniz tüm içerikleri tek bir ekranda görebilir, sağ üstteki filtre haplarıyla (**Tümü**, **🎬 Filmler**, **📺 Diziler**, **⛩️ Animeler**) süzebilirsiniz.
+- **▶ VLC'de Oynat & M3U Oynatma Listesi:**
+  - Her film kartında **"▶ VLC'de Oynat"**, her dizi/anime kartında ise **"▶ Bölüm Seç & VLC'de Oynat"** butonu yer alır. Tablet, telefon veya bilgisayarda bu butona dokunduğunuzda doğrudan cihazınızdaki **VLC Media Player** uygulaması açılır ve yayın başlar!
+  - Ayrıca üst bardaki **"📋 VLC M3U Linkini Kopyala"** (`http://<IP>:8085/playlist.m3u`) butonuyla tüm kütüphanenizi tek bir oynatma listesi olarak VLC'ye ekleyebilirsiniz.
 - **Kaynak Seçici (Provider Selector) & Çalışan Kaynakları Bul:** Her içeriğin kartında bir açılır menü ve **"🔍 Çalışan Kaynakları Bul"** butonu bulunur:
   - **`Otomatik (En İyi Çalışan Kaynak)` (Varsayılan & Tavsiye Edilen):** Videoyu açtığınızda tüm uygun sağlayıcıları aynı anda tarar ve en yüksek kaliteli çalışan yayını otomatik seçer.
   - **Belirli Bir Sağlayıcıya Sabitleme:** Örneğin bir animenin sadece *AnimeciX* veya *Anizium* çevirisiyle, ya da bir filmin sadece *FilmModu* kaynağıyla açılmasını istiyorsanız menüden o sağlayıcıyı seçebilirsiniz. Tercihiniz anında kaydedilir.
@@ -333,9 +340,26 @@ Projenin kurulu olduğu klasörde yalnızca şu küçük yapılandırma dosyalar
 2. Protokol olarak **WebDAV (`http://`)**, Sunucu olarak bilgisayarınızın IP adresini (`192.168.1.X`), Port olarak `8085`, Klasör (Path) olarak `/dav` girin.
 3. `Filmler` ve `Diziler` klasörlerine sağ tıklayıp **"Kütüphaneye İndeksle" (Index folder)** seçeneğine basın.
 
-### 5. VLC Media Player & IINA
-- **Doğrudan Bağlantı (Ağ Akışı):** Web arayüzündeki **Çalışan Kaynakları Bul** penceresinden kopyaladığınız doğrulanmış yayın adresini VLC'de `⌘N` (`Ctrl+N`) veya IINA'da `⌘O` ("URL Aç...") penceresine yapıştırarak anında oynatabilirsiniz.
-- **Finder / Dosya Gezgini Üzerinden:** WebDAV'ı işletim sisteminize disk olarak bağladığınızda (bkz. alt madde), klasör içindeki `.strm` dosyalarını doğrudan VLC veya IINA penceresine sürükleyip bırakarak oynatabilirsiniz.
+### 5. VLC Media Player (Android Tablet/Telefon, iOS/iPadOS, macOS/Windows) & IINA
+> [!IMPORTANT]
+> **Android VLC Kullanıcıları İçin Önemli Bilgi:** Android için VLC uygulamasında (iOS sürümünün aksine) yerleşik **WebDAV klasör gezgini bulunmaz**; "Sunucu Ekle" menüsünde yalnızca `FTP, FTPS, FTPES, SFTP, SMB, NFS` protokolleri listelenir. Bu nedenle Android VLC'de ekstra bir uygulamaya ihtiyaç duymadan şu 2 yerleşik yöntemle izleyebilirsiniz:
+
+1. **Yöntem A — Web Arayüzünden Tek Tıkla "▶ VLC'de Oynat" (En Pratik):**
+   - Tablet veya telefonunuzun internet tarayıcısından (Chrome / Safari) `http://<Bilgisayar_IP>:8085/` adresine girin ve **Kütüphanem** sekmesini açın.
+   - Filmlerde **"▶ VLC'de Oynat"**, dizi/animelerde ise **"▶ Bölüm Seç & VLC'de Oynat"** butonuna dokunun.
+   - Tarayıcınız otomatik olarak cihazınızdaki **VLC** uygulamasını uyandırır ve videoyu doğrudan oynatmaya başlar!
+2. **Yöntem B — `/playlist.m3u` Oynatma Listesi ile Tüm Kütüphaneyi VLC İçinde Açma:**
+   - VLC'yi açın -> Alt menüden **Daha Fazla (More) -> Akışlar (Streams / Yeni Akış)** *(masaüstünde `⌘N` veya `Ctrl+N`)* bölümüne girin.
+   - Adres satırına şunu yazıp başlatın:
+     ```text
+     http://<Bilgisayar_IP>:8085/playlist.m3u
+     ```
+     *(Örn: `http://192.168.1.X:8085/playlist.m3u`)*
+   - Kütüphanenizdeki tüm filmler ve dizi/anime bölümleri VLC oynatma listesinde hazır olarak listelenir!
+3. **iOS / iPadOS VLC:**
+   - Yukarıdaki iki yönteme ek olarak iPad/iPhone VLC'de **Ağ (Network) -> Sunucuya Bağlan -> WebDAV (HTTP)** sekmesinden de bağlanabilirsiniz.
+4. **Finder / Dosya Gezgini Üzerinden (macOS / Windows):**
+   - WebDAV'ı işletim sisteminize disk olarak bağladığınızda (bkz. alt madde), klasör içindeki `.strm` dosyalarını doğrudan VLC veya IINA penceresine sürükleyip bırakarak oynatabilirsiniz.
 
 ### 6. İşletim Sistemine Doğrudan Disk Sürücüsü Olarak Bağlama
 - **macOS Finder:**
@@ -494,6 +518,25 @@ Arka planda zaten çalışan bir `anthology-dav` servisi vardır.
 <summary><strong>❓ 5. Bilgisayarımı formatlarsam veya projeyi başka bilgisayara taşırsam kütüphanem silinir mi?</strong></summary>
 
 Hayır! Kütüphanenize eklediğiniz tüm filmler, diziler, animeler ve sağlayıcı tercihleriniz proje klasöründeki **`library.json`** dosyasında tutulur. Sadece bu küçük dosyayı yedekleyip yeni kurulumunuza kopyaladığınızda tüm sanal arşiviniz kaldığı yerden devam eder.
+</details>
+
+<details>
+<summary><strong>❓ 6. Android tabletimde/telefonumda VLC'de "Sunucu Ekle" dediğimde sadece FTP, FTPS, SFTP, SMB, NFS var; WebDAV neden yok?</strong></summary>
+
+Android için VLC uygulamasında yerleşik bir WebDAV klasör gezgini modülü bulunmamaktadır. Hiçbir ek uygulama kurmadan Android VLC ile izlemek için:
+1. Tabletinizin tarayıcısından `http://<Bilgisayar_IP>:8085/` (ör. `http://192.168.1.X:8085/`) adresine girip içerik kartlarındaki **"▶ VLC'de Oynat"** butonuna dokunun, **VEYA**
+2. VLC içinde **Daha Fazla (More) -> Akışlar (Streams / Yeni Akış)** bölümüne `http://<Bilgisayar_IP>:8085/playlist.m3u` adresini yapıştırın.
+3. Klasör görünümüyle WebDAV kullanmak isterseniz Android'de ücretsiz ve açık kaynaklı **Nova Video Player** veya **Kodi** (ya da **CX Dosya Gezgini**) kullanabilirsiniz.
+</details>
+
+<details>
+<summary><strong>❓ 7. Bilgisayar ve tableti telefonumun mobil internet paylaşımına (Hotspot) bağladım ama arayüz açılmıyor?</strong></summary>
+
+1. Öncelikle bilgisayarınızda `http://localhost:8085/` adresini açıp sağ üstteki **`📱 VLC & Ağ`** butonuna tıklayın ve bilgisayarınızın Hotspot üzerinde aldığı gerçek IP adresini (genellikle `10.x.x.x` veya `172.20.10.x` bloğundadır; `127.0.0.1` veya `192.168.100.2` gibi sanal köprü IP'leri çalışmaz) öğrenin.
+2. **iPhone (iOS) Hotspot Kullanıyorsanız:** iOS güvenlik gereği Wi-Fi üzerinden bağlanan iki cihazın birbiriyle doğrudan iletişim kurmasını engelleyebilir (*AP Client Isolation*). Bunu aşmak için:
+   - Önce `http://<BilgisayarAdı>.local:8085/` adresini deneyin,
+   - Telefonu Mac'e USB kablosuyla bağlayıp Mac'te **Sistem Ayarları -> Genel -> Paylaşma -> İnternet Paylaşımı**'nı açarak Wi-Fi'ı Mac üzerinden paylaşın,
+   - Veya her iki cihaza ücretsiz **Tailscale** kurun.
 </details>
 
 ---

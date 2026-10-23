@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -321,14 +322,132 @@ func (h *Handler) handleProviders(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleStatus(w http.ResponseWriter, r *http.Request) {
 	libCount := len(config.Library().All())
+	lan := config.DetectLANAddresses(h.cfg.Port)
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"status":          "ok",
-		"version":         "2.0-glass",
+		"version":         "2.1-glass",
 		"apple_silicon":   true,
 		"providers_count": providers.Count(),
 		"library_count":   libCount,
-		"webdav_root":     h.cfg.BaseURL + "/dav/",
+		"webdav_root":     lan.PrimaryURL + "/dav/",
+		"playlist_url":    lan.PrimaryURL + "/playlist.m3u",
+		"lan":             lan,
 	})
+}
+
+// HandlePlaylistM3U dynamically generates an M3U8 playlist (/playlist.m3u & /playlist.m3u8)
+// for VLC (Android, iOS, Desktop), IINA, PotPlayer, and IPTV players that lack a WebDAV browser.
+func (h *Handler) HandlePlaylistM3U(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Content-Type", "audio/x-mpegurl; charset=utf-8")
+	if r.URL.Query().Get("download") == "1" {
+		w.Header().Set("Content-Disposition", `attachment; filename="anthology-kutuphane.m3u"`)
+	} else {
+		w.Header().Set("Content-Disposition", `inline; filename="anthology-kutuphane.m3u"`)
+	}
+
+	// Determine client-reachable base URL
+	baseURL := h.cfg.BaseURL
+	reqHost := strings.TrimSpace(r.Host)
+	if reqHost != "" {
+		lowHost := strings.ToLower(reqHost)
+		if strings.HasPrefix(lowHost, "127.0.0.1") || strings.HasPrefix(lowHost, "localhost") || strings.HasPrefix(lowHost, "[::1]") {
+			lan := config.DetectLANAddresses(h.cfg.Port)
+			if lan.PrimaryIP != "" && lan.PrimaryIP != "127.0.0.1" && (h.cfg.Host == "" || h.cfg.Host == "0.0.0.0" || h.cfg.Host == "::") {
+				baseURL = lan.PrimaryURL
+			} else {
+				baseURL = "http://" + reqHost
+			}
+		} else {
+			baseURL = "http://" + reqHost
+		}
+	}
+
+	q := r.URL.Query()
+	filterID := strings.TrimSpace(q.Get("id"))
+	filterType := strings.ToLower(strings.TrimSpace(q.Get("type")))
+	filterSeason, _ := strconv.Atoi(strings.TrimSpace(q.Get("season")))
+	filterEpisode, _ := strconv.Atoi(strings.TrimSpace(q.Get("episode")))
+	overrideProv := strings.TrimSpace(q.Get("provider"))
+
+	items := config.Library().All()
+	var sb strings.Builder
+	sb.WriteString("#EXTM3U\n")
+
+	for _, it := range items {
+		if filterID != "" && it.ID != filterID {
+			continue
+		}
+		if filterType != "" && !strings.EqualFold(it.Type, filterType) {
+			continue
+		}
+
+		prov := it.SelectedProvider
+		if overrideProv != "" {
+			prov = overrideProv
+		}
+		if prov == "" {
+			prov = "auto"
+		}
+
+		displayTitle := it.Title
+		if it.Year != "" {
+			displayTitle = fmt.Sprintf("%s (%s)", it.Title, it.Year)
+		}
+		cleanTitle := strings.ReplaceAll(displayTitle, ",", " ")
+		logo := it.PosterURL
+
+		if it.Type == "movie" {
+			streamURL := fmt.Sprintf("%s/stream/resolve?type=movie&tmdb_id=%d&title=%s&year=%s&provider=%s",
+				baseURL, it.TMDBID, url.QueryEscape(it.Title), url.QueryEscape(it.Year), url.QueryEscape(prov))
+			sb.WriteString(fmt.Sprintf("#EXTINF:-1 tvg-id=\"%d\" tvg-logo=\"%s\" group-title=\"Filmler\",%s\n%s\n",
+				it.TMDBID, logo, cleanTitle, streamURL))
+			continue
+		}
+
+		// Series or Anime
+		itemCopy := it
+		seasons := itemCopy.Seasons
+		if len(seasons) == 0 {
+			providers.PrewarmLibraryItemMetadata(r.Context(), &itemCopy)
+			seasons = itemCopy.Seasons
+		}
+		if len(seasons) == 0 {
+			seasons = []config.LibrarySeason{{SeasonNumber: 1, EpisodeCount: 12}}
+		}
+
+		catGroup := "Diziler"
+		if it.Type == "anime" {
+			catGroup = "Animeler"
+		}
+		groupTitle := fmt.Sprintf("%s - %s", catGroup, cleanTitle)
+
+		for _, s := range seasons {
+			if s.SeasonNumber <= 0 {
+				continue
+			}
+			if filterSeason > 0 && s.SeasonNumber != filterSeason {
+				continue
+			}
+			epCount := s.EpisodeCount
+			if epCount <= 0 {
+				epCount = 12
+			}
+			for ep := 1; ep <= epCount; ep++ {
+				if filterEpisode > 0 && ep != filterEpisode {
+					continue
+				}
+				epLabel := fmt.Sprintf("%s - S%02dE%02d", cleanTitle, s.SeasonNumber, ep)
+				streamURL := fmt.Sprintf("%s/stream/resolve?type=%s&tmdb_id=%d&title=%s&year=%s&season=%d&episode=%d&provider=%s",
+					baseURL, it.Type, it.TMDBID, url.QueryEscape(it.Title), url.QueryEscape(it.Year), s.SeasonNumber, ep, url.QueryEscape(prov))
+				sb.WriteString(fmt.Sprintf("#EXTINF:-1 tvg-id=\"%d_S%02dE%02d\" tvg-logo=\"%s\" group-title=\"%s\",%s\n%s\n",
+					it.TMDBID, s.SeasonNumber, ep, logo, groupTitle, epLabel, streamURL))
+			}
+		}
+	}
+
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(sb.String()))
 }
 
 // ── SwiftUI Glassmorphism Single Page App (Embedded HTML/CSS/JS) ─────
@@ -1069,9 +1188,100 @@ const glassmorphismHTML = `<!DOCTYPE html>
       background: var(--accent-blue);
       border-color: rgba(255, 255, 255, 0.25);
     }
+    .btn-mini.vlc {
+      background: rgba(255, 159, 10, 0.2);
+      border-color: rgba(255, 159, 10, 0.45);
+      color: #FFB340;
+    }
     .btn-mini:hover {
       transform: translateY(-1px);
       filter: brightness(1.12);
+    }
+
+    .btn-vlc {
+      background: rgba(255, 159, 10, 0.16);
+      border-color: rgba(255, 159, 10, 0.4);
+      color: #FFB340;
+      margin-top: 6px;
+    }
+    .btn-vlc:hover {
+      background: #FF9F0A;
+      border-color: transparent;
+      color: #000;
+      box-shadow: 0 4px 16px rgba(255, 159, 10, 0.45);
+    }
+
+    /* LAN & VLC Connection Banner / Guide Card */
+    .connect-banner {
+      background: linear-gradient(135deg, rgba(10, 132, 255, 0.12), rgba(255, 159, 10, 0.1));
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 18px;
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      backdrop-filter: blur(20px);
+    }
+    .connect-banner-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .connect-url-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 12px;
+    }
+    .connect-box {
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 11px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .connect-box-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .connect-box-code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12.5px;
+      color: #64D2FF;
+      word-break: break-all;
+    }
+    .connect-box-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 4px;
+    }
+    .guide-note {
+      font-size: 12px;
+      line-height: 1.55;
+      color: var(--text-secondary);
+      background: rgba(255, 255, 255, 0.04);
+      border-left: 3px solid var(--accent-orange);
+      padding: 10px 14px;
+      border-radius: 8px;
+    }
+
+    @media (max-width: 820px) {
+      .app-header {
+        height: auto;
+        padding: 12px 16px;
+        flex-wrap: wrap;
+      }
+      .content-area {
+        padding: 18px 16px 48px;
+      }
     }
   </style>
 </head>
@@ -1081,22 +1291,77 @@ const glassmorphismHTML = `<!DOCTYPE html>
     <span id="toastMsg">İşlem başarıyla tamamlandı.</span>
   </div>
 
-  <!-- Working Source Discovery Glass Modal -->
+  <!-- Device & VLC Connection Guide Glass Modal -->
+  <div class="modal-backdrop" id="connectModal" onclick="if(event.target===this) closeConnectModal()">
+    <div class="modal-glass" style="max-width: 680px;">
+      <div class="modal-header">
+        <div>
+          <div class="modal-title">📱 Tablet, Telefon, TV & VLC Bağlantı Rehberi</div>
+          <div style="font-size:11.5px; color:var(--text-secondary); margin-top:2px;">Aynı Wi-Fi veya Mobil Hotspot üzerindeki cihazlardan kesintisiz izleme</div>
+        </div>
+        <button class="modal-close" onclick="closeConnectModal()">✕</button>
+      </div>
+      <div class="modal-body" style="gap: 14px;">
+        <div class="connect-url-row">
+          <div class="connect-box">
+            <div class="connect-box-label">🟠 VLC Oynatma Listesi (Android / iOS / PC)</div>
+            <div class="connect-box-code">http://&lt;Bilgisayar_IP&gt;:8085/playlist.m3u</div>
+            <div class="connect-box-actions">
+              <button class="btn-mini vlc" onclick="openFullPlaylistInVLC()">▶ VLC'de Tüm Kütüphaneyi Aç</button>
+              <button class="btn-mini primary" onclick="copyEndpointPath('/playlist.m3u', 'VLC M3U oynatma listesi adresi kopyalandı!')">📋 Kopyala</button>
+              <a class="btn-mini" href="/playlist.m3u?download=1" style="text-decoration:none;">📥 .M3U İndir</a>
+            </div>
+          </div>
+          <div class="connect-box">
+            <div class="connect-box-label">🔵 WebDAV Klasör Adresi (Infuse / Kodi / Nova)</div>
+            <div class="connect-box-code">http://&lt;Bilgisayar_IP&gt;:8085/dav/</div>
+            <div class="connect-box-actions">
+              <button class="btn-mini primary" onclick="copyEndpointPath('/dav/', 'WebDAV sunucu adresi kopyalandı!')">📋 WebDAV Adresini Kopyala</button>
+              <button class="btn-mini" onclick="copyEndpointPath('/', 'Web Arayüzü adresi kopyalandı!')">🌐 Web UI Linkini Kopyala</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="guide-note">
+          <strong>1. Android VLC'de Neden WebDAV Yok? (Sadece FTP, SMB, NFS Görünüyor):</strong><br>
+          Android için VLC uygulamasında yerleşik WebDAV klasör gezgini bulunmaz. Tablet veya telefonunuzda VLC ile izlemek için:<br>
+          • <strong>Yöntem A (En Pratik):</strong> Tabletinizin tarayıcısından bu sayfayı açıp herhangi bir film veya dizideki <strong>"▶ VLC'de Oynat"</strong> butonuna dokunun; video doğrudan VLC'de başlar.<br>
+          • <strong>Yöntem B (Tüm Liste):</strong> VLC içinde <strong>Daha Fazla (More) → Akışlar (Streams / Yeni Akış)</strong> bölümüne yukarıdaki <code>/playlist.m3u</code> adresini yapıştırın; tüm kütüphaneniz VLC içinde listelenir.
+        </div>
+
+        <div class="guide-note" style="border-left-color: var(--accent-blue);">
+          <strong>2. Tablet / Telefon / TV'den Bağlanırken Hangi IP Yazılmalı?</strong><br>
+          • <code>127.0.0.1</code> (localhost) sadece sunucunun çalıştığı bilgisayarın kendisinde geçerlidir; <code>bridge</code> veya sanal makine ağ adresleri ise diğer cihazlardan açılmaz.<br>
+          • Farklı bir cihazdan bağlanırken bilgisayarınızın aktif <strong>Wi-Fi / Hotspot IP</strong> adresini (<code>http://&lt;Bilgisayar_IP&gt;:8085</code>) veya yerel ağ cihaz adını (<code>http://&lt;Bilgisayar_Adi&gt;.local:8085</code>) kullanın.
+        </div>
+
+        <div class="guide-note" style="border-left-color: var(--accent-purple);">
+          <strong>3. Mobil İnternet Paylaşımı (Hotspot) Kullanırken Dikkat:</strong><br>
+          • <strong>Android Hotspot:</strong> Bağlı bilgisayar ve tabletin birbiriyle konuşmasına doğrudan izin verir.<br>
+          • <strong>iPhone (iOS Kişisel Erişim Noktası):</strong> iOS güvenlik gereği Wi-Fi üzerinden bağlanan iki cihazın birbirini görmesini engelleyebilir (<em>AP İstemci İzolasyonu</em>). Eğer iPhone Hotspot'ta sayfa açılmazsa telefonu Mac'e USB kablosuyla bağlayıp Mac'te <strong>Sistem Ayarları → Genel → Paylaşma → İnternet Paylaşımı</strong>'nı açabilir veya her iki cihaza ücretsiz <strong>Tailscale</strong> kurabilirsiniz.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Working Source Discovery & Episode VLC Player Glass Modal -->
   <div class="modal-backdrop" id="sourceModal" onclick="if(event.target===this) closeSourceModal()">
     <div class="modal-glass">
       <div class="modal-header">
         <div>
-          <div class="modal-title" id="modalItemTitle">Çalışan Kaynakları Bul</div>
-          <div style="font-size:11.5px; color:var(--text-secondary); margin-top:2px;">Yalnızca bu içerik/bölüm için doğrulanmış çalışan kaynaklar listelenir</div>
+          <div class="modal-title" id="modalItemTitle">Bölüm Seç & Oynat</div>
+          <div style="font-size:11.5px; color:var(--text-secondary); margin-top:2px;">VLC'de doğrudan başlatabilir veya doğrulanmış çalışan kaynakları seçebilirsiniz</div>
         </div>
         <button class="modal-close" onclick="closeSourceModal()">✕</button>
       </div>
       <div class="modal-controls" id="modalEpisodeBar">
-        <label>Sezon:</label>
+        <label id="lblSeason">Sezon:</label>
         <input type="number" id="modalSeason" class="modal-input" value="1" min="1">
-        <label>Bölüm:</label>
+        <label id="lblEpisode">Bölüm:</label>
         <input type="number" id="modalEpisode" class="modal-input" value="1" min="1">
-        <button class="btn-mini primary" onclick="scanSourcesForModal()">🔍 Şimdi Tara</button>
+        <button class="btn-mini vlc" onclick="playModalCurrentInVLC('auto')">▶ VLC'de Oynat</button>
+        <button class="btn-mini primary" onclick="scanSourcesForModal()">🔍 Kaynakları Tara</button>
+        <button class="btn-mini" onclick="copyItemM3UPlaylist()">📋 M3U Listesi</button>
       </div>
       <div class="modal-body" id="modalSourceList"></div>
     </div>
@@ -1126,11 +1391,11 @@ const glassmorphismHTML = `<!DOCTYPE html>
         </button>
       </nav>
 
-      <!-- Right Endpoint Pill -->
-      <div class="webdav-pill">
+      <!-- Right Endpoint & VLC Connection Pill -->
+      <button class="webdav-pill" onclick="openConnectModal()" style="cursor:pointer;" title="Tablet, Telefon, TV ve VLC Bağlantı Adreslerini Gör">
         <span class="status-dot"></span>
-        <span>WebDAV: <strong>/dav/</strong></span>
-      </div>
+        <span id="headerLanBadge">📱 VLC & Cihaz Bağlantısı</span>
+      </button>
     </header>
 
     <!-- Main Content Tab Containers -->
@@ -1153,6 +1418,23 @@ const glassmorphismHTML = `<!DOCTYPE html>
 
       <!-- TAB 2: MY LIBRARY -->
       <div id="tab-library" style="display:none;">
+        <!-- Quick VLC & LAN Access Bar -->
+        <div class="connect-banner">
+          <div class="connect-banner-top">
+            <div>
+              <div style="font-size:14.5px; font-weight:700; color:#fff;">🟠 VLC & Yerel Ağ (Tablet / Telefon / TV) Hızlı Erişim</div>
+              <div style="font-size:12px; color:var(--text-secondary); margin-top:2px;">
+                Android VLC'de WebDAV olmadığı için <strong>"▶ VLC'de Oynat"</strong> butonlarını kullanabilir veya VLC <strong>Akışlar (Streams)</strong> kısmına M3U adresini yapıştırabilirsiniz.
+              </div>
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <button class="btn-mini vlc" onclick="openFullPlaylistInVLC()">▶ Tüm Kütüphaneyi VLC'de Aç</button>
+              <button class="btn-mini primary" onclick="copyEndpointPath('/playlist.m3u', 'VLC M3U adresi kopyalandı!')">📋 VLC M3U Linkini Kopyala</button>
+              <button class="btn-mini" onclick="openConnectModal()">ℹ️ Bağlantı Rehberi</button>
+            </div>
+          </div>
+        </div>
+
         <div class="section-header">
           <h2 class="section-title">Kütüphanemdeki İçerikler</h2>
           <div class="filter-pills">
@@ -1183,6 +1465,7 @@ const glassmorphismHTML = `<!DOCTYPE html>
     let searchTimeout = null;
     let activeFilter = 'all';
     let activeModalItem = null;
+    let serverLanInfo = null;
 
     // Hotkey: Command+K to focus search
     window.addEventListener('keydown', (e) => {
@@ -1193,8 +1476,120 @@ const glassmorphismHTML = `<!DOCTYPE html>
       }
       if (e.key === 'Escape') {
         closeSourceModal();
+        closeConnectModal();
       }
     });
+
+    function getReachableBaseOrigin() {
+      const loc = window.location.origin;
+      if ((loc.includes('127.0.0.1') || loc.includes('localhost')) && serverLanInfo && serverLanInfo.primary_url) {
+        return serverLanInfo.primary_url;
+      }
+      return loc;
+    }
+
+    async function loadServerStatus() {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        if (data && data.lan) {
+          serverLanInfo = data.lan;
+        }
+      } catch (e) {}
+    }
+
+    function openConnectModal() {
+      document.getElementById('connectModal').classList.add('open');
+    }
+
+    function closeConnectModal() {
+      document.getElementById('connectModal').classList.remove('open');
+    }
+
+    function copyEndpointPath(pathSuffix, msg) {
+      const txt = getReachableBaseOrigin() + pathSuffix;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(txt).then(() => showToast(msg, '📋'));
+      } else {
+        prompt('Aşağıdaki adresi kopyalayın:', txt);
+      }
+    }
+
+    function openInVLC(streamUrl, title) {
+      const ua = navigator.userAgent || '';
+      const isAndroid = /Android/i.test(ua);
+      const isIOS = /iPad|iPhone|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+      showToast((title || 'Medya') + ' VLC uygulamasında açılıyor...', '▶');
+
+      if (isAndroid) {
+        const noScheme = streamUrl.replace(/^https?:\/\//i, '');
+        const scheme = streamUrl.startsWith('https://') ? 'https' : 'http';
+        const fallbackVlc = 'vlc://' + streamUrl;
+        const intentUrl = 'intent://' + noScheme +
+          '#Intent;scheme=' + scheme +
+          ';type=video/*;package=org.videolan.vlc' +
+          (title ? ';S.title=' + encodeURIComponent(title) : '') +
+          ';S.browser_fallback_url=' + encodeURIComponent(fallbackVlc) +
+          ';end';
+        window.location.href = intentUrl;
+        return;
+      }
+
+      if (isIOS) {
+        window.location.href = 'vlc-x-callback://x-callback-url/stream?url=' + encodeURIComponent(streamUrl);
+        return;
+      }
+
+      window.location.href = 'vlc://' + streamUrl;
+    }
+
+    function openFullPlaylistInVLC() {
+      const playlistUrl = getReachableBaseOrigin() + '/playlist.m3u';
+      openInVLC(playlistUrl, 'Anthology Kütüphanesi');
+    }
+
+    function playMovieInVLC(itemId) {
+      const it = libraryItems.find(x => x.id === itemId);
+      if (!it) return;
+      const prov = it.selected_provider || 'auto';
+      const streamUrl = getReachableBaseOrigin() + '/stream/resolve?type=movie' +
+        '&tmdb_id=' + encodeURIComponent(it.tmdb_id) +
+        '&title=' + encodeURIComponent(it.title) +
+        '&year=' + encodeURIComponent(it.year || '') +
+        '&provider=' + encodeURIComponent(prov);
+      openInVLC(streamUrl, it.title + (it.year ? ' (' + it.year + ')' : ''));
+    }
+
+    function playModalCurrentInVLC(provOverride) {
+      if (!activeModalItem) return;
+      const it = activeModalItem;
+      const s = parseInt(document.getElementById('modalSeason').value || '1', 10);
+      const e = parseInt(document.getElementById('modalEpisode').value || '1', 10);
+      const prov = provOverride || it.selected_provider || 'auto';
+      const streamUrl = getReachableBaseOrigin() + '/stream/resolve?type=' + encodeURIComponent(it.type) +
+        '&tmdb_id=' + encodeURIComponent(it.tmdb_id) +
+        '&title=' + encodeURIComponent(it.title) +
+        '&year=' + encodeURIComponent(it.year || '') +
+        '&season=' + s + '&episode=' + e +
+        '&provider=' + encodeURIComponent(prov);
+      const label = it.type === 'movie'
+        ? it.title
+        : (it.title + ' - S' + String(s).padStart(2, '0') + 'E' + String(e).padStart(2, '0'));
+      openInVLC(streamUrl, label);
+    }
+
+    function copyItemM3UPlaylist() {
+      if (!activeModalItem) return;
+      const url = getReachableBaseOrigin() + '/playlist.m3u?id=' + encodeURIComponent(activeModalItem.id);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(() => {
+          showToast(activeModalItem.title + ' M3U oynatma listesi kopyalandı! VLC Akışlar kısmına yapıştırabilirsiniz.', '📋');
+        });
+      } else {
+        prompt('M3U Oynatma Listesi Adresi:', url);
+      }
+    }
 
     document.getElementById('searchInput').addEventListener('input', (e) => {
       clearTimeout(searchTimeout);
@@ -1283,6 +1678,9 @@ const glassmorphismHTML = `<!DOCTYPE html>
         });
 
         const workInfo = workingSet.size > 0 ? (workingSet.size + ' çalışan kaynak') : 'Yayına Hazır';
+        const vlcBtn = (it.type === 'movie')
+          ? '<button class="btn-action btn-vlc" onclick="playMovieInVLC(\'' + it.id + '\')">▶ VLC\'de Oynat</button>'
+          : '<button class="btn-action btn-vlc" onclick="openSourceFinder(\'' + it.id + '\')">▶ Bölüm Seç & VLC\'de Oynat</button>';
 
         return '<div class="media-card">' +
           '<div class="poster-box">' +
@@ -1296,7 +1694,8 @@ const glassmorphismHTML = `<!DOCTYPE html>
             '<select class="provider-select" onchange="changeProvider(\'' + it.id + '\', this.value)">' +
               provOptions +
             '</select>' +
-            '<button class="btn-action btn-discover" onclick="openSourceFinder(\'' + it.id + '\')">' +
+            vlcBtn +
+            '<button class="btn-action btn-discover" style="margin-top:6px;" onclick="openSourceFinder(\'' + it.id + '\')">' +
               '🔍 Çalışan Kaynakları Bul' +
             '</button>' +
             '<button class="btn-action btn-delete" onclick="removeFromLibrary(\'' + it.id + '\', \'' + it.title.replace(/'/g, "\\'") + '\')">' +
@@ -1313,8 +1712,11 @@ const glassmorphismHTML = `<!DOCTYPE html>
       if (!it) return;
       activeModalItem = it;
       document.getElementById('modalItemTitle').textContent = it.title + (it.year ? ' (' + it.year + ')' : '');
-      const epBar = document.getElementById('modalEpisodeBar');
-      epBar.style.display = (it.type === 'movie') ? 'none' : 'flex';
+      const isMovie = (it.type === 'movie');
+      document.getElementById('lblSeason').style.display = isMovie ? 'none' : 'inline';
+      document.getElementById('modalSeason').style.display = isMovie ? 'none' : 'inline-block';
+      document.getElementById('lblEpisode').style.display = isMovie ? 'none' : 'inline';
+      document.getElementById('modalEpisode').style.display = isMovie ? 'none' : 'inline-block';
       document.getElementById('modalSeason').value = 1;
       document.getElementById('modalEpisode').value = 1;
       document.getElementById('sourceModal').classList.add('open');
@@ -1332,7 +1734,7 @@ const glassmorphismHTML = `<!DOCTYPE html>
       const s = parseInt(document.getElementById('modalSeason').value || '1', 10);
       const e = parseInt(document.getElementById('modalEpisode').value || '1', 10);
       const listEl = document.getElementById('modalSourceList');
-      listEl.innerHTML = '<div style="text-align:center; padding:32px; color:var(--text-secondary);">⏳ Sağlayıcılar eşzamanlı taranıyor ve doğrulanıyor...</div>';
+      listEl.innerHTML = '<div style="text-align:center; padding:32px; color:var(--text-secondary);">⏳ Sağlayıcılar eşzamanlı taranıyor ve doğrulanıyor...<br><span style="font-size:11.5px; color:var(--text-tertiary);">Beklemeden oynatmak için üstteki "▶ VLC\'de Oynat" butonuna basabilirsiniz.</span></div>';
 
       try {
         const u = '/api/sources?type=' + encodeURIComponent(it.type) +
@@ -1361,6 +1763,7 @@ const glassmorphismHTML = `<!DOCTYPE html>
             '<div class="source-row-sub">Doğrulanmış ' + sources.length + ' kaynak arasından en yüksek kaliteyi otomatik oynatır</div>' +
           '</div>' +
           '<div class="source-row-actions">' +
+            '<button class="btn-mini vlc" onclick="playModalCurrentInVLC(\'auto\')">▶ VLC\'de Aç</button>' +
             '<button class="btn-mini primary" onclick="selectWorkingProvider(\'' + it.id + '\', \'auto\')">Varsayılan Yap</button>' +
             '<button class="btn-mini" onclick="copyWorkingStreamURL(\'auto\', ' + s + ', ' + e + ')">Linki Kopyala</button>' +
           '</div>' +
@@ -1374,6 +1777,7 @@ const glassmorphismHTML = `<!DOCTYPE html>
               '<div class="source-row-sub">' + (src.title || src.provider_name) + '</div>' +
             '</div>' +
             '<div class="source-row-actions">' +
+              '<button class="btn-mini vlc" onclick="playModalCurrentInVLC(\'' + src.provider_id + '\')">▶ VLC\'de Aç</button>' +
               '<button class="btn-mini ' + (isCurrent ? '' : 'primary') + '" onclick="selectWorkingProvider(\'' + it.id + '\', \'' + src.provider_id + '\')">' +
                 (isCurrent ? '✓ Seçili' : 'Bu Kaynağı Seç') +
               '</button>' +
@@ -1397,15 +1801,19 @@ const glassmorphismHTML = `<!DOCTYPE html>
     function copyWorkingStreamURL(provId, s, e) {
       if (!activeModalItem) return;
       const it = activeModalItem;
-      const url = window.location.origin + '/stream/resolve?type=' + encodeURIComponent(it.type) +
+      const url = getReachableBaseOrigin() + '/stream/resolve?type=' + encodeURIComponent(it.type) +
         '&tmdb_id=' + encodeURIComponent(it.tmdb_id) +
         '&title=' + encodeURIComponent(it.title) +
         '&year=' + encodeURIComponent(it.year || '') +
         '&season=' + s + '&episode=' + e +
         '&provider=' + encodeURIComponent(provId);
-      navigator.clipboard.writeText(url).then(() => {
-        showToast('Doğrulanmış yayın linki kopyalandı! (VLC / IINA / Infuse ile açabilirsiniz)', '▶');
-      });
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(() => {
+          showToast('Doğrulanmış yayın linki kopyalandı! (VLC / IINA / Infuse ile açabilirsiniz)', '▶');
+        });
+      } else {
+        prompt('Yayın Linki:', url);
+      }
     }
 
     async function doSearch(query) {
@@ -1555,6 +1963,7 @@ const glassmorphismHTML = `<!DOCTYPE html>
 
     // Initial load
     (async () => {
+      await loadServerStatus();
       await loadLibrary();
       try {
         const res = await fetch('/api/providers');
