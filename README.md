@@ -13,99 +13,37 @@
 
 ---
 
-## 📖 İçindekiler
-
-1. [Bu Proje Ne İçin Yapıldı? (Vizyon ve Amaç)](#-1-bu-proje-ne-için-yapıldı-vizyon-ve-amaç)
-2. [WebDAV Nedir ve Anthology WebDAV Nasıl Çalışır?](#-2-webdav-nedir-ve-anthology-webdav-nasıl-çalışır)
-3. [Hangi Cihazlarda ve Hangi Uygulamalarla Kullanılabilir?](#-3-hangi-cihazlarda-ve-hangi-uygulamalarla-kullanılabilir)
-4. [Kurulum, Başlangıçta Otomatik Açılma ve İzinlerin Verilmesi](#-4-kurulum-başlangıçta-otomatik-açılma-ve-izinlerin-verilmesi)
-5. [Ev Ağındaki (LAN) Diğer Cihazlardan (TV, Telefon, Tablet) Bağlanma](#-5-ev-ağındaki-lan-diğer-cihazlardan-tv-telefon-tablet-bağlanma)
-6. [Web Arayüzünün (`Anthology WebDAV`) Kullanımı](#-6-web-arayüzünün-anthology-webdav-kullanımı)
-7. [Dosyalara Nereden Ulaşılır? (Sanal Klasör Haritası ve Disk Yapısı)](#-7-dosyalara-nereden-ulaşılır-sanal-klasör-haritası-ve-disk-yapısı)
-8. [Uygulama Bazlı Bağlantı Rehberleri (Infuse, Kodi, Nova, VidHub, VLC, IINA, Finder/Explorer)](#-8-uygulama-bazlı-bağlantı-rehberleri)
-9. [Metadata, Posterler ve Videolar Neden Bazen Geç Yüklenir? (Nasıl Hızlandırılır?)](#-9-metadata-posterler-ve-videolar-neden-bazen-geç-yüklenir-nasıl-hızlandırılır)
-10. [Bölümleri ve Filmleri Cihaza Nasıl İndirirsiniz? (Çevrimdışı İzleme Rehberi)](#-10-bölümleri-ve-filmleri-cihaza-nasıl-indirirsiniz-çevrimdışı-izleme-rehberi)
-11. [Kullanım Kolaylığı İçin Kısayollar, Uygulama Modu ve Pratik İpuçları](#-11-kullanım-kolaylığı-için-kısayollar-uygulama-modu-ve-pratik-ipuçları)
-12. [Kayıtlı 34 Sağlayıcı Motoru](#-12-kayıtlı-34-sağlayıcı-motoru)
-13. [Sorun Giderme (Troubleshooting) ve Sıkça Sorulan Sorular (SSS)](#-13-sorun-giderme-troubleshooting-ve-sıkça-sorulan-sorular-sss)
+> [!IMPORTANT]
+> # 🚀 ASIL VE EN VERİMLİ KULLANIM HAKKINDA
+>
+> **Anthology-DAV sisteminin asıl ve en verimli kullanımı**, yerel bilgisayarınızı 7/24 açık tutmanıza veya yerel derleme yapmanıza gerek kalmadan doğrudan **kullanıcı hesabınızla** canlı sunucu üzerinden yararlanmaktır!
+>
+> 🌐 **Canlı Web Portalı & Hesap Yönetimi:** [https://anthology-dav.duckdns.org](https://anthology-dav.duckdns.org)
+>
+> 📚 **TÜM DETAYLI BİLGİLENDİRME VE EVRENSEL KULLANIM REHBERİ WIKI'DE:**  
+> **Apple TV, iOS, Android TV, macOS, Windows** ortamlarında **Infuse, SenPlayer, VidHub, Kodi, Nova Player, VLC, Finder ve Windows Dosya Gezgini** ile sistemin nasıl bağlanıp kullanılacağını anlatan eksiksiz rehber GitHub Wiki sayfamızda yer almaktadır:  
+> 
+> 👉 **[https://github.com/falsisdev/anthology-dav/wiki](https://github.com/falsisdev/anthology-dav/wiki)** 👈
+>
+> *(Bu README dosyası yalnızca projeyi kendi yerel makinesinde veya sunucusunda sıfırdan derleyip çalıştırmak isteyen geliştiriciler için **Yerel Kurulum Rehberi** içermektedir.)*
 
 ---
 
-## 🎯 1. Bu Proje Ne İçin Yapıldı? (Vizyon ve Amaç)
+## 💻 Yerel Kurulum Rehberi (Self-Hosted Local Setup)
 
-İnternet üzerinden Türkçe dublaj veya altyazılı bir film, yabancı dizi, yerli dizi veya anime izlemek istediğinizde genellikle şu sorunlarla karşılaşırsınız:
-- Tarayıcıda açılan onlarca reklam penceresi, sahte "Oynat" butonları ve düşük kaliteli web oynatıcıları,
-- Bir sitenin kapanması veya videonun silinmesi yüzünden başka sitelerde tek tek bölüm arama zahmeti,
-- Videoları bilgisayarınıza veya telefonunuza indirmeye kalktığınızda yüzlerce gigabaytlık disk alanının dolması,
-- Televizyonda (Apple TV, Android TV) veya mobil cihazlarda tarayıcı üzerinden video açmanın neredeyse imkânsız olması.
-
-**Anthology WebDAV**, tüm bu sorunları kökten çözmek için geliştirilmiş **sıfır disk alanı harcayan (Zero-Disk / In-Memory)** yerel bir medya sunucusu ve akıllı yayın çözücüsüdür:
-
-1. **Sıfır Disk Alanı Tüketimi:** Bilgisayarınızın SSD/HDD'sine **tek bir megabayt bile video indirmez**. Tüm klasörler ve dosyalar sanal olarak RAM üzerinde üretilir.
-2. **34 Kaynak Tek Merkezde:** Türkiye'nin en popüler **8 anime, 12 dizi ve 14 film** kaynağını tek bir Go mikroservisi içinde birleştirir.
-3. **Sıfır Karmaşa (Akıllı Kütüphane):** Binlerce izlemeyeceğiniz filmin klasörleriyle medya oynatıcınızı çöplüğe çevirmez. Web arayüzünden sadece izlemek istediğiniz filmi, diziyi veya animeyi aratıp **"+ Kütüphaneme Ekle"** dersiniz; o içeriğin tüm sezon ve bölümleri saniyesinde medya oynatıcınıza hazır düşer.
-4. **En Üst Düzey Oynatıcı Deneyimi:** Tarayıcıların hantal video oynatıcıları yerine videoları doğrudan **Infuse, Kodi, IINA, VLC, VidHub, Nova Video Player** gibi profesyonel medya oynatıcılarında; donanım hızlandırmalı, 1080p/4K kalitesinde, reklamsız ve tam ekran olarak izlemenizi sağlar.
-5. **%100 Otomatik Poster ve Konu Özeti (Metadata):** Klasör ve dosya isimleri uluslararası medya standartlarında (`{Başlık} ({Yıl})/Season 01/{Başlık} - S01E01.strm`) üretildiği için medya oynatıcınız afişleri, arka plan görsellerini, IMDb puanlarını, oyuncu kadrosunu ve Türkçe bölüm özetlerini otomatik olarak bulup eşleştirir.
+Projeyi kendi bilgisayarınızda veya sunucunuzda bağımsız bir mikroservis olarak derlemek ve çalıştırmak için aşağıdaki adımları takip edin.
 
 ---
 
-## 🧠 2. WebDAV Nedir ve Anthology WebDAV Nasıl Çalışır?
+### 1. Ön Gereksinimler
 
-### WebDAV Nedir?
-**WebDAV** (*Web Distributed Authoring and Versioning*), standart HTTP protokolünün bir uzantısıdır. En basit anlatımıyla: **Bir web sunucusunu bilgisayarınıza, telefonunuza veya televizyonunuza sanki fiziksel bir harici sabit disk veya USB bellek takmışsınız gibi bağlamanızı sağlayan teknolojidir.**
+Sisteminizde **Go (1.24 veya üzeri)**, **Git** ve isteğe bağlı olarak **Make** kurulu olmalıdır:
 
-Medya oynatıcılar (Infuse, Kodi, VLC vb.) ve işletim sistemleri (macOS Finder, Windows Dosya Gezgini, iOS Dosyalar) WebDAV adresine bağlandığında karşısında gerçek klasörler ve dosyalar görür.
-
-### Anthology WebDAV Arka Planda Nasıl Çalışır?
-
-```mermaid
-flowchart LR
-    A["Kullanıcı (Web Arayüzü)"] -- "1. İçeriği Kütüphaneye Ekler" --> B["Anthology WebDAV Sunucusu (RAM VFS)"]
-    C["Medya Oynatıcı (Infuse / Kodi / VLC)"] -- "2. /dav/ Klasörünü Tarar" --> B
-    B -- "3. Sanal .strm Dosyalarını Gösterir" --> C
-    C -- "4. Bölüme Tıklar (/stream/resolve)" --> D["Çoklu Kaynak Çözücü (34 Sağlayıcı)"]
-    D -- "5. En İyi 1080p Kaynağı Bulur & Şifreyi Çözer" --> E["Stream & HLS Proxy (HTTP 206 Range)"]
-    E -- "6. Kesintisiz Video Akışı" --> C
-```
-
-1. **Sanal Dosya Sistemi (Virtual File System - VFS):**
-   Siz kütüphanenize örneğin *Breaking Bad* dizisini eklediğinizde, sunucu diskinize video indirmez. Bunun yerine `/dav/Diziler/Breaking Bad (2008)/Season 01/Breaking Bad - S01E01.strm` şeklinde sanal bir dosya ağacı oluşturur.
-2. **`.strm` (Stream) Dosyası Nedir?**
-   `.strm` dosyaları tüm modern medya oynatıcıların tanıdığı, boyutu sadece ~120 byte olan özel metin dosyalarıdır. İçinde videonun kendisi değil, Anthology WebDAV sunucusunun akıllı çözümleyici adresi yer alır:
-   `http://127.0.0.1:8085/stream/resolve?type=series&tmdb_id=1396&title=Breaking+Bad&season=1&episode=1`
-3. **Eşzamanlı Çoklu Sağlayıcı Çözücü (Multi-Provider Scraper):**
-   Medya oynatıcınızda bölüme tıkladığınız anda sunucu uyanır ve o kategorideki tüm sağlayıcıları (örneğin bir dizi için aynı anda *DiziWatch, DiziBox, DiziMom, DiziYou, DiziBak, YabancıDizi...*) paralel olarak tarar.
-4. **En İyi Kalite Seçimi ve Korumalı Akış Köprüsü (Stream Proxy):**
-   Bulunan kaynaklar arasından **1080p > 720p > 480p** önceliğine göre en kaliteli akış seçilir. Eğer video sunucusu özel güvenlik başlıkları (`Referer`, `Origin`, `User-Agent`, `XOR Token`) istiyorsa, Anthology WebDAV araya girerek videoyu kendi üzerinden köprüler (Proxy). Böylece ileri-geri sarma (`HTTP 206 Partial Content / Range`) ve HLS (`.m3u8`) oynatma kusursuz çalışır.
-
----
-
-## 📱 3. Hangi Cihazlarda ve Hangi Uygulamalarla Kullanılabilir?
-
-Anthology WebDAV standart protokoller kullandığı için **sadece tek bir işletim sistemine veya tek bir programa bağımlı değildir.** Ev ağınızdaki veya bilgisayarınızdaki hemen her cihazda çalışır:
-
-| Platform / Cihaz | Tavsiye Edilen En İyi Uygulamalar | Nasıl Bağlanır? | Özellik Desteği |
-| :--- | :--- | :--- | :--- |
-| **macOS** (MacBook, iMac, Mac mini/Studio) | **Infuse**, **VidHub**, **IINA**, **VLC**, **Kodi**, **SenPlayer**, **Finder** | Doğrudan WebDAV (`127.0.0.1:8085/dav`) veya Finder'a disk olarak bağlayarak | Poster, Özet, 4K/1080p, İleri/Geri Sarma, Kütüphaneden Silme |
-| **iOS & iPadOS** (iPhone, iPad) | **Infuse**, **VidHub**, **SenPlayer**, **Fileball**, **VLC**, **Dosyalar (Files)** | Yerel ağ IP'si ile WebDAV (`192.168.1.X:8085/dav`) | Otomatik Poster, Altyazı, AirPlay, PiP (Resim İçinde Resim) |
-| **tvOS** (Apple TV 4K / HD) | **Infuse**, **VidHub**, **SenPlayer**, **Fileball**, **VLC** | Yerel ağ IP'si ile WebDAV (`192.168.1.X:8085/dav`) | Kumanda ile Tam Ev Sineması, Dolby / Uzamsal Ses, iCloud Senkronu |
-| **Windows 10 / 11** | **Kodi**, **PotPlayer**, **VLC**, **MPC-HC/BE**, **RaiDrive**, **Dosya Gezgini** | Kodi WebDAV kaynağı veya Windows'a Ağ Sürücüsü (`Z:\`) olarak bağlayarak | Tam Ekran Medya Merkezi, `.strm` Oynatma, M3U/HLS Akışı |
-| **Android TV / Google TV / Mi Box / Fire TV** | **Kodi**, **Nova Video Player**, **VLC for Android**, **Cx Dosya Gezgini** | Yerel ağ IP'si ile WebDAV (`192.168.1.X:8085/dav`) | Kumanda Dostu Arayüz, Otomatik Film/Dizi Afişleri (Kodi & Nova) |
-| **Android Telefon & Tablet** | **Nova Video Player**, **Kodi**, **VLC**, **MX Player**, **Solid Explorer** | Yerel ağ IP'si ile WebDAV (`192.168.1.X:8085/dav`) | Mobil İzleme, Altyazı Seçimi, Donanım Çözücü |
-| **Linux** (Ubuntu, Arch, Fedora, Steam Deck) | **Kodi**, **MPV**, **VLC**, **GNOME Files (Nautilus)**, **KDE Dolphin** | `dav://127.0.0.1:8085/dav` veya `rclone mount` | Doğrudan Dosya Yöneticisi Entegrasyonu ve Hafif Oynatma |
-
----
-
-## 🛠️ 4. Kurulum, Başlangıçta Otomatik Açılma ve İzinlerin Verilmesi
-
-### A. Ön Gereksinimler
-Projeyi derlemek için sisteminizde **Go (1.24 veya üzeri)** kurulu olmalıdır.
-
-- **macOS (Homebrew ile):**
+- **macOS (Homebrew):**
   ```bash
-  brew install go git
+  brew install go git make
   ```
-- **Windows (Winget ile):**
+- **Windows (Winget):**
   ```powershell
   winget install GoLang.Go Git.Git
   ```
@@ -114,35 +52,40 @@ Projeyi derlemek için sisteminizde **Go (1.24 veya üzeri)** kurulu olmalıdır
   sudo apt update && sudo apt install -y golang git make
   ```
 
-### B. Projeyi İndirme ve Derleme
+---
+
+### 2. Projeyi İndirme ve Derleme
 
 ```bash
+# Depoyu klonlayın
 git clone https://github.com/falsisdev/anthology-dav.git
 cd anthology-dav
+
+# Make ile derleyin (macOS / Linux):
 make build
+
+# VEYA standart Go derleyicisi ile:
+go build -o anthology-dav .
 ```
-*(Alternatif olarak `make` kullanmadan doğrudan `go build -o anthology-dav .` komutuyla da derleyebilirsiniz.)*
 
-### C. Gerekli Tüm İzinlerin Verilmesi (Çok Önemli!)
+---
 
-Sunucunun kesintisiz çalışması, başlangıçta takılmaması ve ev ağınızdaki diğer cihazların (TV, telefon) erişebilmesi için aşağıdaki izinleri sırasıyla verin:
+### 3. İzinlerin Yapılandırılması
 
-#### 1. Çalıştırma ve Karantina İzninin Verilmesi (macOS / Linux)
-Derlenen ikili dosyanın işletim sistemi tarafından engellenmemesi için:
+Sunucunun kesintisiz çalışması ve yerel ağdaki diğer cihazlardan erişilebilmesi için gerekli izinleri verin:
+
+#### A. Çalıştırma İzni ve Gatekeeper Temizliği (macOS / Linux)
 ```bash
 chmod +x anthology-dav
-# macOS Gatekeeper karantina bayrağını temizlemek için:
+# macOS Gatekeeper karantinasını kaldırmak için:
 xattr -cr anthology-dav 2>/dev/null || true
 ```
 
-#### 2. Güvenlik Duvarı (Firewall) ve Yerel Ağ İzni
-- **macOS:** Sunucuyu ilk çalıştırdığınızda ekrana *"anthology-dav gelen ağ bağlantılarını kabul etsin mi?"* uyarısı gelirse mutlaka **"İzin Ver" (Allow)** seçeneğine tıklayın.
-  - Manuel kontrol için: **Sistem Ayarları -> Ağ -> Güvenlik Duvarı -> Seçenekler** menüsünden `anthology-dav` uygulamasının **"Gelen bağlantıları kabul et"** olarak ayarlandığından emin olun.
-  - Eğer **Sistem Ayarları -> Gizlilik ve Güvenlik -> Yerel Ağ (Local Network)** altında kullandığınız terminal uygulaması (Terminal / iTerm2) veya `anthology-dav` görünüyorsa anahtarın açık olduğundan emin olun.
-- **Windows:** İlk çalıştırmada Windows Defender Güvenlik Duvarı penceresi açıldığında **"Özel ağlar (Ev/İş ağları)"** kutucuğunu işaretleyip **"Erişime izin ver"** butonuna tıklayın.
+#### B. Güvenlik Duvarı (Firewall) & Yerel Ağ
+- **macOS:** Sunucuyu ilk kez çalıştırdığınızda gelen *"anthology-dav gelen ağ bağlantılarını kabul etsin mi?"* uyarısına **"İzin Ver"** deyin. Terminal uygulamanızın **Sistem Ayarları -> Gizlilik ve Güvenlik -> Yerel Ağ** izninin açık olduğundan emin olun.
+- **Windows:** Güvenlik duvarı uyarı penceresinde **"Özel Ağlar"** seçeneğini işaretleyip **Erişime İzin Ver** butonuna tıklayın.
 
-#### 3. Klasör ve Dosya Yazma İzinleri
-Sunucu, eklediğiniz içerikleri `library.json` dosyasına, arama geçmişinizi ise `watchlist.json` dosyasına kaydeder. Proje klasöründe yazma izniniz olduğundan emin olun:
+#### C. Yapılandırma Dosyaları Yazma İzni
 ```bash
 touch library.json watchlist.json
 chmod 644 library.json watchlist.json
@@ -150,37 +93,51 @@ chmod 644 library.json watchlist.json
 
 ---
 
-### D. Bilgisayar Açıldığında Otomatik Başlama (Arka Plan Servisi)
+### 4. Sunucuyu Çalıştırma & Parametreler
 
-Her seferinde terminal açıp komut yazmak yerine, bilgisayarınız açıldığında `anthology-dav`'ın arka planda sessizce (0 pencere ile) başlamasını sağlayabilirsiniz:
-
-#### 🍎 1. macOS'ta Otomatik Başlatma (`LaunchAgent`)
-Proje içinde hazır bir servis kurulum komutu yer alır:
+#### Hızlı Başlatma (Varsayılan Tek Kullanıcılı / Şifresiz Yerel Mod)
 ```bash
-make install-service
+./anthology-dav
 ```
-> [!NOTE]
-> `make install-service` komutu projenin bulunduğu dizini otomatik olarak tespit eder ve LaunchAgent plist dosyasını dinamik olarak yapılandırır. Herhangi bir dosya yolunu elle düzenlemenize gerek yoktur.
+Sunucu varsayılan olarak `http://0.0.0.0:8085` adresinde başlar.
 
-**Servis Yönetim Komutları (macOS):**
-- **Servisi Kur ve Başlat:** `make install-service`
-- **Canlı Logları (Kayıtları) İzle:** `make logs`
-- **Servisi Durdur ve Kaldır:** `make uninstall-service`
-- **Servisi Yeniden Başlat:**
-  ```bash
-  launchctl unload ~/Library/LaunchAgents/com.falsisdev.anthology-dav.plist
-  launchctl load -w ~/Library/LaunchAgents/com.falsisdev.anthology-dav.plist
-  ```
+#### CLI Parametreleri ve Çevre Değişkenleri
+| Parametre | Varsayılan | Açıklama |
+|---|---|---|
+| `-host` | `0.0.0.0` | Bağlanılacak ağ arayüzü (`127.0.0.1` sadece yerel; `0.0.0.0` tüm yerel ağ) |
+| `-port` | `8085` | Çalışma portu (veya `PORT` çevre değişkeni) |
+| `-public-url` | `""` | `.strm` dosyalarına yazılacak açık URL (Örn: `http://192.168.1.10:8085`) |
+| `-multi-user` | `false` | SQLite tabanlı çok kullanıcılı giriş & kütüphane izolasyon modu |
+| `-db` | `data/anthology.db` | SQLite veritabanı dosya yolu |
+| `-library` | `library.json` | Tek kullanıcılı yerel kütüphane dosyası yolu |
 
-#### 🐧 2. Linux'ta Otomatik Başlatma (`systemd`)
-1. Kullanıcı servis dizinini oluşturun:
-   ```bash
-   mkdir -p ~/.config/systemd/user
-   ```
-2. `~/.config/systemd/user/anthology-dav.service` dosyasını oluşturun:
+#### Çok Kullanıcılı Modda Başlatma:
+```bash
+./anthology-dav -multi-user -db data/anthology.db -port 8085
+```
+
+---
+
+### 5. Arka Plan Servisi Olarak Kurma (Otomatik Başlatma)
+
+#### 🍎 macOS LaunchAgent (`make install-service`)
+Proje içerisindeki otomatik servis yükleyici ile sistemi bilgisayarınız her açıldığında arka planda başlayacak şekilde kurabilirsiniz:
+```bash
+# Servisi kur ve başlat:
+make install-service
+
+# Canlı logları izle:
+make logs
+
+# Servisi durdur ve kaldır:
+make uninstall-service
+```
+
+#### 🐧 Linux `systemd` Kullanıcı Servisi
+1. `~/.config/systemd/user/anthology-dav.service` dosyasını oluşturun:
    ```ini
    [Unit]
-   Description=Anthology WebDAV Media Server
+   Description=Anthology WebDAV Server
    After=network-online.target
 
    [Service]
@@ -192,363 +149,48 @@ make install-service
    [Install]
    WantedBy=default.target
    ```
-3. Servisi etkinleştirin:
+2. Servisi aktif edip başlatın:
    ```bash
    systemctl --user daemon-reload
    systemctl --user enable --now anthology-dav.service
    ```
 
-#### 🪟 3. Windows'ta Otomatik Başlatma
-1. `go build -o anthology-dav.exe .` komutuyla `.exe` dosyasını oluşturun.
-2. `Win + R` tuşlarına basıp `shell:startup` yazarak **Başlangıç** klasörünü açın.
-3. Klasörün içine `baslat.vbs` adında bir dosya oluşturup içine şunu yazın (böylece siyah komut penceresi görünmeden arka planda çalışır):
-   ```vbscript
-   Set WshShell = CreateObject("WScript.Shell")
-   WshShell.CurrentDirectory = "C:\anthology-dav"
-   WshShell.Run "C:\anthology-dav\anthology-dav.exe -host 0.0.0.0 -port 8085", 0, False
-   ```
-
----
-
-## 🌐 5. Ev Ağındaki (LAN) ve Mobil Hotspot Üzerindeki Diğer Cihazlardan (TV, Telefon, Tablet) Bağlanma
-
-Anthology WebDAV varsayılan olarak `0.0.0.0:8085` (tüm yerel ağ arayüzleri) üzerinde başlar ve hangi cihazdan bağlanırsanız yayın linklerini o IP adresine göre otomatik üretir. Sunucuyu **Apple TV, Android TV, Android Tablet/Telefon, iPhone veya iPad** üzerinden kullanmak için:
-
-1. **Gerçek Yerel Ağ / Hotspot IP Adresinizi Öğrenin:**
-   - **En Kolay Yöntem (Web Arayüzü):** Bilgisayarınızda `http://localhost:8085/` adresini açıp sağ üstteki **`📱 VLC & Cihaz Bağlantısı`** butonuna tıklayın. Sunucu; `bridge0`, `utun` veya sanal makine gibi sanal ağ kartlarını otomatik filtreler ve diğer cihazlardan bağlanabileceğiniz yerel ağ bağlantısını doğrudan ekranda gösterir.
-   - **Terminal Üzerinden:**
-     - **macOS:** `ipconfig getifaddr en0` *(veya Bonjour adıyla: `http://<BilgisayarAdı>.local:8085`)*
-     - **Windows:** `ipconfig` (Wi-Fi IPv4 satırı)
-     - **Linux:** `hostname -I`
-
-2. **Diğer Cihazlardan Erişin:**
-   - Tablet, telefon veya TV'nizde `127.0.0.1` (localhost) **yazmayın** (`127.0.0.1` yalnızca sunucunun çalıştığı bilgisayarın kendisini ifade eder). Bunun yerine Web Arayüzünde gösterilen gerçek yerel IP adresinizi girin.
-   - Tablet veya telefonunuzun tarayıcısından `http://<Bilgisayar_IP>:8085/` adresine girerek kütüphanenize yeni film/dizi ekleyebilir ve tek dokunuşla **"▶ VLC'de Oynat"** butonunu kullanabilirsiniz!
-
-3. **📡 Mobil İnternet Paylaşımı (Hotspot) Kullanırken Dikkat Edilmesi Gerekenler:**
-   - Hem bilgisayarınızı hem de tabletinizi telefonunuzun mobil internet paylaşımına (Hotspot) bağladığınızda bilgisayarınız genellikle `10.x.x.x` veya `172.20.10.x` bloğundan bir IP alır (Web arayüzünün sağ üst köşesinde otomatik görünür).
-   - **Android Telefon Hotspot'u:** Bağlı cihazların (bilgisayar ve tablet) birbiriyle yerel IP üzerinden konuşmasına doğrudan izin verir.
-   - **iPhone (iOS Kişisel Erişim Noktası) İstemci İzolasyonu:** iOS güvenlik gereği Wi-Fi hotspot'a bağlanan iki cihazın birbirine doğrudan erişmesini engelleyebilir (*AP Client Isolation*). Eğer iPhone Hotspot kullanırken tablette arayüz açılmazsa:
-     1. Önce Bonjour adresini deneyin: `http://<BilgisayarAdı>.local:8085/`
-     2. Telefonu Mac'e **USB kablosuyla** bağlayıp interneti Mac'e verin, ardından Mac'te **Sistem Ayarları -> Genel -> Paylaşma -> İnternet Paylaşımı**'nı açıp Wi-Fi üzerinden tablete paylaşın.
-     3. Veya her iki cihaza ücretsiz **Tailscale** kurarak ağ kısıtlamalarından tamamen bağımsız sabit IP ile bağlanın.
-
----
-
-## 🖥️ 6. Web Arayüzünün (`Anthology WebDAV`) Kullanımı
-
-Sunucu çalışırken tarayıcınızdan **[http://localhost:8085/](http://localhost:8085/)** *(veya tablet/telefonunuzdan `http://<Bilgisayar_IP>:8085/`)* adresini açın.
-
-> [!TIP]
-> **🌐 Çevrim İçi Canlı Erişim & Çoklu Kullanıcı Girişi:**
-> Sunucuya uzaktan veya bulut üzerinden erişmek isterseniz canlı adres:
-> **👉 [https://anthology-dav.duckdns.org](https://anthology-dav.duckdns.org)**
-> - **Kayıt Ol & Giriş Yap:** Canlı sunucuda her kullanıcının kütüphanesi izoledir. Sağ üstteki panelden veya açılan ekrandan saniyeler içinde hesabınızı oluşturup giriş yapabilirsiniz.
-> - **Kişisel WebDAV Adresiniz:** Giriş yaptıktan sonra Infuse, Kodi veya VLC'ye bağlamak için kullanıcı adınız ve şifrenizle WebDAV adresinizi (`https://anthology-dav.duckdns.org/dav/`) kullanabilirsiniz.
-> - **Yerel Mod (Local Mode):** Kendi bilgisayarınızda yerel çalıştırdığınızda herhangi bir şifre gerekmeden doğrudan yerel kütüphaneniz açılır.
-
-Arayüzün üst barında **3 ana sekme** ve sağ üstte **`📱 VLC & Ağ`** bağlantı rehberi bulunur:
-
-### 🔍 1. Keşfet & Ara Sekmesi
-- Ortadaki geniş arama çubuğuna izlemek istediğiniz herhangi bir **film, dizi veya anime** adını yazın (Türkçe veya orijinal İngilizce/Japonca adıyla aratabilirsiniz).
-- Siz yazarken **300ms** içinde sonuçlar posterleri, yayın yılları, IMDb/TMDB puanları ve tür etiketleriyle (`🎬 FILM`, `📺 DIZI`, `⛩️ ANIME`) listelenir.
-- **Akıllı Anime Algılama:** Sistem, Japon animasyonlarını normal dizilerden otomatik olarak ayırır ve `⛩️ ANIME` etiketiyle işaretler.
-- İzlemek istediğiniz içeriğin altındaki **"+ Kütüphaneme Ekle"** butonuna tıklayın. Buton anında yeşile dönerek **"✓ Kütüphanede"** olur ve içerik WebDAV sunucunuza ve M3U oynatma listenize eklenir!
-
-### 📚 2. Kütüphanem Sekmesi & Doğrudan VLC Entegrasyonu
-- Eklediğiniz tüm içerikleri tek bir ekranda görebilir, sağ üstteki filtre haplarıyla (**Tümü**, **🎬 Filmler**, **📺 Diziler**, **⛩️ Animeler**) süzebilirsiniz.
-- **▶ VLC'de Oynat & M3U Oynatma Listesi:**
-  - Her film kartında **"▶ VLC'de Oynat"**, her dizi/anime kartında ise **"▶ Bölüm Seç & VLC'de Oynat"** butonu yer alır. Tablet, telefon veya bilgisayarda bu butona dokunduğunuzda doğrudan cihazınızdaki **VLC Media Player** uygulaması açılır ve yayın başlar!
-  - Ayrıca üst bardaki **"📋 VLC M3U Linkini Kopyala"** (`http://<IP>:8085/playlist.m3u`) butonuyla tüm kütüphanenizi tek bir oynatma listesi olarak VLC'ye ekleyebilirsiniz.
-- **Kaynak Seçici (Provider Selector) & Çalışan Kaynakları Bul:** Her içeriğin kartında bir açılır menü ve **"🔍 Çalışan Kaynakları Bul"** butonu bulunur:
-  - **`Otomatik (En İyi Çalışan Kaynak)` (Varsayılan & Tavsiye Edilen):** Videoyu açtığınızda tüm uygun sağlayıcıları aynı anda tarar ve en yüksek kaliteli çalışan yayını otomatik seçer.
-  - **Belirli Bir Sağlayıcıya Sabitleme:** Örneğin bir animenin sadece *AnimeciX* veya *Anizium* çevirisiyle, ya da bir filmin sadece *FilmModu* kaynağıyla açılmasını istiyorsanız menüden o sağlayıcıyı seçebilirsiniz. Tercihiniz anında kaydedilir.
-- **Kütüphaneden Çıkar:** İzlemeyi bitirdiğiniz bir içeriği **"Kütüphaneden Çıkar"** butonuyla kaldırabilirsiniz.
-
-### ⚙️ 3. Sağlayıcılar Sekmesi
-- Sistemde aktif olan **34 sağlayıcı motorunun** tamamını, resmi logolarını, hizmet verdikleri kategoriyi (`Film`, `Dizi`, `Anime`), güncel alan adlarını ve çalışma durumlarını (`AKTİF`) görebilirsiniz.
-
----
-
-## 📂 7. Dosyalara Nereden Ulaşılır? (Sanal Klasör Haritası ve Disk Yapısı)
-
-### A. WebDAV Sanal Dizin Haritası (`http://127.0.0.1:8085/dav/`)
-
-Medya oynatıcınızla veya dosya yöneticinizle `/dav/` adresine bağlandığınızda göreceğiniz klasör yapısı şöyledir:
-
-```text
-/dav/
-├── Filmler/                                    # Kütüphanenize eklediğiniz filmler
-│   └── Inception (2010)/
-│       └── Inception (2010).strm               # Tıklandığında 1080p filmi çözer ve oynatır
-│
-├── Diziler/                                    # Kütüphanenize eklediğiniz yabancı ve yerli diziler
-│   └── Breaking Bad (2008)/
-│       ├── Season 01/
-│       │   ├── Breaking Bad (2008) - S01E01.strm
-│       │   ├── Breaking Bad (2008) - S01E02.strm
-│       │   └── ...
-│       └── Season 02/
-│
-├── Animeler/                                   # Kütüphanenize eklediğiniz animeler
-│   └── Solo Leveling (2024)/
-│       └── Season 01/
-│           ├── Solo Leveling (2024) - S01E01.strm
-│           └── ...
-│
-├── _Kaynak_Sec_/                               # İsteğe bağlı doğrulanmış kaynak seçici klasörü
-├── Watchlist/                                  # Finder/Dosya Yöneticisi içinden yeni klasör açarak arama dizini
-└── _Tum_Saglayicilar/                          # 34 sağlayıcının vitrinlerini tek tek gezmek isteyenler için arşiv
-```
-
-### B. Proje Klasöründeki Fiziksel Dosyalar
-Projenin kurulu olduğu klasörde yalnızca şu küçük yapılandırma dosyaları tutulur:
-- `library.json`: Kütüphanenize eklediğiniz film, dizi ve animelerin listesi (Yedeklemek isterseniz sadece bu dosyayı kopyalamanız yeterlidir!).
-- `watchlist.json`: WebDAV içinden klasör oluşturarak yaptığınız aramaların kaydı.
-- `/tmp/anthology-dav.log`: Sunucunun çalışma ve video çözümleme kayıtları (logları).
-
----
-
-## 🎬 8. Uygulama Bazlı Bağlantı Rehberleri
-
-### 1. Infuse (macOS, iPhone, iPad, Apple TV)
-1. **Infuse** uygulamasını açın.
-2. **Ayarlar (Settings) ⚙️ -> Paylaşımlar (Shares) -> Paylaşım Ekle (Add Share) -> WebDAV** seçeneğine tıklayın.
-3. Bilgileri şu şekilde doldurun:
-   - **Ad (Name):** `Anthology WebDAV`
-   - **Protokol:** `WebDAV (HTTP)` *(veya çevrim içi sunucu için `WebDAV (HTTPS)`)*
-   - **Adres (Address):** `127.0.0.1` *(veya çevrim içi sunucu için: `anthology-dav.duckdns.org`)*
-   - **Kullanıcı Adı / Şifre:** Yerel modda boş bırakın; çevrim içi sunucuda web arayüzünde oluşturduğunuz kullanıcı adı ve şifrenizi girin.
-   - **Gelişmiş (Advanced) -> Port:** `8085` *(çevrim içi HTTPS için `443` veya boş)*
-   - **Gelişmiş (Advanced) -> Yol (Path):** `/dav`
-4. **Kaydet (Save)** butonuna basın.
-5. Açılan klasör listesinden **`Filmler`**, **`Diziler`** ve **`Animeler`** klasörlerinin üzerine sağ tıklayıp (veya basılı tutup) **"Favorilere Ekle" (Add to Favorites)** seçin.
-   > [!TIP]
-   > **`_Tum_Saglayicilar` klasörünü favorilere eklemeyin!** Böylece oynatıcınız 34 sağlayıcının binlerce vitrin içeriğini taramakla vakit kaybetmez, sadece sizin kütüphanenize eklediğiniz içerikleri saniyeler içinde indeksler.
-
-### 2. VidHub & SenPlayer (macOS, iOS, iPadOS, Apple TV)
-1. Uygulamayı açıp **File Source / Medya Kaynağı Ekle -> WebDAV** bölümüne girin.
-2. Sunucu adresine `http://127.0.0.1:8085`, port kısmına `8085`, yol (path) kısmına `/dav` yazın. Kullanıcı adı ve şifreyi boş bırakıp kaydedin.
-3. `Filmler`, `Diziler` ve `Animeler` klasörlerini seçerek kütüphanenizi anında posterleriyle görüntüleyin.
-
-### 3. Kodi (Windows, Android TV, Google TV, Linux, macOS)
-1. Kodi'yi açın -> **Videolar (Videos) -> Dosyalar (Files) -> Video ekle... (Add videos...)** seçeneğine tıklayın.
-2. **Gözat (Browse) -> Ağ konumu ekle... (Add network location...)** seçin:
-   - **Protokol:** `WebDAV sunucusu (HTTP)`
-   - **Sunucu adresi:** `127.0.0.1` *(TV'deyseniz bilgisayarınızın yerel IP'si)*
-   - **Uzak yol (Remote path):** `dav`
-   - **Port:** `8085`
-   - **Kullanıcı adı / Parola:** *(Boş bırakın)*
-3. Kaynağı ekledikten sonra içerisine girip:
-   - `Filmler` klasörünün üzerinde içerik menüsünü açıp **"İçeriği Değiştir" (Set Content) -> Movies (Filmler)** olarak seçin (Bilgi sağlayıcı: *The Movie Database Python*).
-   - `Diziler` ve `Animeler` klasörlerini ise **TV Shows (TV Dizileri)** olarak işaretleyin. Kodi tüm posterleri ve bölüm bilgilerini otomatik çekecektir!
-
-### 4. Nova Video Player (Android TV, Google TV, Mi Box, Android Telefon/Tablet)
-1. Nova Video Player'ı açın -> Sol menüden **Ağ ve Dosyalar (Network & Files) -> Kısayol Ekle (+)** seçin.
-2. Protokol olarak **WebDAV (`http://`)**, Sunucu olarak bilgisayarınızın IP adresini (`192.168.1.X`), Port olarak `8085`, Klasör (Path) olarak `/dav` girin.
-3. `Filmler` ve `Diziler` klasörlerine sağ tıklayıp **"Kütüphaneye İndeksle" (Index folder)** seçeneğine basın.
-
-### 5. VLC Media Player (Android Tablet/Telefon, iOS/iPadOS, macOS/Windows) & IINA
-> [!IMPORTANT]
-> **Android VLC Kullanıcıları İçin Önemli Bilgi:** Android için VLC uygulamasında (iOS sürümünün aksine) yerleşik **WebDAV klasör gezgini bulunmaz**; "Sunucu Ekle" menüsünde yalnızca `FTP, FTPS, FTPES, SFTP, SMB, NFS` protokolleri listelenir. Bu nedenle Android VLC'de ekstra bir uygulamaya ihtiyaç duymadan şu 2 yerleşik yöntemle izleyebilirsiniz:
-
-1. **Yöntem A — Web Arayüzünden Tek Tıkla "▶ VLC'de Oynat" (En Pratik):**
-   - Tablet veya telefonunuzun internet tarayıcısından (Chrome / Safari) `http://<Bilgisayar_IP>:8085/` adresine girin ve **Kütüphanem** sekmesini açın.
-   - Filmlerde **"▶ VLC'de Oynat"**, dizi/animelerde ise **"▶ Bölüm Seç & VLC'de Oynat"** butonuna dokunun.
-   - Tarayıcınız otomatik olarak cihazınızdaki **VLC** uygulamasını uyandırır ve videoyu doğrudan oynatmaya başlar!
-2. **Yöntem B — `/playlist.m3u` Oynatma Listesi ile Tüm Kütüphaneyi VLC İçinde Açma:**
-   - VLC'yi açın -> Alt menüden **Daha Fazla (More) -> Akışlar (Streams / Yeni Akış)** *(masaüstünde `⌘N` veya `Ctrl+N`)* bölümüne girin.
-   - Adres satırına şunu yazıp başlatın:
-     ```text
-     http://<Bilgisayar_IP>:8085/playlist.m3u
-     ```
-     *(Örn: `http://192.168.1.X:8085/playlist.m3u`)*
-   - Kütüphanenizdeki tüm filmler ve dizi/anime bölümleri VLC oynatma listesinde hazır olarak listelenir!
-3. **iOS / iPadOS VLC:**
-   - Yukarıdaki iki yönteme ek olarak iPad/iPhone VLC'de **Ağ (Network) -> Sunucuya Bağlan -> WebDAV (HTTP)** sekmesinden de bağlanabilirsiniz.
-4. **Finder / Dosya Gezgini Üzerinden (macOS / Windows):**
-   - WebDAV'ı işletim sisteminize disk olarak bağladığınızda (bkz. alt madde), klasör içindeki `.strm` dosyalarını doğrudan VLC veya IINA penceresine sürükleyip bırakarak oynatabilirsiniz.
-
-### 6. İşletim Sistemine Doğrudan Disk Sürücüsü Olarak Bağlama
-- **macOS Finder:**
-  1. Masaüstündeyken veya Finder açıkken **`⌘K` (Command + K)** tuşlarına basın (*Git -> Sunucuya Bağlan*).
-  2. Sunucu adresine `http://127.0.0.1:8085/dav/` yazıp **Bağlan**'a tıklayın.
-  3. Sorulduğunda **"Konuk Olarak" (Guest)** seçeneğini işaretleyip bağlanın. Artık Finder sol menüsünde disk olarak görünecektir!
-  > [!TIP]
-  > **Doğrudan Dosya Yöneticisi veya Medya Oynatıcı İçinden Silme:** Finder, Dosya Gezgini veya WebDAV silme destekleyen medya oynatıcılarda (Infuse vb.) `/dav/Filmler/` veya `/dav/Diziler/` içindeki bir klasörü sildiğinizde, o içerik otomatik olarak `library.json` kütüphanenizden de kalıcı olarak silinir!
-- **Windows Dosya Gezgini:**
-  1. **Bu Bilgisayar (This PC)** ekranında üst menüden **Ağ Sürücüsüne Bağlan (Map Network Drive)** seçeneğine tıklayın.
-  2. Klasör kutusuna `http://127.0.0.1:8085/dav` yazıp **Son** butonuna basın.
-
----
-
-## ⚡ 9. Metadata, Posterler ve Videolar Neden Bazen Geç Yüklenir? (Nasıl Hızlandırılır?)
-
-Anthology WebDAV kullanırken bazı durumlarda dizi klasörlerinin açılmasının veya bir videonun başlamasının **2 ile 5 saniye** sürdüğünü fark edebilirsiniz. Bunun arkasındaki teknik sebepler ve sistemi **en yüksek hıza çıkarma yöntemleri** şunlardır:
-
-### 1. Sıfır Disk ve İstek Üzerine Üretim (On-Demand / Lazy Loading)
-Fiziksel bir sabit diskte dosyalar önceden oluşturulmuştur. Anthology WebDAV'da ise diskinizde hiçbir dosya yoktur:
-- Siz kütüphanenize 5 sezonluk bir dizi eklediğinizde, sunucu TMDB veritabanına bağlanıp sezon ve bölüm sayılarını çeker ve `library.json` içine önbellekler.
-- **Önbellek (Cache) Avantajı:** Sezon/bölüm verisi doğrudan yerel önbellekten okunduğu için klasör gezinme süresi **0 milisaniyedir** (anında açılır).
-
-### 2. Medya Oynatıcılarda "Gömülü Metadata" (Embedded Metadata) Ayarı — *Önemli Performans İpucu*
-Infuse, VidHub, Kodi veya benzeri bir medya oynatıcı yeni eklenen bölümleri tararken eğer **"Gömülü Metaveri / Embedded Metadata"** ayarı açıksa, her bir `.strm` dosyasının sadece ismine bakmakla yetinmez; video dosyasının içine girip codec/çözünürlük bilgisi okumaya çalışır. Bu da oynatıcının arka planda 50 bölümün tamamını aynı anda oynatmaya çalışıp sağlayıcılara gereksiz yüzlerce istek atmasına ve taramanın çok yavaşlamasına yol açar!
-
-> [!IMPORTANT]
-> **Tüm Medya Oynatıcılar İçin Hızlandırma Ayarı (10 Kat Daha Hızlı Poster Yükleme):**
-> 1. Medya oynatıcınızın ayarlarında **Metadata Getirme (Metadata Fetching / Scraper)** seçeneğini **Açık (On)** tutun (TMDB üzerinden poster ve özetlerin anında inmesi için).
-> 2. Varsa **Gömülü Metadata (Embedded Metadata / Read Local Tags)** seçeneğini mutlaka **KAPALI (Off)** yapın!
-> 3. **Önizleme / Küçük Resim Üretimi (Pre-Cache Details / Video Previews / Extract Thumbnails)** ayarını kapatın.
->
-> *(Örneğin Infuse'da: **Ayarlar -> Genel -> Gömülü Metadata: KAPALI**)*
->
-> Bu ayarı kapattığınızda oynatıcı dosyaların içine ağ isteği atmaz; doğrudan `Breaking Bad (2008) - S01E01.strm` dosya adından posteri ve Türkçe özeti **milisaniyeler içinde** çeker!
-
-### 3. İlk Oynatma (Cold Start) vs. Önbellekli Oynatma (Warm Cache)
-- Bir filme veya bölüme **ilk kez** tıkladığınızda (`Cold Start`), Anthology WebDAV arka planda 8 ila 14 farklı sağlayıcı sitesine aynı anda bağlanır, arama yapar, şifreli player kodlarını (VidMoly, CloseLoad, TauVideo, Vidrame XOR vb.) çözer ve en yüksek çözünürlüklü akışı seçer. Bu işlem kaynak sitelerin yanıt hızına göre **1.5 ile 4 saniye** sürer.
-- Çözümlenen akış adresi **45 dakika boyunca RAM'e kaydedilir (`Warm Cache`)**. Videoyu kapatıp tekrar açtığınızda veya ileri-geri sardığınızda video **anında** başlar.
-
-### 4. Kaynak Site Yavaşlığı (Sağlayıcı Sabitleme İpucu)
-Eğer çoklu çözücü bir dizide yavaş yanıt veren bir sağlayıcı yüzünden 4-5 saniye bekletiyorsa, Web Arayüzündeki **Kütüphanem** sekmesinden o dizi için hızlı olduğunu bildiğiniz tek bir sağlayıcıyı (örneğin animeler için `AnimeciX` veya `Anizium`, filmler için `FilmModu` veya `HDFilmCehennemi`) seçebilirsiniz. Böylece diğer siteler beklenmez ve video çok daha hızlı açılır.
-
----
-
-## 💾 10. Bölümleri ve Filmleri Cihaza Nasıl İndirirsiniz? (Çevrimdışı İzleme Rehberi)
-
-Uçak yolculuğuna çıkacaksanız veya internetinizin olmayacağı bir yerde izlemek için bölümleri bilgisayara/telefona gerçekten **video dosyası (`.mp4` / `.mkv`)** olarak indirmek isteyebilirsiniz.
-
-> [!WARNING]
-> **Dikkat:** WebDAV klasöründeki `.strm` dosyasını masaüstüne kopyalamak videoyu **indirmez!** Çünkü `.strm` dosyası sadece 120 byte'lık bir yönlendirme adresidir. Gerçek videoyu indirmek için aşağıdaki yöntemleri kullanın:
-
-### Yöntem 1: `yt-dlp` ile En Yüksek Hızda MP4/MKV Olarak İndirme (En Garantili Yöntem)
-Hem doğrudan MP4 akışlarını hem de parçalı HLS (`.m3u8`) yayınlarını otomatik birleştirip indirmek için `yt-dlp` ve `ffmpeg` ikilisi mükemmel çalışır:
-
-1. `yt-dlp` ve `ffmpeg` kurulu değilse kurun (`brew install yt-dlp ffmpeg` veya `winget install yt-dlp.yt-dlp Gyan.FFmpeg`).
-2. Finder veya metin düzenleyici ile indirmek istediğiniz bölümün `.strm` dosyasını açıp içindeki adresi kopyalayın (Örn: `http://127.0.0.1:8085/stream/resolve?type=anime&tmdb_id=127532&title=Solo+Leveling&year=2024&season=1&episode=1`).
-3. Terminalde şu komutu çalıştırın:
-   ```bash
-   yt-dlp "http://127.0.0.1:8085/stream/resolve?type=anime&tmdb_id=127532&title=Solo+Leveling&year=2024&season=1&episode=1" -o "Solo_Leveling_S01E01.mp4"
-   ```
-   `yt-dlp`, Anthology WebDAV'ın çözdüğü 1080p akışı yakalar ve saniyeler içinde tam bir `.mp4` dosyası olarak diskinize indirir!
-
-### Yöntem 2: Tüm Sezonu Tek Komutla Toplu İndirme
-Bir dizinin örneğin 1. sezonundaki ilk 12 bölümü tek seferde bilgisayara indirmek için terminalde şu döngüyü çalıştırabilirsiniz:
-```bash
-for ep in {1..12}; do
-  yt-dlp "http://127.0.0.1:8085/stream/resolve?type=anime&tmdb_id=127532&title=Solo+Leveling&year=2024&season=1&episode=${ep}" \
-    -o "Solo_Leveling_S01E$(printf %02d $ep).mp4"
-done
-```
-
-### Yöntem 3: `ffmpeg` veya `curl` ile İndirme
-- **HLS / M3U8 veya MP4 akışlarını `ffmpeg` ile kaydetmek için:**
-  ```bash
-  ffmpeg -i "http://127.0.0.1:8085/stream/resolve?type=movie&tmdb_id=27205&title=Inception&year=2010" -c copy "Inception_2010.mp4"
-  ```
-- **Doğrudan MP4 dönen sağlayıcılarda (örn. `FilmModu`, `SineWix`) `curl` ile indirmek için:**
-  ```bash
-  curl -L "http://127.0.0.1:8085/stream/resolve?type=movie&tmdb_id=27205&title=Inception&year=2010&provider=filmmodu" -o "Inception_2010.mp4"
-  ```
-
-### Yöntem 4: Gerçek Kaynak URL'sini Görme (`curl -I`)
-Sunucunun arka planda hangi gerçek video adresini çözdüğünü görmek ve o adresi IDM (Internet Download Manager), Downie veya tarayıcıya yapıştırmak isterseniz:
-```bash
-curl -s -I "http://127.0.0.1:8085/stream/resolve?type=movie&tmdb_id=27205&title=Inception&year=2010" | grep -i location
+#### 🪟 Windows Başlangıç Servisi
+`Win + R` tuşuna basıp `shell:startup` yazın. Açılan Başlangıç klasörüne `baslat.vbs` dosyası oluşturun:
+```vbscript
+Set WshShell = CreateObject("WScript.Shell")
+WshShell.CurrentDirectory = "C:\anthology-dav"
+WshShell.Run "C:\anthology-dav\anthology-dav.exe -host 0.0.0.0 -port 8085", 0, False
 ```
 
 ---
 
-## ⌨️ 11. Kullanım Kolaylığı İçin Kısayollar, Uygulama Modu ve Pratik İpuçları
+### 6. Yerel Uç Noktalar (Endpoints)
 
-### 1. Klavye Kısayolları
-- **`⌘K` (macOS) / `Ctrl + K` (Windows/Linux):** Web arayüzünde hangi sekmede olursanız olun (`Kütüphanem` veya `Sağlayıcılar`), bu kısayola bastığınızda otomatik olarak **Keşfet & Ara** sekmesine geçilir ve imleç doğrudan arama kutusuna odaklanır.
+Sunucu yerelde çalışmaya başladığında şu adreslerden erişilebilir:
 
-### 2. Web Arayüzünü Bağımsız Masaüstü Uygulamasına Dönüştürme (Dock / Görev Çubuğu)
-Her seferinde tarayıcıda sekme aramak yerine **Anthology WebDAV** arayüzünü gerçek bir masaüstü uygulaması gibi Dock'unuza veya görev çubuğunuza sabitleyebilirsiniz:
-- **Safari (macOS):** `http://localhost:8085/` açıkken üst menüden **Dosya (File) -> Dock'a Ekle... (Add to Dock...)** seçeneğine tıklayın.
-- **Chrome / Brave / Edge:** Adres çubuğunun sağındaki **Uygulamayı Yükle / Kısayol Oluştur ("Pencere olarak aç")** simgesine tıklayın.
-Artık Anthology logosuyla kendi bağımsız penceresinde çalışan bir uygulamanız olur!
-
-### 3. Web Arayüzüne Girmeden Klasör Açarak Arama (`MKCOL` Hilesi)
-Tarayıcıyı hiç açmadan, doğrudan Finder, Windows Dosya Gezgini veya WebDAV istemciniz içinden de arama yapabilirsiniz:
-- `/dav/Watchlist/` klasörünün içine girip **Yeni Klasör Oluştur (`⌘+Shift+N`)** deyin ve klasörün adını aramak istediğiniz dizi/film yapın (Örn: `Kurtlar Vadisi`).
-- Klasörü oluşturduğunuz anda sunucu arka planda sağlayıcıları tarar ve bulduğu sonuçları o klasörün içine yerleştirir!
-
-### 4. Sunucu Sağlık ve Durum Kontrolü (`/health` ve `/api/status`)
-Tarayıcıdan veya terminalden `http://127.0.0.1:8085/health` adresini açarak aktif sağlayıcı sayısını, kütüphanenizdeki içerik sayısını ve tüm sağlayıcıların WebDAV yollarını JSON formatında kontrol edebilirsiniz.
+- 🖥️ **Web Paneli:** `http://localhost:8085/`
+- 📁 **WebDAV Kök Dizini:** `http://localhost:8085/dav/`
+  - `/dav/Filmler/`
+  - `/dav/Diziler/`
+  - `/dav/Animeler/`
+- 📺 **Dinamik VLC Oynatma Listesi:** `http://localhost:8085/playlist.m3u`
+- 🩺 **Sağlık & Sağlayıcı Durumu:** `http://localhost:8085/health`
 
 ---
 
-## 🧩 12. Kayıtlı 34 Sağlayıcı Motoru
+### 7. Kayıtlı 34 VOD Sağlayıcı Motoru
 
-Anthology WebDAV içerisinde yer alan tüm sağlayıcılar ve kategorileri:
+Anthology-DAV içerisinde derlenmiş tüm yerleşik motorlar:
 
-| Kategori | Sağlayıcı Sayısı | Kayıtlı Sağlayıcılar |
-| :--- | :---: | :--- |
+| Kategori | Adet | Sağlayıcılar |
+|---|:---:|---|
 | **⛩️ Anime** | **8** | `AnimeciX`, `Anizium`, `SonAnime`, `AniMom`, `Anizm`, `SeiCode`, `AsyaAnimeleri`, `AnimePrax` |
-| **📺 Yabancı & Yerli Dizi** | **12** | `DiziWatch`, `DiziBox`, `DiziYou`, `DiziMom`, `DiziPod`, `DiziBak`, `Yabancı Dizi`, `DDizi`, `PuhuTV`, `TrDiziİzle`, `TvDiziler`, `Anthology Dizi Arşivi` |
-| **🎬 Film & Sinema** | **14** | `FilmModu`, `HDFilmCehennemi`, `HDFilmİzle`, `HDFilmDelisi`, `Kült Filmler`, `LiderFilmİzle`, `SetFilmİzle`, `SinemaCX`, `SineWix`, `VidLink Cloud`, `Vidmody`, `Webteİzle`, `YouTube Dizi & Film`, `Anthology M3U Arşivi` |
-
----
-
-## 🛠️ 13. Sorun Giderme (Troubleshooting) ve Sıkça Sorulan Sorular (SSS)
-
-<details>
-<summary><strong>❓ 1. Medya oynatıcıda (Infuse, Kodi, VLC vb.) bir bölüme tıkladığımda "Video yüklenirken bir hata oluştu" diyor, ne yapmalıyım?</strong></summary>
-
-1. Öncelikle terminalde `make logs` (veya `tail -f /tmp/anthology-dav.log`) komutuyla sunucu kayıtlarına bakın.
-2. Eğer o içerik varsayılan `Oto / Çoklu Çözücü` modundaysa ve ilk dönen sağlayıcının videosu kırık/silinmiş ise, **[http://localhost:8085/](http://localhost:8085/)** adresinden **Kütüphanem** sekmesine girin ve o içerik için açılır menüden alternatif bir sağlayıcı (örneğin `HDFilmCehennemi`, `FilmModu`, `DiziBox` veya `AnimeciX`) seçip tekrar deneyin.
-3. İnternet servis sağlayıcınızın (ISS) bazı kaynak siteleri DNS düzeyinde engellemediğinden emin olun (Cloudflare Warp / `1.1.1.1` veya AdGuard/NextDNS gibi güvenli DNS kullanmanız sağlayıcı erişim başarısını %100'e çıkarır).
-</details>
-
-<details>
-<summary><strong>❓ 2. Kütüphaneye yeni bir film veya dizi ekledim ama medya oynatıcıda hemen görünmedi?</strong></summary>
-
-Medya oynatıcılar (Infuse, Kodi, VidHub vb.) klasör listesini kendi yerel önbelleğinde tutabilir. Oynatıcı içinde ilgili klasörün (`Filmler`, `Diziler` veya `Animeler`) içine girip **Yenile (Refresh / ↻)** butonuna tıklayın veya ekranı aşağı çekerek yenileyin; yeni eklediğiniz içerik anında belirecektir.
-</details>
-
-<details>
-<summary><strong>❓ 3. "Address already in use (:8085)" (Port 8085 kullanımda) hatası alıyorum?</strong></summary>
-
-Arka planda zaten çalışan bir `anthology-dav` servisi vardır.
-- Mevcut çalışan işlemi görmek için: `lsof -i :8085`
-- Farklı bir portta başlatmak isterseniz: `./anthology-dav -port 8090`
-</details>
-
-<details>
-<summary><strong>❓ 4. Altyazılar nasıl çalışıyor?</strong></summary>
-
-- Sağlayıcıların pek çoğunda Türkçe altyazı veya dublaj videoya gömülü (hardsub/dublaj) olarak gelir.
-- Harici `.vtt` veya `.srt` altyazı sunan sağlayıcılarda (ör. `FilmModu`, `YabancıDizi`, `AnimeciX`), sunucu altyazıları otomatik olarak çeker. Ayrıca Infuse, Kodi ve VLC içerisinden dosya adı TMDB uyumlu olduğu için tek tıkla **OpenSubtitles** üzerinden dilediğiniz dilde altyazı indirebilirsiniz.
-</details>
-
-<details>
-<summary><strong>❓ 5. Bilgisayarımı formatlarsam veya projeyi başka bilgisayara taşırsam kütüphanem silinir mi?</strong></summary>
-
-Hayır! Kütüphanenize eklediğiniz tüm filmler, diziler, animeler ve sağlayıcı tercihleriniz proje klasöründeki **`library.json`** dosyasında tutulur. Sadece bu küçük dosyayı yedekleyip yeni kurulumunuza kopyaladığınızda tüm sanal arşiviniz kaldığı yerden devam eder.
-</details>
-
-<details>
-<summary><strong>❓ 6. Android tabletimde/telefonumda VLC'de "Sunucu Ekle" dediğimde sadece FTP, FTPS, SFTP, SMB, NFS var; WebDAV neden yok?</strong></summary>
-
-Android için VLC uygulamasında yerleşik bir WebDAV klasör gezgini modülü bulunmamaktadır. Hiçbir ek uygulama kurmadan Android VLC ile izlemek için:
-1. Tabletinizin tarayıcısından `http://<Bilgisayar_IP>:8085/` (ör. `http://192.168.1.X:8085/`) adresine girip içerik kartlarındaki **"▶ VLC'de Oynat"** butonuna dokunun, **VEYA**
-2. VLC içinde **Daha Fazla (More) -> Akışlar (Streams / Yeni Akış)** bölümüne `http://<Bilgisayar_IP>:8085/playlist.m3u` adresini yapıştırın.
-3. Klasör görünümüyle WebDAV kullanmak isterseniz Android'de ücretsiz ve açık kaynaklı **Nova Video Player** veya **Kodi** (ya da **CX Dosya Gezgini**) kullanabilirsiniz.
-</details>
-
-<details>
-<summary><strong>❓ 7. Bilgisayar ve tableti telefonumun mobil internet paylaşımına (Hotspot) bağladım ama arayüz açılmıyor?</strong></summary>
-
-1. Öncelikle bilgisayarınızda `http://localhost:8085/` adresini açıp sağ üstteki **`📱 VLC & Ağ`** butonuna tıklayın ve bilgisayarınızın Hotspot üzerinde aldığı gerçek IP adresini (genellikle `10.x.x.x` veya `172.20.10.x` bloğundadır; `127.0.0.1` veya `192.168.100.2` gibi sanal köprü IP'leri çalışmaz) öğrenin.
-2. **iPhone (iOS) Hotspot Kullanıyorsanız:** iOS güvenlik gereği Wi-Fi üzerinden bağlanan iki cihazın birbiriyle doğrudan iletişim kurmasını engelleyebilir (*AP Client Isolation*). Bunu aşmak için:
-   - Önce `http://<BilgisayarAdı>.local:8085/` adresini deneyin,
-   - Telefonu Mac'e USB kablosuyla bağlayıp Mac'te **Sistem Ayarları -> Genel -> Paylaşma -> İnternet Paylaşımı**'nı açarak Wi-Fi'ı Mac üzerinden paylaşın,
-   - Veya her iki cihaza ücretsiz **Tailscale** kurun.
-</details>
+| **📺 Dizi** | **12** | `DiziWatch`, `DiziBox`, `DiziYou`, `DiziMom`, `DiziPod`, `DiziBak`, `Yabancı Dizi`, `DDizi`, `PuhuTV`, `TrDiziİzle`, `TvDiziler`, `Anthology Dizi Arşivi` |
+| **🎬 Film** | **14** | `FilmModu`, `HDFilmCehennemi`, `HDFilmİzle`, `HDFilmDelisi`, `Kült Filmler`, `LiderFilmİzle`, `SetFilmİzle`, `SinemaCX`, `SineWix`, `VidLink Cloud`, `Vidmody`, `Webteİzle`, `YouTube Dizi & Film`, `Anthology M3U Arşivi` |
 
 ---
 
 <div align="center">
-  <p><strong>Anthology WebDAV</strong> — Hızlı, Temiz ve Sıfır Disk Tüketimli Medya Deneyimi</p>
+  <p>Tüm cihazlar ve medya oynatıcılar için kapsamlı kurulum kılavuzuna <strong><a href="https://github.com/falsisdev/anthology-dav/wiki">Resmi Wiki Sayfasından</a></strong> ulaşabilirsiniz.</p>
 </div>
