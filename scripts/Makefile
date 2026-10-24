@@ -11,6 +11,8 @@ ERR_LOG_FILE := /tmp/anthology-dav.err.log
 build:
 	cd $(PROJECT_DIR) && go mod tidy && go build -o $(PROJECT_DIR)/$(APP_NAME) .
 	-codesign -f -s - $(PROJECT_DIR)/$(APP_NAME) 2>/dev/null || true
+	cd $(PROJECT_DIR) && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o $(PROJECT_DIR)/$(APP_NAME)-linux .
+	@echo "Build complete: $(APP_NAME) (host) and $(APP_NAME)-linux (linux/amd64)"
 
 run: build
 	$(PROJECT_DIR)/$(APP_NAME) -host 0.0.0.0 -port 8085
@@ -31,5 +33,5 @@ logs:
 	tail -f $(LOG_FILE) $(ERR_LOG_FILE)
 
 clean:
-	rm -f $(PROJECT_DIR)/$(APP_NAME)
+	rm -f $(PROJECT_DIR)/$(APP_NAME) $(PROJECT_DIR)/$(APP_NAME)-linux
 
