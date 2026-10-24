@@ -87,6 +87,9 @@ func main() {
 		}
 		return out
 	})
+	virtualFS.SetSubtitleResolver(func(ctx context.Context, mediaType string, tmdbID int, title, origTitle, year string, season, episode int, lang, format string) ([]byte, error) {
+		return multiResolver.ResolveSubtitle(ctx, mediaType, tmdbID, title, origTitle, year, season, episode, "", lang, format)
+	})
 	webHandler := web.NewHandler(cfg, cache, multiResolver)
 
 	// Background prewarm of TMDB seasons & alternative titles for existing library items
@@ -148,6 +151,7 @@ func main() {
 	// Stream and resolver endpoints
 	mux.HandleFunc("/stream/resolve", multiResolver.HandleResolve)
 	mux.HandleFunc("/stream/", proxyHandler.HandleStream)
+	mux.HandleFunc("/sub/resolve", multiResolver.HandleSubResolve)
 	mux.HandleFunc("/sub/", proxyHandler.HandleSub)
 	mux.HandleFunc("/proxy/media", proxyHandler.HandleProxyMedia)
 

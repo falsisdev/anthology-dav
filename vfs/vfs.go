@@ -54,16 +54,20 @@ func (v *AnthologyVFS) baseURL(ctx context.Context) string {
 // SourceDiscoveryFunc is a callback used by VFS to discover working sources on demand without circular imports.
 type SourceDiscoveryFunc func(ctx context.Context, mediaType string, tmdbID int, title, origTitle, year string, season, episode int) []VFSDiscoveredSource
 
+// SubtitleResolverFunc is a callback used by VFS to dynamically fetch and format subtitles on demand.
+type SubtitleResolverFunc func(ctx context.Context, mediaType string, tmdbID int, title, origTitle, year string, season, episode int, lang, format string) ([]byte, error)
+
 // AnthologyVFS implements golang.org/x/net/webdav.FileSystem with on-demand lazy loading.
 type AnthologyVFS struct {
-	cfg        *config.Config
-	wl         *config.WatchlistManager
-	lib        *config.LibraryManager
-	cache      *MemoryCache
-	discoverFn SourceDiscoveryFunc
-	bootTime   time.Time
-	mu         sync.RWMutex
-	itemIndex  map[string]indexedMedia
+	cfg         *config.Config
+	wl          *config.WatchlistManager
+	lib         *config.LibraryManager
+	cache       *MemoryCache
+	discoverFn  SourceDiscoveryFunc
+	subResolver SubtitleResolverFunc
+	bootTime    time.Time
+	mu          sync.RWMutex
+	itemIndex   map[string]indexedMedia
 }
 
 type indexedMedia struct {
@@ -85,6 +89,11 @@ func NewAnthologyVFS(cfg *config.Config, cache *MemoryCache) *AnthologyVFS {
 // SetSourceDiscoverer wires the MultiResolver discovery callback into the VFS.
 func (v *AnthologyVFS) SetSourceDiscoverer(fn SourceDiscoveryFunc) {
 	v.discoverFn = fn
+}
+
+// SetSubtitleResolver wires the subtitle resolution callback into the VFS.
+func (v *AnthologyVFS) SetSubtitleResolver(fn SubtitleResolverFunc) {
+	v.subResolver = fn
 }
 
 func (v *AnthologyVFS) cleanSegments(name string) []string {
@@ -287,13 +296,53 @@ func (v *AnthologyVFS) handleLibraryMovies(ctx context.Context, rest []string) (
 		v.baseURL(ctx), matchedMovie.TMDBID, url.QueryEscape(matchedMovie.Title), url.QueryEscape(matchedMovie.Year))
 	strmFile := NewVirtualFile(strmName, []byte(strmContent), v.bootTime)
 
-	if len(rest) == 1 {
-		st, _ := strmFile.Stat()
-		return NewVirtualDir(targetFolder, []fs.FileInfo{st}, v.bootTime), nil
+	filesMap := map[string]*VirtualFile{
+		strmName: strmFile,
+	}
+	orderedNames := []string{strmName}
+
+	subVariants := []struct {
+		suffix string
+		lang   string
+		format string
+	}{
+		{suffix: ".tr.vtt", lang: "tr", format: "vtt"},
+		{suffix: ".tr.srt", lang: "tr", format: "srt"},
+		{suffix: ".vtt", lang: "tr", format: "vtt"},
+		{suffix: ".srt", lang: "tr", format: "srt"},
 	}
 
-	if len(rest) == 2 && rest[1] == strmName {
-		return strmFile, nil
+	for _, sv := range subVariants {
+		subName := baseName + sv.suffix
+		lang := sv.lang
+		format := sv.format
+		subFile := NewLazyVirtualFile(subName, 24576, v.bootTime, func() ([]byte, error) {
+			if v.subResolver != nil {
+				return v.subResolver(context.Background(), "movie", matchedMovie.TMDBID, matchedMovie.Title, matchedMovie.OriginalTitle, matchedMovie.Year, 1, 1, lang, format)
+			}
+			if format == "srt" {
+				return []byte("\n"), nil
+			}
+			return []byte("WEBVTT\n\n"), nil
+		})
+		filesMap[subName] = subFile
+		orderedNames = append(orderedNames, subName)
+	}
+
+	if len(rest) == 1 {
+		children := make([]fs.FileInfo, 0, len(orderedNames))
+		for _, name := range orderedNames {
+			st, _ := filesMap[name].Stat()
+			children = append(children, st)
+		}
+		return NewVirtualDir(targetFolder, children, v.bootTime), nil
+	}
+
+	if len(rest) == 2 {
+		if vf, ok := filesMap[rest[1]]; ok {
+			return vf, nil
+		}
+		return nil, os.ErrNotExist
 	}
 
 	return nil, os.ErrNotExist
@@ -380,22 +429,68 @@ func (v *AnthologyVFS) handleLibrarySeriesOrAnime(ctx context.Context, mediaType
 	folderTitle := formatItemFolderName(matchedItem.Title, matchedItem.Year)
 	plainTitle := SanitizeFileName(matchedItem.Title)
 
-	filesMap := make(map[string]*VirtualFile, epCount)
-	legacyMap := make(map[string]*VirtualFile, epCount)
+	filesMap := make(map[string]*VirtualFile)
+	legacyMap := make(map[string]*VirtualFile)
 	var orderedNames []string
+
+	subVariants := []struct {
+		suffix string
+		lang   string
+		format string
+	}{
+		{suffix: ".tr.vtt", lang: "tr", format: "vtt"},
+		{suffix: ".tr.srt", lang: "tr", format: "srt"},
+		{suffix: ".vtt", lang: "tr", format: "vtt"},
+		{suffix: ".srt", lang: "tr", format: "srt"},
+	}
 
 	for epNum := 1; epNum <= epCount; epNum++ {
 		strmContent := fmt.Sprintf("%s/stream/resolve?type=%s&tmdb_id=%d&title=%s&year=%s&season=%d&episode=%d",
 			v.baseURL(ctx), mediaType, matchedItem.TMDBID, url.QueryEscape(matchedItem.Title), url.QueryEscape(matchedItem.Year), seasonNum, epNum)
 
-		primaryName := SanitizeFileName(fmt.Sprintf("%s - S%02dE%02d", folderTitle, seasonNum, epNum)) + ".strm"
+		epBase := SanitizeFileName(fmt.Sprintf("%s - S%02dE%02d", folderTitle, seasonNum, epNum))
+		primaryName := epBase + ".strm"
 		vf := NewVirtualFile(primaryName, []byte(strmContent), v.bootTime)
 		filesMap[primaryName] = vf
 		orderedNames = append(orderedNames, primaryName)
 
-		legacyName := SanitizeFileName(fmt.Sprintf("%s - S%02dE%02d", plainTitle, seasonNum, epNum)) + ".strm"
+		currEp := epNum
+		for _, sv := range subVariants {
+			subName := epBase + sv.suffix
+			lang := sv.lang
+			format := sv.format
+			subFile := NewLazyVirtualFile(subName, 24576, v.bootTime, func() ([]byte, error) {
+				if v.subResolver != nil {
+					return v.subResolver(context.Background(), mediaType, matchedItem.TMDBID, matchedItem.Title, matchedItem.OriginalTitle, matchedItem.Year, seasonNum, currEp, lang, format)
+				}
+				if format == "srt" {
+					return []byte("\n"), nil
+				}
+				return []byte("WEBVTT\n\n"), nil
+			})
+			filesMap[subName] = subFile
+			orderedNames = append(orderedNames, subName)
+		}
+
+		legacyBase := SanitizeFileName(fmt.Sprintf("%s - S%02dE%02d", plainTitle, seasonNum, epNum))
+		legacyName := legacyBase + ".strm"
 		if legacyName != primaryName {
 			legacyMap[legacyName] = NewVirtualFile(legacyName, []byte(strmContent), v.bootTime)
+			for _, sv := range subVariants {
+				subName := legacyBase + sv.suffix
+				lang := sv.lang
+				format := sv.format
+				subFile := NewLazyVirtualFile(subName, 24576, v.bootTime, func() ([]byte, error) {
+					if v.subResolver != nil {
+						return v.subResolver(context.Background(), mediaType, matchedItem.TMDBID, matchedItem.Title, matchedItem.OriginalTitle, matchedItem.Year, seasonNum, currEp, lang, format)
+					}
+					if format == "srt" {
+						return []byte("\n"), nil
+					}
+					return []byte("WEBVTT\n\n"), nil
+				})
+				legacyMap[subName] = subFile
+			}
 		}
 	}
 

@@ -630,10 +630,12 @@ func (h *Handler) HandlePlaylistM3U(w http.ResponseWriter, r *http.Request) {
 		logo := it.PosterURL
 
 		if it.Type == "movie" {
+			subURL := fmt.Sprintf("%s/sub/resolve?type=movie&tmdb_id=%d&title=%s&year=%s&lang=tr&format=vtt",
+				baseURL, it.TMDBID, url.QueryEscape(it.Title), url.QueryEscape(it.Year))
 			streamURL := fmt.Sprintf("%s/stream/resolve?type=movie&tmdb_id=%d&title=%s&year=%s&provider=%s",
 				baseURL, it.TMDBID, url.QueryEscape(it.Title), url.QueryEscape(it.Year), url.QueryEscape(prov))
-			sb.WriteString(fmt.Sprintf("#EXTINF:-1 tvg-id=\"%d\" tvg-logo=\"%s\" group-title=\"Filmler\",%s\n%s\n",
-				it.TMDBID, logo, cleanTitle, streamURL))
+			sb.WriteString(fmt.Sprintf("#EXTINF:-1 tvg-id=\"%d\" tvg-logo=\"%s\" group-title=\"Filmler\",%s\n#EXTVLCOPT:sub-file=%s\n%s\n",
+				it.TMDBID, logo, cleanTitle, subURL, streamURL))
 			continue
 		}
 
@@ -670,10 +672,12 @@ func (h *Handler) HandlePlaylistM3U(w http.ResponseWriter, r *http.Request) {
 					continue
 				}
 				epLabel := fmt.Sprintf("%s - S%02dE%02d", cleanTitle, s.SeasonNumber, ep)
+				subURL := fmt.Sprintf("%s/sub/resolve?type=%s&tmdb_id=%d&title=%s&year=%s&season=%d&episode=%d&lang=tr&format=vtt",
+					baseURL, it.Type, it.TMDBID, url.QueryEscape(it.Title), url.QueryEscape(it.Year), s.SeasonNumber, ep)
 				streamURL := fmt.Sprintf("%s/stream/resolve?type=%s&tmdb_id=%d&title=%s&year=%s&season=%d&episode=%d&provider=%s",
 					baseURL, it.Type, it.TMDBID, url.QueryEscape(it.Title), url.QueryEscape(it.Year), s.SeasonNumber, ep, url.QueryEscape(prov))
-				sb.WriteString(fmt.Sprintf("#EXTINF:-1 tvg-id=\"%d_S%02dE%02d\" tvg-logo=\"%s\" group-title=\"%s\",%s\n%s\n",
-					it.TMDBID, s.SeasonNumber, ep, logo, groupTitle, epLabel, streamURL))
+				sb.WriteString(fmt.Sprintf("#EXTINF:-1 tvg-id=\"%d_S%02dE%02d\" tvg-logo=\"%s\" group-title=\"%s\",%s\n#EXTVLCOPT:sub-file=%s\n%s\n",
+					it.TMDBID, s.SeasonNumber, ep, logo, groupTitle, epLabel, subURL, streamURL))
 			}
 		}
 	}
@@ -2120,12 +2124,12 @@ const glassmorphismHTML = `<!DOCTYPE html>
       const it = libraryItems.find(x => x.id === itemId);
       if (!it) return;
       const prov = it.selected_provider || 'auto';
-      const streamUrl = getReachableBaseOrigin() + '/stream/resolve?type=movie' +
-        '&tmdb_id=' + encodeURIComponent(it.tmdb_id) +
-        '&title=' + encodeURIComponent(it.title) +
-        '&year=' + encodeURIComponent(it.year || '') +
+      let playUrl = getReachableBaseOrigin() + '/playlist.m3u?id=' + encodeURIComponent(it.id) +
         '&provider=' + encodeURIComponent(prov);
-      openInVLC(streamUrl, it.title + (it.year ? ' (' + it.year + ')' : ''));
+      if (isMultiUser && authToken) {
+        playUrl += '&token=' + encodeURIComponent(authToken);
+      }
+      openInVLC(playUrl, it.title + (it.year ? ' (' + it.year + ')' : ''));
     }
 
     function playModalCurrentInVLC(provOverride) {
@@ -2134,16 +2138,16 @@ const glassmorphismHTML = `<!DOCTYPE html>
       const s = parseInt(document.getElementById('modalSeason').value || '1', 10);
       const e = parseInt(document.getElementById('modalEpisode').value || '1', 10);
       const prov = provOverride || it.selected_provider || 'auto';
-      const streamUrl = getReachableBaseOrigin() + '/stream/resolve?type=' + encodeURIComponent(it.type) +
-        '&tmdb_id=' + encodeURIComponent(it.tmdb_id) +
-        '&title=' + encodeURIComponent(it.title) +
-        '&year=' + encodeURIComponent(it.year || '') +
+      let playUrl = getReachableBaseOrigin() + '/playlist.m3u?id=' + encodeURIComponent(it.id) +
         '&season=' + s + '&episode=' + e +
         '&provider=' + encodeURIComponent(prov);
+      if (isMultiUser && authToken) {
+        playUrl += '&token=' + encodeURIComponent(authToken);
+      }
       const label = it.type === 'movie'
         ? it.title
         : (it.title + ' - S' + String(s).padStart(2, '0') + 'E' + String(e).padStart(2, '0'));
-      openInVLC(streamUrl, label);
+      openInVLC(playUrl, label);
     }
 
     function copyItemM3UPlaylist() {

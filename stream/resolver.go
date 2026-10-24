@@ -1,6 +1,7 @@
 package stream
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net/http"
@@ -268,6 +269,179 @@ func (mr *MultiResolver) HandleResolve(w http.ResponseWriter, r *http.Request) {
 
 	mr.proxy.cache.Delete(cacheKey)
 	http.Error(w, fmt.Sprintf("stream resolver: playback failed for '%s' S%02dE%02d across %d candidates", title, season, episode, len(allSources)), http.StatusBadGateway)
+}
+
+// ResolveSubtitle dynamically finds, fetches and formats (VTT or SRT) subtitles for a movie or episode.
+func (mr *MultiResolver) ResolveSubtitle(ctx context.Context, mediaType string, tmdbID int, title, origTitle, year string, season, episode int, preferredProv, lang, format string) ([]byte, error) {
+	if season <= 0 {
+		season = 1
+	}
+	if episode <= 0 {
+		episode = 1
+	}
+	reqLang := strings.ToLower(strings.TrimSpace(lang))
+	if reqLang == "" {
+		reqLang = "tr"
+	}
+	reqFormat := strings.ToLower(strings.TrimSpace(format))
+	if reqFormat == "" {
+		reqFormat = "vtt"
+	}
+
+	// 1. Check Subtitle Cache
+	cacheKey := fmt.Sprintf("sub:data:%s:%d:%s:%d:%d:%s:%s:%s", mediaType, tmdbID, title, season, episode, preferredProv, reqLang, reqFormat)
+	if val, ok := mr.proxy.cache.Get(cacheKey); ok {
+		if b, ok := val.([]byte); ok && len(b) > 0 {
+			return b, nil
+		}
+	}
+
+	// 2. Look for already resolved stream result in cache
+	var subURL string
+	var subHeaders map[string]string
+
+	findMatchingSub := func(subs []providers.Subtitle) bool {
+		if len(subs) == 0 {
+			return false
+		}
+		for _, s := range subs {
+			if strings.EqualFold(s.Language, reqLang) && strings.TrimSpace(s.URL) != "" {
+				subURL = s.URL
+				subHeaders = s.Headers
+				return true
+			}
+		}
+		if reqLang == "tr" {
+			for _, s := range subs {
+				l := strings.ToLower(s.Label)
+				if (strings.Contains(l, "türk") || strings.Contains(l, "turk")) && strings.TrimSpace(s.URL) != "" {
+					subURL = s.URL
+					subHeaders = s.Headers
+					return true
+				}
+			}
+		}
+		for _, s := range subs {
+			if strings.TrimSpace(s.URL) != "" {
+				subURL = s.URL
+				subHeaders = s.Headers
+				return true
+			}
+		}
+		return false
+	}
+
+	provKey := fmt.Sprintf("resolve:%s:%d:%s:%d:%d:%s", mediaType, tmdbID, title, season, episode, preferredProv)
+	if val, ok := mr.proxy.cache.Get(provKey); ok {
+		if res, ok := val.(*providers.StreamResult); ok && res != nil {
+			findMatchingSub(res.Subtitles)
+		}
+	}
+
+	if subURL == "" {
+		autoKey := fmt.Sprintf("resolve:%s:%d:%s:%d:%d:auto", mediaType, tmdbID, title, season, episode)
+		if val, ok := mr.proxy.cache.Get(autoKey); ok {
+			if res, ok := val.(*providers.StreamResult); ok && res != nil {
+				findMatchingSub(res.Subtitles)
+			}
+		}
+	}
+
+	// 3. If not yet in cache, run provider resolution
+	if subURL == "" {
+		var altTitles []string
+		if item, ok := config.Library().GetByTMDB(mediaType, tmdbID); ok {
+			altTitles = item.AltTitles
+			if item.EnglishTitle != "" {
+				altTitles = append([]string{item.EnglishTitle}, altTitles...)
+			}
+			if title == "" {
+				title = item.Title
+			}
+			if origTitle == "" {
+				origTitle = item.OriginalTitle
+			}
+			if year == "" {
+				year = item.Year
+			}
+		}
+
+		candidates := CandidateProvidersForType(mediaType)
+		if preferredProv != "" && preferredProv != "auto" {
+			candidates = append([]string{preferredProv}, candidates...)
+		}
+
+		for _, provID := range candidates {
+			p, ok := providers.GetByID(provID)
+			if !ok {
+				continue
+			}
+			pCtx, pCancel := context.WithTimeout(ctx, 6*time.Second)
+			res, err := mr.resolveFromProvider(pCtx, p, mediaType, tmdbID, title, origTitle, year, altTitles, season, episode)
+			pCancel()
+			if err == nil && res != nil && len(res.Subtitles) > 0 {
+				if findMatchingSub(res.Subtitles) {
+					break
+				}
+			}
+		}
+	}
+
+	if subURL == "" {
+		if reqFormat == "srt" {
+			return []byte("\n"), nil
+		}
+		return []byte("WEBVTT\n\n"), nil
+	}
+
+	// 4. Fetch the subtitle content
+	data, _, _, _, err := providers.FetchBytes(ctx, "GET", subURL, subHeaders, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch subtitle from %s: %w", subURL, err)
+	}
+
+	// 5. Convert format if SRT requested and content is WebVTT
+	if reqFormat == "srt" && bytes.Contains(data, []byte("WEBVTT")) {
+		data = providers.VTTToSRT(data)
+	} else if reqFormat == "vtt" && !bytes.Contains(data, []byte("WEBVTT")) {
+		data = append([]byte("WEBVTT\n\n"), data...)
+	}
+
+	mr.proxy.cache.Set(cacheKey, data, 1*time.Hour)
+	return data, nil
+}
+
+// HandleSubResolve serves /sub/resolve?type={movie|series|anime}&tmdb_id={id}&title={title}&season={s}&episode={e}&lang={tr|en}&format={vtt|srt}&provider={prov}
+func (mr *MultiResolver) HandleSubResolve(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	mediaType := strings.ToLower(strings.TrimSpace(q.Get("type")))
+	tmdbID, _ := strconv.Atoi(strings.TrimSpace(q.Get("tmdb_id")))
+	title := strings.TrimSpace(q.Get("title"))
+	origTitle := strings.TrimSpace(q.Get("original_title"))
+	year := strings.TrimSpace(q.Get("year"))
+	season, _ := strconv.Atoi(strings.TrimSpace(q.Get("season")))
+	episode, _ := strconv.Atoi(strings.TrimSpace(q.Get("episode")))
+	preferredProv := strings.TrimSpace(q.Get("provider"))
+	lang := strings.TrimSpace(q.Get("lang"))
+	format := strings.TrimSpace(q.Get("format"))
+
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+
+	data, err := mr.ResolveSubtitle(ctx, mediaType, tmdbID, title, origTitle, year, season, episode, preferredProv, lang, format)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	if strings.EqualFold(format, "srt") {
+		w.Header().Set("Content-Type", "application/x-subrip; charset=utf-8")
+	} else {
+		w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
+	}
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
 }
 
 // DiscoverSources concurrently checks all candidate providers for a movie or episode,

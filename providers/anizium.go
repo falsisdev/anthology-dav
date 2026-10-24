@@ -20,11 +20,20 @@ func (p *AniziumProvider) ID() string   { return "anizium" }
 func (p *AniziumProvider) Name() string { return "Anizium" }
 
 func (p *AniziumProvider) apiURL() string {
-	return config.RemoteString("urls.anime.anizium.api", "https://api.anizium.co")
+	if u := config.RemoteString("urls.anime.anizium.base", ""); u != "" {
+		return strings.TrimRight(u, "/")
+	}
+	if u := config.RemoteString("urls.anime.anizium.api", ""); u != "" {
+		return strings.TrimRight(u, "/")
+	}
+	return "https://api.anizium.co"
 }
 
 func (p *AniziumProvider) siteURL() string {
-	return config.RemoteString("urls.anime.anizium.base", "https://anizium.co")
+	if u := config.RemoteString("urls.anime.anizium.site", ""); u != "" {
+		return strings.TrimRight(u, "/")
+	}
+	return "https://anizium.co"
 }
 
 func (p *AniziumProvider) headers() map[string]string {
@@ -41,187 +50,316 @@ func (p *AniziumProvider) headers() map[string]string {
 	}
 }
 
+type aniziumCatalogItem struct {
+	ID            any    `json:"ID"`
+	Name          string `json:"name"`
+	Type          string `json:"type"`
+	Poster        string `json:"poster"`
+	Banner        string `json:"banner"`
+	DetailsBanner string `json:"details_banner"`
+	Overview      string `json:"overview"`
+	ReleaseYear   any    `json:"release_year"`
+}
+
+type aniziumHomeResponse struct {
+	Success          bool                 `json:"success"`
+	SettlementTop    []aniziumCatalogItem `json:"settlement_top"`
+	SettlementMiddle []aniziumCatalogItem `json:"settlement_middle"`
+	SettlementLower  []aniziumCatalogItem `json:"settlement_lower"`
+}
+
 func (p *AniziumProvider) GetCatalog(ctx context.Context, page int) ([]MediaItem, error) {
 	u := p.apiURL() + "/page/home"
-	var data map[string]any
-	if err := FetchJSON(ctx, u, p.headers(), &data); err != nil {
+	var resp aniziumHomeResponse
+	if err := FetchJSON(ctx, u, p.headers(), &resp); err != nil {
 		return nil, err
 	}
+
+	var rawItems []aniziumCatalogItem
+	rawItems = append(rawItems, resp.SettlementTop...)
+	rawItems = append(rawItems, resp.SettlementMiddle...)
+	rawItems = append(rawItems, resp.SettlementLower...)
 
 	var items []MediaItem
 	seen := make(map[string]bool)
-	sections := []string{"trends", "slider", "latest_animes", "recommended"}
-	for _, sec := range sections {
-		arr, ok := data[sec].([]any)
-		if !ok {
-			continue
-		}
-		for _, elem := range arr {
-			m, ok := elem.(map[string]any)
-			if !ok {
-				continue
-			}
-			idStr := fmt.Sprintf("%v", m["id"])
-			if idStr == "" || idStr == "<nil>" || seen[idStr] {
-				continue
-			}
-			title, _ := m["title"].(string)
-			if title == "" {
-				title, _ = m["title_tr"].(string)
-			}
-			if title == "" {
-				continue
-			}
-			seen[idStr] = true
-			poster, _ := m["poster"].(string)
-			if poster != "" && !strings.HasPrefix(poster, "http") {
-				poster = "https://x.anizium.co/assets/poster/" + poster
-			}
-			year := ""
-			if y, ok := m["release_year"]; ok && y != nil {
-				year = fmt.Sprintf("%v", y)
-			}
-			desc, _ := m["synopsis_tr"].(string)
-			items = append(items, MediaItem{
-				ID:          idStr,
-				Title:       title,
-				Year:        ExtractYear(year),
-				Type:        MediaTypeAnime,
-				PosterURL:   poster,
-				Description: desc,
-			})
-		}
-	}
-	return items, nil
-}
 
-func (p *AniziumProvider) Search(ctx context.Context, query string) ([]MediaItem, error) {
-	u := fmt.Sprintf("%s/page/search?value=%s&page=1", p.apiURL(), url.QueryEscape(strings.TrimSpace(query)))
-	var data struct {
-		Data []struct {
-			ID          any    `json:"id"`
-			Title       string `json:"title"`
-			TitleTR     string `json:"title_tr"`
-			Poster      string `json:"poster"`
-			SynopsisTR  string `json:"synopsis_tr"`
-			ReleaseYear any    `json:"release_year"`
-		} `json:"data"`
-	}
-	if err := FetchJSON(ctx, u, p.headers(), &data); err != nil {
-		return nil, err
-	}
-	var items []MediaItem
-	for _, it := range data.Data {
+	for _, it := range rawItems {
 		idStr := fmt.Sprintf("%v", it.ID)
-		title := it.Title
-		if title == "" {
-			title = it.TitleTR
-		}
-		if idStr == "" || title == "" {
+		if idStr == "" || idStr == "<nil>" || seen[idStr] {
 			continue
 		}
-		poster := it.Poster
-		if poster != "" && !strings.HasPrefix(poster, "http") {
-			poster = "https://x.anizium.co/assets/poster/" + poster
+		title := strings.TrimSpace(it.Name)
+		if title == "" {
+			continue
 		}
+		seen[idStr] = true
+
+		poster := it.Poster
+		if poster == "" {
+			poster = it.DetailsBanner
+		}
+		if poster == "" {
+			poster = it.Banner
+		}
+		if poster != "" && !strings.HasPrefix(poster, "http") {
+			poster = "https://x.anizium.co/assets/anime-poster/" + poster
+		}
+
+		mType := MediaTypeAnime
+		if strings.EqualFold(it.Type, "movie") {
+			mType = MediaTypeMovie
+		}
+
 		items = append(items, MediaItem{
 			ID:          idStr,
 			Title:       title,
 			Year:        ExtractYear(fmt.Sprintf("%v", it.ReleaseYear)),
-			Type:        MediaTypeAnime,
+			Type:        mType,
 			PosterURL:   poster,
-			Description: it.SynopsisTR,
+			Description: it.Overview,
 		})
 	}
+
 	return items, nil
+}
+
+type aniziumSearchResponse struct {
+	Success bool `json:"success"`
+	Page    struct {
+		Data []aniziumCatalogItem `json:"data"`
+	} `json:"page"`
+}
+
+func cleanAniziumQuery(str string) string {
+	s := strings.ToLower(str)
+	replacer := strings.NewReplacer(
+		"ı", "i", "İ", "i",
+		"ü", "u", "Ü", "u",
+		"ö", "o", "Ö", "o",
+		"ş", "s", "Ş", "s",
+		"ğ", "g", "Ğ", "g",
+		"ç", "c", "Ç", "c",
+		":", " ", "-", " ", "_", " ", "/", " ",
+	)
+	s = replacer.Replace(s)
+	words := strings.Fields(s)
+	return strings.Join(words, " ")
+}
+
+func (p *AniziumProvider) Search(ctx context.Context, query string) ([]MediaItem, error) {
+	q := strings.TrimSpace(query)
+	if q == "" {
+		return nil, nil
+	}
+
+	searchOnce := func(term string) ([]MediaItem, error) {
+		u := fmt.Sprintf("%s/page/search?value=%s&page=1", p.apiURL(), url.QueryEscape(term))
+		var resp aniziumSearchResponse
+		if err := FetchJSON(ctx, u, p.headers(), &resp); err != nil {
+			return nil, err
+		}
+		var items []MediaItem
+		for _, it := range resp.Page.Data {
+			idStr := fmt.Sprintf("%v", it.ID)
+			title := strings.TrimSpace(it.Name)
+			if idStr == "" || idStr == "<nil>" || title == "" {
+				continue
+			}
+			poster := it.Poster
+			if poster == "" {
+				poster = it.DetailsBanner
+			}
+			if poster == "" {
+				poster = it.Banner
+			}
+			if poster != "" && !strings.HasPrefix(poster, "http") {
+				poster = "https://x.anizium.co/assets/anime-poster/" + poster
+			}
+
+			mType := MediaTypeAnime
+			if strings.EqualFold(it.Type, "movie") {
+				mType = MediaTypeMovie
+			}
+
+			items = append(items, MediaItem{
+				ID:          idStr,
+				Title:       title,
+				Year:        ExtractYear(fmt.Sprintf("%v", it.ReleaseYear)),
+				Type:        mType,
+				PosterURL:   poster,
+				Description: it.Overview,
+			})
+		}
+		return items, nil
+	}
+
+	// 1. Direct search
+	items, err := searchOnce(q)
+	if err == nil && len(items) > 0 {
+		return items, nil
+	}
+
+	// 2. Cleaned query search (strip punctuation & normalize turkish chars)
+	cleanQ := cleanAniziumQuery(q)
+	if cleanQ != "" && !strings.EqualFold(cleanQ, q) {
+		items, err = searchOnce(cleanQ)
+		if err == nil && len(items) > 0 {
+			return items, nil
+		}
+	}
+
+	// 3. First word fallback for compound titles (e.g. "Naruto Shippuden" -> "Naruto")
+	words := strings.Fields(cleanQ)
+	if len(words) > 1 && len(words[0]) >= 4 {
+		items, err = searchOnce(words[0])
+		if err == nil && len(items) > 0 {
+			return items, nil
+		}
+	}
+
+	return nil, nil
+}
+
+type aniziumEpisodeItem struct {
+	ID       any    `json:"ID"`
+	Name     string `json:"name"`
+	Number   int    `json:"number"`
+	Overview string `json:"overview"`
+}
+
+type aniziumSeasonItem struct {
+	ID       any                  `json:"ID"`
+	Name     string               `json:"name"`
+	Number   int                  `json:"number"`
+	Episodes []aniziumEpisodeItem `json:"episodes"`
+}
+
+type aniziumDetailResponse struct {
+	Success bool `json:"success"`
+	Data    struct {
+		ID            any                 `json:"ID"`
+		Name          string              `json:"name"`
+		NameTR        string              `json:"name_tr"`
+		Type          string              `json:"type"`
+		Poster        string              `json:"poster"`
+		Banner        string              `json:"banner"`
+		DetailsBanner string              `json:"details_banner"`
+		Overview      string              `json:"overview"`
+		ReleaseYear   any                 `json:"release_year"`
+		Seasons       []aniziumSeasonItem `json:"seasons"`
+	} `json:"data"`
 }
 
 func (p *AniziumProvider) GetDetails(ctx context.Context, mediaID string) (*MediaDetail, error) {
 	cleanID := strings.TrimPrefix(mediaID, "anizium:")
-	u := fmt.Sprintf("%s/anime/get?id=%s", p.apiURL(), url.QueryEscape(cleanID))
-	var data struct {
-		Anime struct {
-			ID          any    `json:"id"`
-			Title       string `json:"title"`
-			TitleTR     string `json:"title_tr"`
-			Poster      string `json:"poster"`
-			SynopsisTR  string `json:"synopsis_tr"`
-			ReleaseYear any    `json:"release_year"`
-		} `json:"anime"`
-		Episodes []struct {
-			SeasonNumber  int    `json:"season_number"`
-			EpisodeNumber int    `json:"episode_number"`
-			Title         string `json:"title"`
-		} `json:"episodes"`
+	cleanID = strings.TrimPrefix(cleanID, "anime:")
+	cleanID = strings.TrimPrefix(cleanID, "movie:")
+	cleanID = strings.TrimPrefix(cleanID, "ep:")
+	if parts := strings.Split(cleanID, ":"); len(parts) > 1 {
+		cleanID = parts[0]
 	}
-	if err := FetchJSON(ctx, u, p.headers(), &data); err != nil {
+
+	u := fmt.Sprintf("%s/anime/get?id=%s", p.apiURL(), url.QueryEscape(cleanID))
+	var resp aniziumDetailResponse
+	if err := FetchJSON(ctx, u, p.headers(), &resp); err != nil {
 		return nil, err
 	}
-	title := data.Anime.Title
+	d := resp.Data
+	title := strings.TrimSpace(d.Name)
 	if title == "" {
-		title = data.Anime.TitleTR
+		title = strings.TrimSpace(d.NameTR)
 	}
 	if title == "" {
 		title = "Anizium #" + cleanID
 	}
-	poster := data.Anime.Poster
+
+	poster := d.Poster
+	if poster == "" {
+		poster = d.DetailsBanner
+	}
+	if poster == "" {
+		poster = d.Banner
+	}
 	if poster != "" && !strings.HasPrefix(poster, "http") {
-		poster = "https://x.anizium.co/assets/poster/" + poster
+		poster = "https://x.anizium.co/assets/anime-poster/" + poster
 	}
 
-	seasonMap := make(map[int][]Episode)
-	for _, ep := range data.Episodes {
-		sNum := ep.SeasonNumber
-		if sNum <= 0 {
-			sNum = 1
-		}
-		eNum := ep.EpisodeNumber
-		if eNum <= 0 {
-			eNum = 1
-		}
-		epTitle := ep.Title
-		if epTitle == "" {
-			epTitle = fmt.Sprintf("%d. Sezon %d. Bölüm", sNum, eNum)
-		}
-		seasonMap[sNum] = append(seasonMap[sNum], Episode{
-			ID:       fmt.Sprintf("%s:%d:%d", cleanID, sNum, eNum),
-			StreamID: fmt.Sprintf("%s:%d:%d", cleanID, sNum, eNum),
-			Title:    epTitle,
-			Season:   sNum,
-			Number:   eNum,
-		})
-	}
-	if len(seasonMap) == 0 {
-		seasonMap[1] = []Episode{
-			{
-				ID:       fmt.Sprintf("%s:1:1", cleanID),
-				StreamID: fmt.Sprintf("%s:1:1", cleanID),
-				Title:    "1. Sezon 1. Bölüm",
-				Season:   1,
-				Number:   1,
-			},
-		}
+	isMovie := strings.EqualFold(d.Type, "movie")
+	mType := MediaTypeAnime
+	if isMovie {
+		mType = MediaTypeMovie
 	}
 
 	var seasons []Season
-	for sNum, eps := range seasonMap {
-		seasons = append(seasons, Season{
-			Number:   sNum,
-			Name:     fmt.Sprintf("Season %02d", sNum),
-			Episodes: eps,
-		})
+	for _, s := range d.Seasons {
+		sNum := s.Number
+		if sNum <= 0 {
+			sNum = 1
+		}
+		var eps []Episode
+		for _, ep := range s.Episodes {
+			eNum := ep.Number
+			if eNum <= 0 {
+				eNum = 1
+			}
+			epTitle := ep.Name
+			if epTitle == "" {
+				epTitle = fmt.Sprintf("%d. Sezon %d. Bölüm", sNum, eNum)
+			} else {
+				epTitle = fmt.Sprintf("%d. Sezon %d. Bölüm - %s", sNum, eNum, epTitle)
+			}
+			streamID := fmt.Sprintf("%s:%d:%d", cleanID, sNum, eNum)
+			eps = append(eps, Episode{
+				ID:       streamID,
+				StreamID: streamID,
+				Title:    epTitle,
+				Season:   sNum,
+				Number:   eNum,
+			})
+		}
+		if len(eps) > 0 {
+			sName := s.Name
+			if sName == "" {
+				sName = fmt.Sprintf("Season %02d", sNum)
+			}
+			seasons = append(seasons, Season{
+				Number:   sNum,
+				Name:     sName,
+				Episodes: eps,
+			})
+		}
+	}
+
+	defaultStreamID := fmt.Sprintf("%s:1:1", cleanID)
+	if len(seasons) == 0 {
+		seasons = []Season{
+			{
+				Number: 1,
+				Name:   "Season 01",
+				Episodes: []Episode{
+					{
+						ID:       defaultStreamID,
+						StreamID: defaultStreamID,
+						Title:    "1. Sezon 1. Bölüm",
+						Season:   1,
+						Number:   1,
+					},
+				},
+			},
+		}
 	}
 
 	return &MediaDetail{
 		MediaItem: MediaItem{
 			ID:          cleanID,
 			Title:       title,
-			Year:        ExtractYear(fmt.Sprintf("%v", data.Anime.ReleaseYear)),
-			Type:        MediaTypeAnime,
+			Year:        ExtractYear(fmt.Sprintf("%v", d.ReleaseYear)),
+			Type:        mType,
 			PosterURL:   poster,
-			Description: data.Anime.SynopsisTR,
+			Description: d.Overview,
 		},
-		Seasons: seasons,
+		StreamID: defaultStreamID,
+		Seasons:  seasons,
 	}, nil
 }
 
@@ -235,11 +373,87 @@ func (p *AniziumProvider) GetEpisodes(ctx context.Context, mediaID string, seaso
 			return s.Episodes, nil
 		}
 	}
+	if len(det.Seasons) > 0 && season == 1 {
+		return det.Seasons[0].Episodes, nil
+	}
 	return nil, nil
 }
 
+type aniziumSubtitleItem struct {
+	Group string `json:"group"`
+	Name  string `json:"name"`
+	Link  string `json:"link"`
+	Row   int    `json:"row"`
+}
+
+type aniziumStreamQualityItem struct {
+	Quality any    `json:"quality"`
+	Link    string `json:"link"`
+	Type    string `json:"type"`
+}
+
+type aniziumStreamGroup struct {
+	Group    string                     `json:"group"`
+	Name     string                     `json:"name"`
+	Type     string                     `json:"type"`
+	Platform string                     `json:"platform"`
+	Items    []aniziumStreamQualityItem `json:"items"`
+}
+
+type aniziumSourceResponse struct {
+	Success   bool                  `json:"success"`
+	Subtitles []aniziumSubtitleItem `json:"subtitles"`
+	Groups    []aniziumStreamGroup  `json:"groups"`
+}
+
+func mapAniziumLangCode(group, name string) (langCode, label string) {
+	g := strings.ToLower(strings.TrimSpace(group))
+	switch g {
+	case "tr":
+		langCode = "tr"
+		label = "Türkçe"
+	case "en":
+		langCode = "en"
+		label = "İngilizce"
+	case "de":
+		langCode = "de"
+		label = "Almanca"
+	case "fr":
+		langCode = "fr"
+		label = "Fransızca"
+	case "es":
+		langCode = "es"
+		label = "İspanyolca"
+	case "it":
+		langCode = "it"
+		label = "İtalyanca"
+	case "ar":
+		langCode = "ar"
+		label = "Arapça"
+	default:
+		langCode = g
+		if langCode == "" {
+			langCode = "tr"
+		}
+		label = strings.ToUpper(g)
+		if label == "" {
+			label = "Altyazı"
+		}
+	}
+	if name != "" {
+		label = name
+	}
+	return langCode, label
+}
+
 func (p *AniziumProvider) ResolveStream(ctx context.Context, streamID string) (*StreamResult, error) {
-	parts := strings.Split(strings.TrimPrefix(streamID, "anizium:"), ":")
+	clean := strings.TrimPrefix(streamID, "anizium:")
+	clean = strings.TrimPrefix(clean, "ep:")
+	clean = strings.TrimPrefix(clean, "anime:")
+	isMovie := strings.HasPrefix(clean, "movie:")
+	clean = strings.TrimPrefix(clean, "movie:")
+
+	parts := strings.Split(clean, ":")
 	animeID := parts[0]
 	season := 1
 	episode := 1
@@ -254,22 +468,42 @@ func (p *AniziumProvider) ResolveStream(ctx context.Context, streamID string) (*
 		episode = 1
 	}
 
-	u := fmt.Sprintf("%s/anime/source?id=%s&site=main&server=1&season=%d&episode=%d", p.apiURL(), url.QueryEscape(animeID), season, episode)
-	var srcData struct {
-		Groups map[string]map[string]struct {
-			URL       string `json:"url"`
-			Subtitles []struct {
-				Language string `json:"language"`
-				Label    string `json:"label"`
-				File     string `json:"file"`
-			} `json:"subtitles"`
-		} `json:"groups"`
-	}
-	if err := FetchJSON(ctx, u, p.headers(), &srcData); err != nil {
-		return nil, err
+	fetchSource := func(useEp bool) (*aniziumSourceResponse, error) {
+		var u string
+		if useEp {
+			u = fmt.Sprintf("%s/anime/source?id=%s&site=main&server=1&season=%d&episode=%d", p.apiURL(), url.QueryEscape(animeID), season, episode)
+		} else {
+			u = fmt.Sprintf("%s/anime/source?id=%s&site=main&server=1", p.apiURL(), url.QueryEscape(animeID))
+		}
+		var srcResp aniziumSourceResponse
+		if err := FetchJSON(ctx, u, p.headers(), &srcResp); err != nil {
+			return nil, err
+		}
+		return &srcResp, nil
 	}
 
-	var sources []StreamSource
+	var srcResp *aniziumSourceResponse
+	var err error
+	if isMovie {
+		srcResp, err = fetchSource(false)
+		if (err != nil || srcResp == nil || !srcResp.Success || len(srcResp.Groups) == 0) && (season > 0 || episode > 0) {
+			srcResp, err = fetchSource(true)
+		}
+	} else {
+		srcResp, err = fetchSource(true)
+		if (err != nil || srcResp == nil || !srcResp.Success || len(srcResp.Groups) == 0) {
+			// Fallback without season/episode in case it is structured as a movie
+			srcResp, err = fetchSource(false)
+		}
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("anizium: failed to fetch stream source: %w", err)
+	}
+	if srcResp == nil || !srcResp.Success || len(srcResp.Groups) == 0 {
+		return nil, fmt.Errorf("anizium: no stream groups found for id=%s S%dE%d", animeID, season, episode)
+	}
+
 	site := p.siteURL()
 	streamHeaders := map[string]string{
 		"User-Agent": config.DefaultUserAgent,
@@ -277,50 +511,99 @@ func (p *AniziumProvider) ResolveStream(ctx context.Context, streamID string) (*
 		"Origin":     site,
 	}
 
-	for groupType, qMap := range srcData.Groups {
-		langLabel := "TR Altyazı"
-		if groupType == "trdub" {
-			langLabel = "TR Dublaj"
-		} else if groupType == "endub" {
-			langLabel = "EN Dublaj"
+	// 1. Format Subtitles (Turkish, English, German, French, Arabic, etc.)
+	var subtitles []Subtitle
+	seenSub := make(map[string]bool)
+	for i, rawSub := range srcResp.Subtitles {
+		subURL := strings.TrimSpace(rawSub.Link)
+		if subURL == "" || seenSub[subURL] {
+			continue
 		}
-		for qKey, qObj := range qMap {
-			if qObj.URL == "" {
+		seenSub[subURL] = true
+		langCode, label := mapAniziumLangCode(rawSub.Group, rawSub.Name)
+		subtitles = append(subtitles, Subtitle{
+			ID:       fmt.Sprintf("anizium_%s_%d", langCode, i+1),
+			Language: langCode,
+			Label:    label,
+			Format:   "vtt",
+			URL:      subURL,
+			Headers:  streamHeaders,
+		})
+	}
+
+	// 2. Format Streams for all dub groups (TR Dub, Original/TR Sub, EN Dub, etc.)
+	var sources []StreamSource
+	for _, grp := range srcResp.Groups {
+		gKey := strings.ToLower(strings.TrimSpace(grp.Group))
+		var groupTag string
+		switch gKey {
+		case "trdub":
+			groupTag = "Türkçe Dublaj"
+		case "original":
+			groupTag = "Japonca [TR Altyazılı]"
+		case "endub":
+			groupTag = "İngilizce Dublaj"
+		default:
+			if grp.Name != "" {
+				if strings.Contains(strings.ToLower(grp.Name), "dub") {
+					groupTag = grp.Name
+				} else {
+					groupTag = grp.Name + " Dublaj"
+				}
+			} else {
+				groupTag = "Japonca"
+			}
+		}
+
+		for _, item := range grp.Items {
+			link := strings.TrimSpace(item.Link)
+			if link == "" {
 				continue
 			}
-			var subs []Subtitle
-			for i, sub := range qObj.Subtitles {
-				if sub.File == "" {
-					continue
+
+			qInt, _ := strconv.Atoi(fmt.Sprintf("%v", item.Quality))
+			var qLabel string
+			switch qInt {
+			case 2160:
+				qLabel = "4K UHD"
+			case 1440:
+				qLabel = "2K QHD"
+			default:
+				if qInt > 0 {
+					qLabel = fmt.Sprintf("%dp", qInt)
+				} else {
+					qLabel = "1080p"
 				}
-				lang := "tr"
-				if strings.EqualFold(sub.Language, "en") || strings.EqualFold(sub.Language, "eng") {
-					lang = "en"
+			}
+
+			fmtType := strings.ToLower(strings.TrimSpace(item.Type))
+			if fmtType == "" {
+				if grp.Type != "" {
+					fmtType = strings.ToLower(strings.TrimSpace(grp.Type))
+				} else {
+					fmtType = "mp4"
 				}
-				subs = append(subs, Subtitle{
-					ID:       fmt.Sprintf("anizium_%s_%d", lang, i),
-					Language: lang,
-					Label:    sub.Label,
-					Format:   "vtt",
-					URL:      sub.File,
-					Headers:  streamHeaders,
-				})
 			}
-			qLabel := qKey + "p"
-			if qKey == "2160" {
-				qLabel = "2160p"
-			}
+			isHLS := fmtType == "hls" || strings.Contains(strings.ToLower(link), ".m3u8")
+
+			streamTitle := fmt.Sprintf("Anizium • %s • %s", groupTag, qLabel)
+
 			sources = append(sources, StreamSource{
 				Name:      "Anizium",
-				Title:     fmt.Sprintf("Anizium • %s • %s", langLabel, qLabel),
-				URL:       qObj.URL,
+				Title:     streamTitle,
+				URL:       link,
 				Quality:   qLabel,
-				Format:    "mp4",
-				IsHLS:     false,
+				Format:    fmtType,
+				IsHLS:     isHLS,
 				Headers:   streamHeaders,
-				Subtitles: subs,
+				Subtitles: subtitles,
 			})
 		}
 	}
+
+	if len(sources) == 0 {
+		return nil, fmt.Errorf("anizium: no playable streams found for id=%s S%dE%d", animeID, season, episode)
+	}
+
 	return SelectBestStream(sources)
 }

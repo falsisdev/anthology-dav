@@ -264,6 +264,16 @@ func GetQualityScore(s StreamSource) int {
 	if isDirectMP4 && score > 0 {
 		score++
 	}
+
+	// Turkish language priority within same resolution:
+	// Turkish Dubbed (+20) > Turkish Subtitled / Japanese (+15) > English / Other (0)
+	lowTitle := strings.ToLower(s.Title)
+	if strings.Contains(lowTitle, "türkçe dublaj") || strings.Contains(lowTitle, "tr dublaj") || strings.Contains(lowTitle, "tr dub") {
+		score += 20
+	} else if strings.Contains(lowTitle, "altyazı") || strings.Contains(lowTitle, "altyazi") || strings.Contains(lowTitle, "japonca") {
+		score += 15
+	}
+
 	return score
 }
 
@@ -856,6 +866,81 @@ func ExtractVTTSubtitles(content string) []Subtitle {
 		})
 	}
 	return subs
+}
+
+var (
+	vttTimeRe      = regexp.MustCompile(`(\d{2}:\d{2}:\d{2})\.(\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2})\.(\d{3})(?:[^\r\n]*)`)
+	vttShortTimeRe = regexp.MustCompile(`(\d{2}:\d{2})\.(\d{3})\s*-->\s*(\d{2}:\d{2})\.(\d{3})(?:[^\r\n]*)`)
+)
+
+// VTTToSRT converts WebVTT subtitle text bytes into SubRip (.srt) subtitle bytes.
+func VTTToSRT(vtt []byte) []byte {
+	if len(vtt) == 0 {
+		return nil
+	}
+	raw := string(vtt)
+	raw = strings.ReplaceAll(raw, "\r\n", "\n")
+	raw = strings.ReplaceAll(raw, "\r", "\n")
+	lines := strings.Split(raw, "\n")
+
+	var sb strings.Builder
+	idx := 1
+	inHeader := true
+	var currentBlock []string
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if inHeader {
+			if strings.HasPrefix(trimmed, "WEBVTT") || strings.HasPrefix(trimmed, "NOTE") || strings.HasPrefix(trimmed, "STYLE") || strings.HasPrefix(trimmed, "REGION") || trimmed == "" {
+				continue
+			}
+			inHeader = false
+		}
+
+		if trimmed == "" {
+			if len(currentBlock) > 0 {
+				sb.WriteString(strconv.Itoa(idx))
+				sb.WriteString("\n")
+				idx++
+				for _, bLine := range currentBlock {
+					sb.WriteString(bLine)
+					sb.WriteString("\n")
+				}
+				sb.WriteString("\n")
+				currentBlock = nil
+			}
+			continue
+		}
+
+		if vttTimeRe.MatchString(trimmed) {
+			inHeader = false
+			converted := vttTimeRe.ReplaceAllString(trimmed, "${1},${2} --> ${3},${4}")
+			currentBlock = append(currentBlock, converted)
+		} else if vttShortTimeRe.MatchString(trimmed) {
+			inHeader = false
+			converted := vttShortTimeRe.ReplaceAllString(trimmed, "00:${1},${2} --> 00:${3},${4}")
+			currentBlock = append(currentBlock, converted)
+		} else {
+			if len(currentBlock) == 0 {
+				if _, err := strconv.Atoi(trimmed); err == nil {
+					continue
+				}
+			}
+			currentBlock = append(currentBlock, trimmed)
+		}
+	}
+
+	if len(currentBlock) > 0 {
+		sb.WriteString(strconv.Itoa(idx))
+		sb.WriteString("\n")
+		for _, bLine := range currentBlock {
+			sb.WriteString(bLine)
+			sb.WriteString("\n")
+		}
+		sb.WriteString("\n")
+	}
+
+	return []byte(strings.TrimSpace(sb.String()) + "\n")
 }
 
 var genericM3U8Re = regexp.MustCompile(`(?i)https?://[^\s"'\\<>]+\.m3u8[^\s"'\\<>]*`)
