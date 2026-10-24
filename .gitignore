@@ -64,3 +64,4 @@ data/
 *.db-journal
 *.sqlite
 *.sqlite3
+anthology-dav-linux
