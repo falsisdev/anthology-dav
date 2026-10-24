@@ -216,7 +216,11 @@ func (h *Handler) handleAuthMe(w http.ResponseWriter, r *http.Request) {
 	}
 	u := auth.ExtractWebUser(r)
 	if u == nil {
-		http.Error(w, `{"error":"unauthorized", "login_required": true}`, http.StatusUnauthorized)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"multi_user":     true,
+			"user":           nil,
+			"login_required": true,
+		})
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]any{
