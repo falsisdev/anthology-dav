@@ -15,6 +15,7 @@ import (
 
 	"golang.org/x/net/webdav"
 
+	"anthology-dav/auth"
 	"anthology-dav/config"
 	"anthology-dav/providers"
 )
@@ -135,6 +136,22 @@ func (v *AnthologyVFS) Mkdir(ctx context.Context, name string, perm os.FileMode)
 	return os.ErrPermission
 }
 
+// getLibraryItems returns library items scoped to the authenticated user in multi-user mode,
+// or the local library in single-user mode.
+func (v *AnthologyVFS) getLibraryItems(ctx context.Context, mediaType string) []config.LibraryItem {
+	if v.cfg.MultiUser {
+		if u, ok := auth.UserFromContext(ctx); ok && u != nil {
+			items, err := auth.DB().GetUserLibraryByType(u.ID, mediaType)
+			if err == nil {
+				return items
+			}
+			return nil
+		}
+		return nil
+	}
+	return v.lib.GetByType(mediaType)
+}
+
 // RemoveAll removes a movie, series, or anime from the library when deleted via WebDAV (Finder, Explorer, media players).
 func (v *AnthologyVFS) RemoveAll(ctx context.Context, name string) error {
 	segs := v.cleanSegments(name)
@@ -148,9 +165,15 @@ func (v *AnthologyVFS) RemoveAll(ctx context.Context, name string) error {
 			} else if rootCat == FolderAnime {
 				mType = "anime"
 			}
-			items := v.lib.GetByType(mType)
+			items := v.getLibraryItems(ctx, mType)
 			for _, it := range items {
 				if formatItemFolderName(it.Title, it.Year) == folderName || SanitizeFileName(it.Title) == folderName {
+					if v.cfg.MultiUser {
+						if u, ok := auth.UserFromContext(ctx); ok && u != nil {
+							_ = auth.DB().RemoveUserLibraryItem(u.ID, it.ID)
+							return nil
+						}
+					}
 					_ = v.lib.Remove(it.ID)
 					return nil
 				}
@@ -235,7 +258,7 @@ func (v *AnthologyVFS) OpenFile(ctx context.Context, name string, flag int, perm
 // ── Library Movies Handler (/dav/Filmler/...) ──────────────────────────────────
 
 func (v *AnthologyVFS) handleLibraryMovies(ctx context.Context, rest []string) (webdav.File, error) {
-	movies := v.lib.GetByType("movie")
+	movies := v.getLibraryItems(ctx, "movie")
 
 	if len(rest) == 0 {
 		var children []fs.FileInfo
@@ -284,13 +307,18 @@ func (v *AnthologyVFS) ensureItemSeasons(ctx context.Context, item *config.Libra
 	}
 	providers.PrewarmLibraryItemMetadata(ctx, item)
 	if len(item.Seasons) > 0 {
+		if v.cfg.MultiUser {
+			if u, ok := auth.UserFromContext(ctx); ok && u != nil {
+				_ = auth.DB().UpdateUserItemSeasons(u.ID, item.ID, item.Seasons, item.AltTitles)
+			}
+		}
 		return item.Seasons
 	}
 	return []config.LibrarySeason{{SeasonNumber: 1, EpisodeCount: 12}}
 }
 
 func (v *AnthologyVFS) handleLibrarySeriesOrAnime(ctx context.Context, mediaType, rootFolder string, rest []string) (webdav.File, error) {
-	items := v.lib.GetByType(mediaType)
+	items := v.getLibraryItems(ctx, mediaType)
 
 	if len(rest) == 0 {
 		var children []fs.FileInfo
@@ -418,7 +446,7 @@ func (v *AnthologyVFS) handleSourcePicker(ctx context.Context, rest []string) (w
 		return nil, os.ErrNotExist
 	}
 
-	items := v.lib.GetByType(mediaType)
+	items := v.getLibraryItems(ctx, mediaType)
 	if len(rest) == 1 {
 		var children []fs.FileInfo
 		for _, it := range items {

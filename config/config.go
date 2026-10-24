@@ -46,15 +46,18 @@ func GetAnthologyDir() string {
 
 // Config holds the runtime configuration for the anthology-dav server.
 type Config struct {
-	Host          string
-	Port          int
-	BaseURL       string
-	UserAgent     string
-	CatalogTTL    time.Duration
-	DetailsTTL    time.Duration
-	StreamTTL     time.Duration
-	WatchlistPath string
-	LibraryPath   string
+	Host              string
+	Port              int
+	BaseURL           string
+	UserAgent         string
+	CatalogTTL        time.Duration
+	DetailsTTL        time.Duration
+	StreamTTL         time.Duration
+	WatchlistPath     string
+	LibraryPath       string
+	MultiUser         bool
+	DBPath            string
+	AllowRegistration bool
 }
 
 var (
@@ -69,16 +72,27 @@ func Get() *Config {
 		if err != nil {
 			wd = "."
 		}
+		isMultiUser := strings.EqualFold(os.Getenv("AUTH_MODE"), "true") ||
+			strings.EqualFold(os.Getenv("ANTHOLOGY_MULTI_USER"), "true")
+
+		dbPath := os.Getenv("DB_PATH")
+		if dbPath == "" {
+			dbPath = filepath.Join(wd, "data", "anthology.db")
+		}
+
 		globalCfg = &Config{
-			Host:          DefaultHost,
-			Port:          DefaultPort,
-			BaseURL:       fmt.Sprintf("http://127.0.0.1:%d", DefaultPort),
-			UserAgent:     DefaultUserAgent,
-			CatalogTTL:    1 * time.Hour,
-			DetailsTTL:    6 * time.Hour,
-			StreamTTL:     15 * time.Minute,
-			WatchlistPath: filepath.Join(wd, "watchlist.json"),
-			LibraryPath:   filepath.Join(wd, "library.json"),
+			Host:              DefaultHost,
+			Port:              DefaultPort,
+			BaseURL:           fmt.Sprintf("http://127.0.0.1:%d", DefaultPort),
+			UserAgent:         DefaultUserAgent,
+			CatalogTTL:        1 * time.Hour,
+			DetailsTTL:        6 * time.Hour,
+			StreamTTL:         15 * time.Minute,
+			WatchlistPath:     filepath.Join(wd, "watchlist.json"),
+			LibraryPath:       filepath.Join(wd, "library.json"),
+			MultiUser:         isMultiUser,
+			DBPath:            dbPath,
+			AllowRegistration: true,
 		}
 	})
 	return globalCfg

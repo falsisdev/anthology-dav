@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"anthology-dav/auth"
 	"anthology-dav/config"
 	"anthology-dav/providers"
 	"anthology-dav/stream"
@@ -80,6 +81,14 @@ func (h *Handler) HandleAPI(w http.ResponseWriter, r *http.Request) {
 
 	path := strings.TrimPrefix(r.URL.Path, "/api")
 	switch {
+	case path == "/auth/register" && r.Method == http.MethodPost:
+		h.handleAuthRegister(w, r)
+	case path == "/auth/login" && r.Method == http.MethodPost:
+		h.handleAuthLogin(w, r)
+	case path == "/auth/logout" && r.Method == http.MethodPost:
+		h.handleAuthLogout(w, r)
+	case path == "/auth/me" && r.Method == http.MethodGet:
+		h.handleAuthMe(w, r)
 	case path == "/search":
 		h.handleSearch(w, r)
 	case path == "/sources":
@@ -99,6 +108,124 @@ func (h *Handler) HandleAPI(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, `{"error":"endpoint not found"}`, http.StatusNotFound)
 	}
+}
+
+func (h *Handler) handleAuthRegister(w http.ResponseWriter, r *http.Request) {
+	if !h.cfg.MultiUser {
+		http.Error(w, `{"error":"çok kullanıcılı mod aktif değil"}`, http.StatusBadRequest)
+		return
+	}
+	if !h.cfg.AllowRegistration {
+		http.Error(w, `{"error":"yeni kullanıcı kaydı şu anda kapalıdır"}`, http.StatusForbidden)
+		return
+	}
+	var body struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, `{"error":"geçersiz veri"}`, http.StatusBadRequest)
+		return
+	}
+	u, err := auth.DB().Register(body.Username, body.Password)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
+		return
+	}
+	sess, err := auth.DB().CreateSession(u.ID)
+	if err == nil {
+		http.SetCookie(w, &http.Cookie{
+			Name:     "anthology_session",
+			Value:    sess.Token,
+			Path:     "/",
+			HttpOnly: true,
+			SameSite: http.SameSiteLaxMode,
+			MaxAge:   30 * 24 * 3600,
+		})
+	}
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"status": "ok",
+		"user": map[string]any{
+			"id":       u.ID,
+			"username": u.Username,
+		},
+		"token": sess.Token,
+	})
+}
+
+func (h *Handler) handleAuthLogin(w http.ResponseWriter, r *http.Request) {
+	if !h.cfg.MultiUser {
+		http.Error(w, `{"error":"çok kullanıcılı mod aktif değil"}`, http.StatusBadRequest)
+		return
+	}
+	var body struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, `{"error":"geçersiz veri"}`, http.StatusBadRequest)
+		return
+	}
+	u, err := auth.DB().Authenticate(body.Username, body.Password)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusUnauthorized)
+		return
+	}
+	sess, err := auth.DB().CreateSession(u.ID)
+	if err == nil {
+		http.SetCookie(w, &http.Cookie{
+			Name:     "anthology_session",
+			Value:    sess.Token,
+			Path:     "/",
+			HttpOnly: true,
+			SameSite: http.SameSiteLaxMode,
+			MaxAge:   30 * 24 * 3600,
+		})
+	}
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"status": "ok",
+		"user": map[string]any{
+			"id":       u.ID,
+			"username": u.Username,
+		},
+		"token": sess.Token,
+	})
+}
+
+func (h *Handler) handleAuthLogout(w http.ResponseWriter, r *http.Request) {
+	if c, err := r.Cookie("anthology_session"); err == nil && c.Value != "" {
+		_ = auth.DB().DeleteSession(c.Value)
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     "anthology_session",
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		MaxAge:   -1,
+	})
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+func (h *Handler) handleAuthMe(w http.ResponseWriter, r *http.Request) {
+	if !h.cfg.MultiUser {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"multi_user": false,
+			"user":       map[string]string{"username": "local"},
+		})
+		return
+	}
+	u := auth.ExtractWebUser(r)
+	if u == nil {
+		http.Error(w, `{"error":"unauthorized", "login_required": true}`, http.StatusUnauthorized)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"multi_user": true,
+		"user": map[string]any{
+			"id":       u.ID,
+			"username": u.Username,
+		},
+	})
 }
 
 func (h *Handler) handleSearch(w http.ResponseWriter, r *http.Request) {
@@ -141,6 +268,23 @@ func (h *Handler) handleDiscoverSources(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *Handler) handleLibraryList(w http.ResponseWriter, r *http.Request) {
+	if h.cfg.MultiUser {
+		u := auth.ExtractWebUser(r)
+		if u == nil {
+			http.Error(w, `{"error":"unauthorized","login_required":true}`, http.StatusUnauthorized)
+			return
+		}
+		items, err := auth.DB().GetUserLibrary(u.ID)
+		if err != nil {
+			http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+			return
+		}
+		if items == nil {
+			items = []config.LibraryItem{}
+		}
+		_ = json.NewEncoder(w).Encode(items)
+		return
+	}
 	items := config.Library().All()
 	_ = json.NewEncoder(w).Encode(items)
 }
@@ -157,6 +301,28 @@ func (h *Handler) handleLibraryAdd(w http.ResponseWriter, r *http.Request) {
 	}
 	if item.Type == "" {
 		item.Type = "movie"
+	}
+
+	if h.cfg.MultiUser {
+		u := auth.ExtractWebUser(r)
+		if u == nil {
+			http.Error(w, `{"error":"unauthorized","login_required":true}`, http.StatusUnauthorized)
+			return
+		}
+		if err := auth.DB().AddUserLibraryItem(u.ID, item); err != nil {
+			http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+			return
+		}
+		if saved, ok := auth.DB().GetUserLibraryItemByTMDB(u.ID, item.Type, item.TMDBID); ok {
+			providers.PrewarmLibraryItemMetadata(r.Context(), saved)
+			if len(saved.Seasons) > 0 {
+				_ = auth.DB().UpdateUserItemSeasons(u.ID, saved.ID, saved.Seasons, saved.AltTitles)
+			}
+			item = *saved
+		}
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]any{"status": "ok", "item": item})
+		return
 	}
 
 	if err := config.Library().Add(item); err != nil {
@@ -186,6 +352,20 @@ func (h *Handler) handleLibraryRemove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.cfg.MultiUser {
+		u := auth.ExtractWebUser(r)
+		if u == nil {
+			http.Error(w, `{"error":"unauthorized","login_required":true}`, http.StatusUnauthorized)
+			return
+		}
+		if err := auth.DB().RemoveUserLibraryItem(u.ID, body.ID); err != nil {
+			http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok", "removed": body.ID})
+		return
+	}
+
 	if err := config.Library().Remove(body.ID); err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
 		return
@@ -201,6 +381,20 @@ func (h *Handler) handleLibraryProvider(w http.ResponseWriter, r *http.Request) 
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.ID == "" {
 		http.Error(w, `{"error":"missing id or provider"}`, http.StatusBadRequest)
+		return
+	}
+
+	if h.cfg.MultiUser {
+		u := auth.ExtractWebUser(r)
+		if u == nil {
+			http.Error(w, `{"error":"unauthorized","login_required":true}`, http.StatusUnauthorized)
+			return
+		}
+		if err := auth.DB().UpdateUserProvider(u.ID, body.ID, body.Provider); err != nil {
+			http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok", "provider": body.Provider})
 		return
 	}
 
@@ -322,8 +516,18 @@ func (h *Handler) handleProviders(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleStatus(w http.ResponseWriter, r *http.Request) {
 	libCount := len(config.Library().All())
+	var curUser *auth.User
+	if h.cfg.MultiUser {
+		curUser = auth.ExtractWebUser(r)
+		if curUser != nil {
+			items, _ := auth.DB().GetUserLibrary(curUser.ID)
+			libCount = len(items)
+		} else {
+			libCount = 0
+		}
+	}
 	lan := config.DetectLANAddresses(h.cfg.Port)
-	_ = json.NewEncoder(w).Encode(map[string]any{
+	resp := map[string]any{
 		"status":          "ok",
 		"version":         "2.1-glass",
 		"apple_silicon":   true,
@@ -332,7 +536,15 @@ func (h *Handler) handleStatus(w http.ResponseWriter, r *http.Request) {
 		"webdav_root":     lan.PrimaryURL + "/dav/",
 		"playlist_url":    lan.PrimaryURL + "/playlist.m3u",
 		"lan":             lan,
-	})
+		"multi_user":      h.cfg.MultiUser,
+	}
+	if curUser != nil {
+		resp["user"] = map[string]any{
+			"id":       curUser.ID,
+			"username": curUser.Username,
+		}
+	}
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // HandlePlaylistM3U dynamically generates an M3U8 playlist (/playlist.m3u & /playlist.m3u8)
@@ -370,7 +582,23 @@ func (h *Handler) HandlePlaylistM3U(w http.ResponseWriter, r *http.Request) {
 	filterEpisode, _ := strconv.Atoi(strings.TrimSpace(q.Get("episode")))
 	overrideProv := strings.TrimSpace(q.Get("provider"))
 
-	items := config.Library().All()
+	var items []config.LibraryItem
+	if h.cfg.MultiUser {
+		u := auth.ExtractWebUser(r)
+		if u == nil {
+			w.Header().Set("WWW-Authenticate", `Basic realm="Anthology Playlist"`)
+			http.Error(w, "#EXTM3U\n#EXTINF:-1,Yetkisiz Erisim - Lutfen kullanici adi ve sifrenizi girin\n", http.StatusUnauthorized)
+			return
+		}
+		var err error
+		items, err = auth.DB().GetUserLibrary(u.ID)
+		if err != nil {
+			items = []config.LibraryItem{}
+		}
+	} else {
+		items = config.Library().All()
+	}
+
 	var sb strings.Builder
 	sb.WriteString("#EXTM3U\n")
 
@@ -1273,6 +1501,119 @@ const glassmorphismHTML = `<!DOCTYPE html>
       border-radius: 8px;
     }
 
+    /* Auth Modal & User Header Styles */
+    .auth-segmented {
+      display: flex;
+      background: rgba(0, 0, 0, 0.45);
+      border: 1px solid var(--glass-border-subtle);
+      border-radius: 14px;
+      padding: 4px;
+      margin-bottom: 20px;
+    }
+    .auth-segment-btn {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      padding: 8px 14px;
+      border-radius: 10px;
+      font-size: 13.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s var(--spring-curve);
+      font-family: inherit;
+    }
+    .auth-segment-btn.active {
+      background: rgba(255, 255, 255, 0.16);
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+    }
+    .auth-input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 14px;
+      text-align: left;
+    }
+    .auth-input-group label {
+      font-size: 12px;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+    .auth-input {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid var(--glass-border);
+      color: #fff;
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      box-sizing: border-box;
+      transition: all 0.2s ease;
+    }
+    .auth-input:focus {
+      border-color: var(--accent-blue);
+      background: rgba(255, 255, 255, 0.1);
+      box-shadow: 0 0 16px rgba(10, 132, 255, 0.25);
+    }
+    .auth-btn-submit {
+      width: 100%;
+      padding: 13px;
+      border-radius: 12px;
+      background: var(--accent-blue);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      color: #fff;
+      font-size: 14.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-top: 8px;
+    }
+    .auth-btn-submit:hover {
+      filter: brightness(1.15);
+      transform: translateY(-1px);
+    }
+    .auth-error {
+      display: none;
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: rgba(255, 69, 58, 0.16);
+      border: 1px solid rgba(255, 69, 58, 0.35);
+      color: #FF6961;
+      font-size: 12.5px;
+      margin-bottom: 14px;
+      text-align: left;
+    }
+    .user-badge-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--glass-border-subtle);
+      color: #fff;
+      padding: 6px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-logout {
+      background: rgba(255, 69, 58, 0.15);
+      border: 1px solid rgba(255, 69, 58, 0.3);
+      color: #FF6961;
+      border-radius: 6px;
+      padding: 2px 7px;
+      font-size: 11px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.15s ease;
+    }
+    .btn-logout:hover {
+      background: #FF453A;
+      color: #fff;
+    }
+
     @media (max-width: 820px) {
       .app-header {
         height: auto;
@@ -1291,6 +1632,43 @@ const glassmorphismHTML = `<!DOCTYPE html>
     <span id="toastMsg">İşlem başarıyla tamamlandı.</span>
   </div>
 
+  <!-- SwiftUI Glass Authentication Modal -->
+  <div class="modal-backdrop" id="authModal" onclick="if(event.target===this && !authRequired) closeAuthModal()">
+    <div class="modal-glass" style="max-width: 420px;">
+      <div class="modal-header">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <img src="/logo.png" style="width:26px; height:26px; object-fit:contain;">
+          <div>
+            <div class="modal-title" id="authModalTitle">Anthology Hesabı</div>
+            <div style="font-size:11px; color:var(--text-secondary);">Kişisel kütüphaneniz ve WebDAV erişimi</div>
+          </div>
+        </div>
+        <button class="modal-close" id="authModalClose" onclick="closeAuthModal()">✕</button>
+      </div>
+      <div class="modal-body" style="padding: 22px;">
+        <div class="auth-segmented">
+          <button class="auth-segment-btn active" id="authTabLogin" onclick="switchAuthMode('login')">Giriş Yap</button>
+          <button class="auth-segment-btn" id="authTabRegister" onclick="switchAuthMode('register')">Hesap Oluştur</button>
+        </div>
+        <div class="auth-error" id="authErrorMsg"></div>
+        <form onsubmit="handleAuthSubmit(event)">
+          <div class="auth-input-group">
+            <label for="authUsername">Kullanıcı Adı</label>
+            <input type="text" id="authUsername" class="auth-input" placeholder="Kullanıcı adınız (en az 3 harf)" required autocomplete="username">
+          </div>
+          <div class="auth-input-group">
+            <label for="authPassword">Şifre</label>
+            <input type="password" id="authPassword" class="auth-input" placeholder="Şifreniz (en az 4 karakter)" required autocomplete="current-password">
+          </div>
+          <button type="submit" class="auth-btn-submit" id="authSubmitText">Giriş Yap</button>
+        </form>
+        <div style="font-size:11.5px; color:var(--text-tertiary); text-align:center; margin-top:16px; line-height:1.5;">
+          🔒 Kütüphaneniz size özel olarak sunucudaki yerel SQLite veritabanında şifreli saklanır.
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Device & VLC Connection Guide Glass Modal -->
   <div class="modal-backdrop" id="connectModal" onclick="if(event.target===this) closeConnectModal()">
     <div class="modal-glass" style="max-width: 680px;">
@@ -1305,16 +1683,17 @@ const glassmorphismHTML = `<!DOCTYPE html>
         <div class="connect-url-row">
           <div class="connect-box">
             <div class="connect-box-label">🟠 VLC Oynatma Listesi (Android / iOS / PC)</div>
-            <div class="connect-box-code">http://&lt;Bilgisayar_IP&gt;:8085/playlist.m3u</div>
+            <div class="connect-box-code" id="connectVlcCode">http://&lt;Bilgisayar_IP&gt;:8085/playlist.m3u</div>
             <div class="connect-box-actions">
               <button class="btn-mini vlc" onclick="openFullPlaylistInVLC()">▶ VLC'de Tüm Kütüphaneyi Aç</button>
               <button class="btn-mini primary" onclick="copyEndpointPath('/playlist.m3u', 'VLC M3U oynatma listesi adresi kopyalandı!')">📋 Kopyala</button>
+              <button class="btn-mini vlc" id="btnCopyVlcToken" style="display:none;" onclick="copyVlcTokenPlaylist()">🔑 Tokenli Link</button>
               <a class="btn-mini" href="/playlist.m3u?download=1" style="text-decoration:none;">📥 .M3U İndir</a>
             </div>
           </div>
           <div class="connect-box">
             <div class="connect-box-label">🔵 WebDAV Klasör Adresi (Infuse / Kodi / Nova)</div>
-            <div class="connect-box-code">http://&lt;Bilgisayar_IP&gt;:8085/dav/</div>
+            <div class="connect-box-code" id="connectDavCode">http://&lt;Bilgisayar_IP&gt;:8085/dav/</div>
             <div class="connect-box-actions">
               <button class="btn-mini primary" onclick="copyEndpointPath('/dav/', 'WebDAV sunucu adresi kopyalandı!')">📋 WebDAV Adresini Kopyala</button>
               <button class="btn-mini" onclick="copyEndpointPath('/', 'Web Arayüzü adresi kopyalandı!')">🌐 Web UI Linkini Kopyala</button>
@@ -1392,10 +1771,13 @@ const glassmorphismHTML = `<!DOCTYPE html>
       </nav>
 
       <!-- Right Endpoint & VLC Connection Pill -->
-      <button class="webdav-pill" onclick="openConnectModal()" style="cursor:pointer;" title="Tablet, Telefon, TV ve VLC Bağlantı Adreslerini Gör">
-        <span class="status-dot"></span>
-        <span id="headerLanBadge">📱 VLC & Cihaz Bağlantısı</span>
-      </button>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <div id="userHeaderBox"></div>
+        <button class="webdav-pill" onclick="openConnectModal()" style="cursor:pointer;" title="Tablet, Telefon, TV ve VLC Bağlantı Adreslerini Gör">
+          <span class="status-dot"></span>
+          <span id="headerLanBadge">📱 VLC & Cihaz Bağlantısı</span>
+        </button>
+      </div>
     </header>
 
     <!-- Main Content Tab Containers -->
@@ -1467,6 +1849,21 @@ const glassmorphismHTML = `<!DOCTYPE html>
     let activeModalItem = null;
     let serverLanInfo = null;
 
+    // Multi-User Authentication State
+    let isMultiUser = false;
+    let currentUser = null;
+    let authRequired = false;
+    let currentAuthMode = 'login';
+    let authToken = localStorage.getItem('anthology_token') || '';
+
+    function authHeaders() {
+      const h = { 'Content-Type': 'application/json' };
+      if (authToken) {
+        h['Authorization'] = 'Bearer ' + authToken;
+      }
+      return h;
+    }
+
     // Hotkey: Command+K to focus search
     window.addEventListener('keydown', (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -1477,8 +1874,14 @@ const glassmorphismHTML = `<!DOCTYPE html>
       if (e.key === 'Escape') {
         closeSourceModal();
         closeConnectModal();
+        if (!authRequired) closeAuthModal();
       }
     });
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[s]);
+    }
 
     function getReachableBaseOrigin() {
       const loc = window.location.origin;
@@ -1490,15 +1893,159 @@ const glassmorphismHTML = `<!DOCTYPE html>
 
     async function loadServerStatus() {
       try {
-        const res = await fetch('/api/status');
+        const res = await fetch('/api/status', { headers: authHeaders() });
         const data = await res.json();
         if (data && data.lan) {
           serverLanInfo = data.lan;
         }
+        if (data && data.multi_user !== undefined) {
+          isMultiUser = !!data.multi_user;
+        }
       } catch (e) {}
     }
 
+    async function checkAuthMe() {
+      try {
+        const res = await fetch('/api/auth/me', { headers: authHeaders() });
+        const data = await res.json();
+        isMultiUser = !!data.multi_user;
+        if (data.user && data.user.username && data.user.username !== 'local') {
+          currentUser = data.user;
+          authRequired = false;
+        } else {
+          currentUser = null;
+        }
+        updateUserHeader();
+      } catch (e) {
+        currentUser = null;
+        updateUserHeader();
+      }
+    }
+
+    function updateUserHeader() {
+      const box = document.getElementById('userHeaderBox');
+      if (!box) return;
+      if (!isMultiUser) {
+        box.innerHTML = '<div class="user-badge-btn" style="color:var(--text-secondary); cursor:default;">💻 Yerel Mod</div>';
+        return;
+      }
+      if (currentUser) {
+        box.innerHTML = '<div class="user-badge-btn">' +
+          '<span>👤 <strong>' + escapeHtml(currentUser.username) + '</strong></span>' +
+          '<button class="btn-logout" onclick="handleLogout()" title="Oturumu Kapat">Çıkış</button>' +
+        '</div>';
+      } else {
+        box.innerHTML = '<button class="btn-mini primary" onclick="openAuthModal(\'login\', false)" style="padding:7px 14px; font-size:12.5px;">🔑 Giriş Yap</button>';
+      }
+    }
+
+    function openAuthModal(mode = 'login', required = false) {
+      authRequired = required;
+      document.getElementById('authModalClose').style.display = required ? 'none' : 'flex';
+      switchAuthMode(mode);
+      document.getElementById('authErrorMsg').style.display = 'none';
+      document.getElementById('authModal').classList.add('open');
+      setTimeout(() => document.getElementById('authUsername').focus(), 120);
+    }
+
+    function closeAuthModal() {
+      if (authRequired && !currentUser) return;
+      document.getElementById('authModal').classList.remove('open');
+    }
+
+    function switchAuthMode(mode) {
+      currentAuthMode = mode;
+      const isLogin = mode === 'login';
+      document.getElementById('authTabLogin').classList.toggle('active', isLogin);
+      document.getElementById('authTabRegister').classList.toggle('active', !isLogin);
+      document.getElementById('authModalTitle').textContent = isLogin ? 'Anthology Girişi' : 'Yeni Hesap Oluştur';
+      document.getElementById('authSubmitText').textContent = isLogin ? 'Giriş Yap' : 'Hesap Oluştur ve Başla';
+      document.getElementById('authErrorMsg').style.display = 'none';
+    }
+
+    async function handleAuthSubmit(e) {
+      e.preventDefault();
+      const u = document.getElementById('authUsername').value.trim();
+      const p = document.getElementById('authPassword').value;
+      const errEl = document.getElementById('authErrorMsg');
+      errEl.style.display = 'none';
+
+      const endpoint = currentAuthMode === 'login' ? '/api/auth/login' : '/api/auth/register';
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: u, password: p })
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          errEl.textContent = data.error || 'İşlem başarısız oldu.';
+          errEl.style.display = 'block';
+          return;
+        }
+
+        if (data.token) {
+          authToken = data.token;
+          localStorage.setItem('anthology_token', authToken);
+        }
+        currentUser = data.user;
+        authRequired = false;
+        updateUserHeader();
+        closeAuthModal();
+        showToast('Hoş geldiniz, ' + currentUser.username + '!', '👤');
+        await loadLibrary();
+      } catch (err) {
+        errEl.textContent = 'Sunucuya bağlanırken hata oluştu.';
+        errEl.style.display = 'block';
+      }
+    }
+
+    async function handleLogout() {
+      try {
+        await fetch('/api/auth/logout', { method: 'POST', headers: authHeaders() });
+      } catch (e) {}
+      authToken = '';
+      localStorage.removeItem('anthology_token');
+      currentUser = null;
+      updateUserHeader();
+      showToast('Oturum kapatıldı.', '✓');
+      if (isMultiUser) {
+        libraryItems = [];
+        document.getElementById('libCountBadge').textContent = '0';
+        renderLibrary();
+        openAuthModal('login', true);
+      }
+    }
+
     function openConnectModal() {
+      const baseOrigin = getReachableBaseOrigin();
+      const vlcCode = document.getElementById('connectVlcCode');
+      const davCode = document.getElementById('connectDavCode');
+      const vlcTokenBtn = document.getElementById('btnCopyVlcToken');
+
+      if (isMultiUser && currentUser) {
+        if (vlcCode) {
+          const hostPort = baseOrigin.replace(/^https?:\/\//i, '');
+          vlcCode.innerHTML = 'http://<strong style="color:#FF9F0A;">' + escapeHtml(currentUser.username) + ':&lt;sifreniz&gt;</strong>@' + hostPort + '/playlist.m3u';
+        }
+        if (davCode) {
+          davCode.innerHTML = baseOrigin + '/dav/<br><span style="font-size:11.5px; color:var(--text-secondary);">' +
+            'Kullanıcı: <strong style="color:#64D2FF;">' + escapeHtml(currentUser.username) + '</strong> | Şifre: <strong style="color:#64D2FF;">(hesap şifreniz)</strong></span>';
+        }
+        if (vlcTokenBtn) {
+          vlcTokenBtn.style.display = authToken ? 'inline-block' : 'none';
+        }
+      } else {
+        if (vlcCode) {
+          vlcCode.textContent = baseOrigin + '/playlist.m3u';
+        }
+        if (davCode) {
+          davCode.innerHTML = baseOrigin + '/dav/<br><span style="font-size:11px; color:var(--text-secondary);">(Yerel mod: Kullanıcı adı ve şifre gerekmez)</span>';
+        }
+        if (vlcTokenBtn) {
+          vlcTokenBtn.style.display = 'none';
+        }
+      }
       document.getElementById('connectModal').classList.add('open');
     }
 
@@ -1506,8 +2053,21 @@ const glassmorphismHTML = `<!DOCTYPE html>
       document.getElementById('connectModal').classList.remove('open');
     }
 
+    function copyVlcTokenPlaylist() {
+      if (!authToken) return;
+      const url = getReachableBaseOrigin() + '/playlist.m3u?token=' + encodeURIComponent(authToken);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(() => showToast('Tokenli şifresiz VLC linki kopyalandı!', '📋'));
+      } else {
+        prompt('VLC M3U Adresi:', url);
+      }
+    }
+
     function copyEndpointPath(pathSuffix, msg) {
-      const txt = getReachableBaseOrigin() + pathSuffix;
+      let txt = getReachableBaseOrigin() + pathSuffix;
+      if (isMultiUser && currentUser && pathSuffix === '/playlist.m3u') {
+        txt = 'http://' + encodeURIComponent(currentUser.username) + ':sifreniz@' + getReachableBaseOrigin().replace(/^https?:\/\//i, '') + pathSuffix;
+      }
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(txt).then(() => showToast(msg, '📋'));
       } else {
@@ -1545,7 +2105,10 @@ const glassmorphismHTML = `<!DOCTYPE html>
     }
 
     function openFullPlaylistInVLC() {
-      const playlistUrl = getReachableBaseOrigin() + '/playlist.m3u';
+      let playlistUrl = getReachableBaseOrigin() + '/playlist.m3u';
+      if (isMultiUser && authToken) {
+        playlistUrl += '?token=' + encodeURIComponent(authToken);
+      }
       openInVLC(playlistUrl, 'Anthology Kütüphanesi');
     }
 
@@ -1581,7 +2144,10 @@ const glassmorphismHTML = `<!DOCTYPE html>
 
     function copyItemM3UPlaylist() {
       if (!activeModalItem) return;
-      const url = getReachableBaseOrigin() + '/playlist.m3u?id=' + encodeURIComponent(activeModalItem.id);
+      let url = getReachableBaseOrigin() + '/playlist.m3u?id=' + encodeURIComponent(activeModalItem.id);
+      if (isMultiUser && authToken) {
+        url += '&token=' + encodeURIComponent(authToken);
+      }
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(url).then(() => {
           showToast(activeModalItem.title + ' M3U oynatma listesi kopyalandı! VLC Akışlar kısmına yapıştırabilirsiniz.', '📋');
@@ -1628,8 +2194,17 @@ const glassmorphismHTML = `<!DOCTYPE html>
     }
 
     async function loadLibrary() {
+      if (isMultiUser && !currentUser) {
+        document.getElementById('libCountBadge').textContent = '0';
+        renderLibrary();
+        return;
+      }
       try {
-        const res = await fetch('/api/library');
+        const res = await fetch('/api/library', { headers: authHeaders() });
+        if (res.status === 401) {
+          if (isMultiUser) openAuthModal('login', true);
+          return;
+        }
         libraryItems = await res.json() || [];
         document.getElementById('libCountBadge').textContent = libraryItems.length;
         renderLibrary();
@@ -1663,7 +2238,6 @@ const glassmorphismHTML = `<!DOCTYPE html>
         const poster = it.poster_url || 'https://via.placeholder.com/300x450/111/444?text=Poster';
         const workingSet = new Set(it.working_providers || []);
 
-        // Include all 34 providers without separating movie, series, and anime sources
         let relevantProvs = [...providerList];
         if (workingSet.size > 0) {
           relevantProvs.sort((a, b) => (workingSet.has(b.id) ? 1 : 0) - (workingSet.has(a.id) ? 1 : 0));
@@ -1684,11 +2258,11 @@ const glassmorphismHTML = `<!DOCTYPE html>
 
         return '<div class="media-card">' +
           '<div class="poster-box">' +
-            '<img class="poster-img" src="' + poster + '" loading="lazy" alt="' + it.title + '">' +
+            '<img class="poster-img" src="' + poster + '" loading="lazy" alt="' + escapeHtml(it.title) + '">' +
             '<span class="badge-type ' + badgeClass + '">' + badgeLabel + '</span>' +
           '</div>' +
           '<div class="card-body">' +
-            '<div class="media-title" title="' + it.title + '">' + it.title + '</div>' +
+            '<div class="media-title" title="' + escapeHtml(it.title) + '">' + escapeHtml(it.title) + '</div>' +
             '<div class="media-meta"><span>' + (it.year || 'N/A') + '</span> • <span style="color:var(--accent-green);">' + workInfo + '</span></div>' +
             '<label style="font-size:10px; color:var(--text-tertiary);">Oynatma Kaynağı:</label>' +
             '<select class="provider-select" onchange="changeProvider(\'' + it.id + '\', this.value)">' +
@@ -1744,7 +2318,7 @@ const glassmorphismHTML = `<!DOCTYPE html>
           '&year=' + encodeURIComponent(it.year || '') +
           '&season=' + s + '&episode=' + e;
 
-        const res = await fetch(u);
+        const res = await fetch(u, { headers: authHeaders() });
         const data = await res.json();
         const sources = (data && data.sources) ? data.sources : [];
 
@@ -1753,7 +2327,6 @@ const glassmorphismHTML = `<!DOCTYPE html>
           return;
         }
 
-        // Update local library state so dropdown reflects working providers immediately
         await loadLibrary();
 
         const bestQual = sources[0].quality || '1080p';
@@ -1773,8 +2346,8 @@ const glassmorphismHTML = `<!DOCTYPE html>
           const isCurrent = (it.selected_provider === src.provider_id);
           html += '<div class="source-row">' +
             '<div class="source-row-info">' +
-              '<div class="source-row-name">' + (idx + 1) + '. ' + src.provider_name + ' <span class="status-badge">' + src.quality + ' • ' + src.format + '</span></div>' +
-              '<div class="source-row-sub">' + (src.title || src.provider_name) + '</div>' +
+              '<div class="source-row-name">' + (idx + 1) + '. ' + escapeHtml(src.provider_name) + ' <span class="status-badge">' + src.quality + ' • ' + src.format + '</span></div>' +
+              '<div class="source-row-sub">' + escapeHtml(src.title || src.provider_name) + '</div>' +
             '</div>' +
             '<div class="source-row-actions">' +
               '<button class="btn-mini vlc" onclick="playModalCurrentInVLC(\'' + src.provider_id + '\')">▶ VLC\'de Aç</button>' +
@@ -1842,12 +2415,12 @@ const glassmorphismHTML = `<!DOCTYPE html>
 
           return '<div class="media-card">' +
             '<div class="poster-box">' +
-              '<img class="poster-img" src="' + poster + '" loading="lazy" alt="' + it.title + '">' +
+              '<img class="poster-img" src="' + poster + '" loading="lazy" alt="' + escapeHtml(it.title) + '">' +
               '<span class="badge-type ' + badgeClass + '">' + badgeLabel + '</span>' +
               (rating ? '<span class="rating-badge">' + rating + '</span>' : '') +
             '</div>' +
             '<div class="card-body">' +
-              '<div class="media-title" title="' + it.title + '">' + it.title + '</div>' +
+              '<div class="media-title" title="' + escapeHtml(it.title) + '">' + escapeHtml(it.title) + '</div>' +
               '<div class="media-meta"><span>' + (it.year || 'N/A') + '</span></div>' +
               actionBtn +
             '</div>' +
@@ -1859,6 +2432,10 @@ const glassmorphismHTML = `<!DOCTYPE html>
     }
 
     async function addToLibrary(it) {
+      if (isMultiUser && !currentUser) {
+        openAuthModal('login', true);
+        return;
+      }
       try {
         const payload = {
           tmdb_id: it.id,
@@ -1873,9 +2450,13 @@ const glassmorphismHTML = `<!DOCTYPE html>
         };
         const res = await fetch('/api/library/add', {
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
+          headers: authHeaders(),
           body: JSON.stringify(payload)
         });
+        if (res.status === 401) {
+          openAuthModal('login', true);
+          return;
+        }
         if (res.ok) {
           showToast(it.title + ' kütüphanenize eklendi! Medya oynatıcınızdan hemen izleyebilirsiniz.');
           await loadLibrary();
@@ -1888,12 +2469,20 @@ const glassmorphismHTML = `<!DOCTYPE html>
     }
 
     async function removeFromLibrary(id, title) {
+      if (isMultiUser && !currentUser) {
+        openAuthModal('login', true);
+        return;
+      }
       try {
         const res = await fetch('/api/library/remove', {
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({id: id})
+          headers: authHeaders(),
+          body: JSON.stringify({ id: id })
         });
+        if (res.status === 401) {
+          openAuthModal('login', true);
+          return;
+        }
         if (res.ok) {
           showToast(title + ' kütüphaneden çıkarıldı.');
           await loadLibrary();
@@ -1904,12 +2493,20 @@ const glassmorphismHTML = `<!DOCTYPE html>
     }
 
     async function changeProvider(id, prov) {
+      if (isMultiUser && !currentUser) {
+        openAuthModal('login', true);
+        return;
+      }
       try {
-        await fetch('/api/library/provider', {
+        const res = await fetch('/api/library/provider', {
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({id: id, provider: prov})
+          headers: authHeaders(),
+          body: JSON.stringify({ id: id, provider: prov })
         });
+        if (res.status === 401) {
+          openAuthModal('login', true);
+          return;
+        }
         showToast('Varsayılan oynatma kaynağı güncellendi: ' + prov);
       } catch (e) {
         console.error(e);
@@ -1932,7 +2529,7 @@ const glassmorphismHTML = `<!DOCTYPE html>
           let logoHtml = '';
           if (hasFavicon) {
             logoHtml = '<div class="provider-logo-box">' +
-              '<img class="provider-logo-img" src="' + faviconUrl + '" alt="' + title + '" ' +
+              '<img class="provider-logo-img" src="' + faviconUrl + '" alt="' + escapeHtml(title) + '" ' +
                 'onload="this.style.display=\'block\'; if(this.nextElementSibling) this.nextElementSibling.style.display=\'none\';" ' +
                 'onerror="this.style.display=\'none\'; if(this.nextElementSibling) this.nextElementSibling.style.display=\'flex\';">' +
               '<div class="provider-fallback-icon" style="display:none;">' + icon + '</div>' +
@@ -1946,7 +2543,7 @@ const glassmorphismHTML = `<!DOCTYPE html>
           return '<div class="provider-card">' +
             logoHtml +
             '<div class="provider-info">' +
-              '<div class="provider-title" title="' + title + '">' + title + '</div>' +
+              '<div class="provider-title" title="' + escapeHtml(title) + '">' + escapeHtml(title) + '</div>' +
               '<div class="provider-meta">' +
                 '<span class="provider-cat-tag">' + p.category + '</span>' +
                 '<span>•</span>' +
@@ -1964,6 +2561,7 @@ const glassmorphismHTML = `<!DOCTYPE html>
     // Initial load
     (async () => {
       await loadServerStatus();
+      await checkAuthMe();
       await loadLibrary();
       try {
         const res = await fetch('/api/providers');

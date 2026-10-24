@@ -16,6 +16,7 @@ import (
 
 	"golang.org/x/net/webdav"
 
+	"anthology-dav/auth"
 	"anthology-dav/config"
 	"anthology-dav/providers"
 	"anthology-dav/stream"
@@ -24,6 +25,7 @@ import (
 )
 
 func main() {
+	cfg := config.Get()
 	hostFlag := flag.String("host", config.DefaultHost, "Bind host address")
 	defaultPort := config.DefaultPort
 	if envPort := os.Getenv("PORT"); envPort != "" {
@@ -35,9 +37,10 @@ func main() {
 	watchlistFlag := flag.String("watchlist", "", "Path to watchlist.json file")
 	libraryFlag := flag.String("library", "", "Path to library.json file")
 	publicURLFlag := flag.String("public-url", os.Getenv("ANTHOLOGY_PUBLIC_URL"), "Client-facing base URL written into .strm files (e.g. http://192.168.1.10:8085)")
+	multiUserFlag := flag.Bool("multi-user", cfg.MultiUser, "Enable multi-user authentication mode with SQLite")
+	dbPathFlag := flag.String("db", cfg.DBPath, "Path to SQLite database file")
 	flag.Parse()
 
-	cfg := config.Get()
 	cfg.SetBind(*hostFlag, *portFlag)
 	cfg.SetPublicURL(*publicURLFlag)
 	if *watchlistFlag != "" {
@@ -45,6 +48,22 @@ func main() {
 	}
 	if *libraryFlag != "" {
 		cfg.LibraryPath = *libraryFlag
+	}
+	if *multiUserFlag {
+		cfg.MultiUser = true
+	}
+	if *dbPathFlag != "" {
+		cfg.DBPath = *dbPathFlag
+	}
+
+	// Initialize SQLite Database in multi-user mode
+	if cfg.MultiUser {
+		if _, err := auth.InitDB(cfg.DBPath); err != nil {
+			log.Fatalf("[FATAL] Failed to initialize SQLite database (%s): %v", cfg.DBPath, err)
+		}
+		log.Printf("[AUTH] Multi-user mode ENABLED with database: %s", cfg.DBPath)
+	} else {
+		log.Printf("[AUTH] Single-user / local mode (no login required, using %s)", cfg.LibraryPath)
 	}
 
 	// Trigger watchlist and library preload immediately; load remote config asynchronously
@@ -93,6 +112,11 @@ func main() {
 		},
 	}
 
+	var authedDavHandler http.Handler = davHandler
+	if cfg.MultiUser {
+		authedDavHandler = auth.WebDAVAuthMiddleware(cfg, davHandler)
+	}
+
 	mux := http.NewServeMux()
 
 	// WebDAV endpoint (/dav and /dav/...)
@@ -118,7 +142,7 @@ func main() {
 			return
 		}
 		ctx := context.WithValue(r.Context(), vfs.RequestHostKey, r.Host)
-		davHandler.ServeHTTP(w, r.WithContext(ctx))
+		authedDavHandler.ServeHTTP(w, r.WithContext(ctx))
 	})
 
 	// Stream and resolver endpoints
@@ -172,7 +196,7 @@ func main() {
 		}
 		if strings.HasPrefix(r.URL.Path, "/dav") {
 			ctx := context.WithValue(r.Context(), vfs.RequestHostKey, r.Host)
-			davHandler.ServeHTTP(w, r.WithContext(ctx))
+			authedDavHandler.ServeHTTP(w, r.WithContext(ctx))
 			return
 		}
 		if strings.HasPrefix(r.URL.Path, "/api") {
@@ -208,6 +232,13 @@ func main() {
 		log.Printf("VLC M3U Playlist:     %s/playlist.m3u", lan.PrimaryURL)
 		log.Printf("Registered Providers: %d", providers.Count())
 		log.Printf("Library Items Count:  %d", len(config.Library().All()))
+		if cfg.MultiUser {
+			log.Printf("Auth Mode:            Multi-User (SQLite Auth)")
+			log.Printf("Database:             %s", cfg.DBPath)
+		} else {
+			log.Printf("Auth Mode:            Single-User (Local Zero-Config)")
+			log.Printf("Library File:         %s", cfg.LibraryPath)
+		}
 		log.Printf("================================================================")
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("[FATAL] Server error: %v", err)
