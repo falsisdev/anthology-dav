@@ -237,7 +237,15 @@ Anthology WebDAV varsayılan olarak `0.0.0.0:8085` (tüm yerel ağ arayüzleri) 
 
 ## 🖥️ 6. Web Arayüzünün (`Anthology WebDAV`) Kullanımı
 
-Sunucu çalışırken tarayıcınızdan **[http://localhost:8085/](http://localhost:8085/)** *(veya tablet/telefonunuzdan `http://<Bilgisayar_IP>:8085/`)* adresini açın. Karşınıza modern, hızlı ve sade **Anthology WebDAV** yönetim arayüzü çıkacaktır.
+Sunucu çalışırken tarayıcınızdan **[http://localhost:8085/](http://localhost:8085/)** *(veya tablet/telefonunuzdan `http://<Bilgisayar_IP>:8085/`)* adresini açın.
+
+> [!TIP]
+> **🌐 Çevrim İçi Canlı Erişim & Çoklu Kullanıcı Girişi:**
+> Sunucuya uzaktan veya bulut üzerinden erişmek isterseniz canlı adres:
+> **👉 [https://anthology-dav.duckdns.org](https://anthology-dav.duckdns.org)**
+> - **Kayıt Ol & Giriş Yap:** Canlı sunucuda her kullanıcının kütüphanesi izoledir. Sağ üstteki panelden veya açılan ekrandan saniyeler içinde hesabınızı oluşturup giriş yapabilirsiniz.
+> - **Kişisel WebDAV Adresiniz:** Giriş yaptıktan sonra Infuse, Kodi veya VLC'ye bağlamak için kullanıcı adınız ve şifrenizle WebDAV adresinizi (`https://anthology-dav.duckdns.org/dav/`) kullanabilirsiniz.
+> - **Yerel Mod (Local Mode):** Kendi bilgisayarınızda yerel çalıştırdığınızda herhangi bir şifre gerekmeden doğrudan yerel kütüphaneniz açılır.
 
 Arayüzün üst barında **3 ana sekme** ve sağ üstte **`📱 VLC & Ağ`** bağlantı rehberi bulunur:
 
@@ -308,10 +316,10 @@ Projenin kurulu olduğu klasörde yalnızca şu küçük yapılandırma dosyalar
 2. **Ayarlar (Settings) ⚙️ -> Paylaşımlar (Shares) -> Paylaşım Ekle (Add Share) -> WebDAV** seçeneğine tıklayın.
 3. Bilgileri şu şekilde doldurun:
    - **Ad (Name):** `Anthology WebDAV`
-   - **Protokol:** `WebDAV (HTTP)`
-   - **Adres (Address):** `127.0.0.1` *(Farklı cihazdaysanız bilgisayarın yerel IP'si, örn: `192.168.1.45`)*
-   - **Kullanıcı Adı / Şifre:** *(Boş bırakın)*
-   - **Gelişmiş (Advanced) -> Port:** `8085`
+   - **Protokol:** `WebDAV (HTTP)` *(veya çevrim içi sunucu için `WebDAV (HTTPS)`)*
+   - **Adres (Address):** `127.0.0.1` *(veya çevrim içi sunucu için: `anthology-dav.duckdns.org`)*
+   - **Kullanıcı Adı / Şifre:** Yerel modda boş bırakın; çevrim içi sunucuda web arayüzünde oluşturduğunuz kullanıcı adı ve şifrenizi girin.
+   - **Gelişmiş (Advanced) -> Port:** `8085` *(çevrim içi HTTPS için `443` veya boş)*
    - **Gelişmiş (Advanced) -> Yol (Path):** `/dav`
 4. **Kaydet (Save)** butonuna basın.
 5. Açılan klasör listesinden **`Filmler`**, **`Diziler`** ve **`Animeler`** klasörlerinin üzerine sağ tıklayıp (veya basılı tutup) **"Favorilere Ekle" (Add to Favorites)** seçin.
