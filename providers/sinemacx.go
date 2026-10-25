@@ -2,6 +2,7 @@ package providers
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -20,7 +21,7 @@ func (p *SinemaCXProvider) ID() string   { return "sinemacx" }
 func (p *SinemaCXProvider) Name() string { return "SinemaCX" }
 
 func (p *SinemaCXProvider) baseURL() string {
-	return config.RemoteString("urls.movies.sinemacx", "https://www.sinema.gg")
+	return config.RemoteString("urls.movies.sinemacx", "https://sinemacc.com")
 }
 
 func (p *SinemaCXProvider) GetCatalog(ctx context.Context, page int) ([]MediaItem, error) {
@@ -36,7 +37,7 @@ func (p *SinemaCXProvider) GetCatalog(ctx context.Context, page int) ([]MediaIte
 }
 
 func (p *SinemaCXProvider) Search(ctx context.Context, query string) ([]MediaItem, error) {
-	u := fmt.Sprintf("%s/?s=%s", p.baseURL(), url.QueryEscape(query))
+	u := fmt.Sprintf("%s/arama/?s=%s", p.baseURL(), url.QueryEscape(query))
 	body, _, err := FetchString(ctx, u, DefaultHeaders(p.baseURL()+"/"))
 	if err != nil {
 		return nil, err
@@ -47,18 +48,33 @@ func (p *SinemaCXProvider) Search(ctx context.Context, query string) ([]MediaIte
 func (p *SinemaCXProvider) parseCards(html string) []MediaItem {
 	var items []MediaItem
 	seen := make(map[string]bool)
-	re := regexp.MustCompile(`(?is)<a[^>]+href="(https?://[^"]*sinema\.[^"]+/[^"/]+/?)"[^>]*title="([^"]+)"`)
+	re := regexp.MustCompile(`(?is)<a[^>]+href="(https?://[^"]*sinemacc\.com/film/[^"]+)"[^>]*>([\s\S]*?)</a>`)
+	reH := regexp.MustCompile(`(?is)<h[234][^>]*>([^<]+)</h[234]>`)
+	reAlt := regexp.MustCompile(`(?is)alt="([^"]+)"`)
+
 	for _, m := range re.FindAllStringSubmatch(html, 60) {
 		href := m[1]
-		title := CleanMediaTitle(m[2])
-		if title == "" || seen[href] || strings.Contains(href, "/tur/") || strings.Contains(href, "/kategori/") {
+		if seen[href] {
+			continue
+		}
+		rawT := ""
+		if hm := reH.FindStringSubmatch(m[2]); len(hm) > 1 {
+			rawT = hm[1]
+		} else if am := reAlt.FindStringSubmatch(m[2]); len(am) > 1 {
+			rawT = am[1]
+		} else {
+			parts := strings.Split(strings.Trim(href, "/"), "/")
+			rawT = parts[len(parts)-1]
+		}
+		title := CleanMediaTitle(rawT)
+		if title == "" {
 			continue
 		}
 		seen[href] = true
 		items = append(items, MediaItem{
 			ID:    href,
 			Title: title,
-			Year:  ExtractYear(m[2]),
+			Year:  ExtractYear(rawT),
 			Type:  MediaTypeMovie,
 		})
 	}
@@ -103,11 +119,30 @@ func (p *SinemaCXProvider) ResolveStream(ctx context.Context, streamID string) (
 	}
 
 	var sources []StreamSource
-	reIframe := regexp.MustCompile(`(?i)src=["'](https?://player\.filmizle\.in/player/index\.php\?data=([a-zA-Z0-9]+))["']`)
-	for _, m := range reIframe.FindAllStringSubmatch(body, 5) {
-		embedURL := m[1]
-		sources = append(sources, ExtractHDPlayerSystem(ctx, embedURL, u)...)
+
+	// 1. Direct or base64-encoded player.filmizle.in / vidpapi embeds
+	var embedURLs []string
+	reEmbed := regexp.MustCompile(`(?i)(?:src|data-vsrc|data-src)=["']([^"']+)["']`)
+	for _, m := range reEmbed.FindAllStringSubmatch(body, -1) {
+		val := m[1]
+		if strings.HasPrefix(val, "http") {
+			embedURLs = append(embedURLs, val)
+		} else if dec, err := base64.StdEncoding.DecodeString(val); err == nil && strings.HasPrefix(string(dec), "http") {
+			embedURLs = append(embedURLs, string(dec))
+		}
 	}
+
+	for _, embedURL := range embedURLs {
+		if strings.Contains(embedURL, "filmizle.in") {
+			sources = append(sources, ExtractHDPlayerSystem(ctx, embedURL, u)...)
+		} else if strings.Contains(embedURL, "vidpapi") {
+			sources = append(sources, ExtractAnyIframe(ctx, embedURL, u)...)
+		}
+		if len(sources) > 0 {
+			break
+		}
+	}
+
 	if len(sources) == 0 {
 		sources = append(sources, ExtractAnyIframe(ctx, u, p.baseURL()+"/")...)
 	}

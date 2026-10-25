@@ -54,3 +54,49 @@ func TestAniziumViaMultiResolver(t *testing.T) {
 		t.Errorf("Expected anizium in discovered sources for Black Clover S01E01")
 	}
 }
+
+func TestRevivedProvidersViaMultiResolver(t *testing.T) {
+	cfg := config.Get()
+	cache := vfs.NewMemoryCache()
+	proxy := NewProxyHandler(cfg, cache)
+	mr := NewMultiResolver(proxy)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
+	defer cancel()
+
+	// 1. Test YabancıDizi via MultiResolver
+	provYD, ok := providers.GetByID("yabancidizi")
+	if !ok {
+		t.Fatalf("yabancidizi provider not found")
+	}
+	resYD, err := mr.resolveFromProvider(ctx, provYD, "series", 0, "Treasure Island", "", "2026", nil, 1, 3)
+	if err != nil {
+		t.Logf("resolveFromProvider for Treasure Island yabancidizi: %v", err)
+	} else if resYD != nil && resYD.Primary.URL != "" {
+		t.Logf("SUCCESS YabancıDizi via MultiResolver: URL=%s", resYD.Primary.URL)
+	}
+
+	// 2. Test HDFilmDelisi via MultiResolver
+	provHDFD, ok := providers.GetByID("hdfilmdelisi")
+	if !ok {
+		t.Fatalf("hdfilmdelisi provider not found")
+	}
+	resHDFD, err := mr.resolveFromProvider(ctx, provHDFD, "movie", 0, "Avatar", "", "2009", nil, 1, 1)
+	if err != nil {
+		t.Logf("resolveFromProvider for Avatar hdfilmdelisi: %v", err)
+	} else if resHDFD != nil && resHDFD.Primary.URL != "" {
+		t.Logf("SUCCESS HDFilmDelisi via MultiResolver: URL=%s", resHDFD.Primary.URL)
+	}
+
+	// 3. Test Vidmody via MultiResolver
+	provVM, ok := providers.GetByID("vidmody")
+	if !ok {
+		t.Fatalf("vidmody provider not found")
+	}
+	resVM, err := mr.resolveFromProvider(ctx, provVM, "movie", 19995, "Avatar", "", "2009", nil, 1, 1) // TMDB 19995 = Avatar
+	if err != nil {
+		t.Logf("resolveFromProvider for Avatar vidmody: %v", err)
+	} else if resVM != nil && resVM.Primary.URL != "" {
+		t.Logf("SUCCESS Vidmody via MultiResolver: URL=%s", resVM.Primary.URL)
+	}
+}

@@ -20,12 +20,12 @@ func (p *SeicodeProvider) ID() string   { return "seicode" }
 func (p *SeicodeProvider) Name() string { return "Seicode" }
 
 func (p *SeicodeProvider) apiBase() string {
-	return config.RemoteString("urls.anime.seicode.api", "https://next.seicode.net")
+	return config.RemoteString("urls.anime.seicode.api_base", "https://next.seicode.net")
 }
 
 func (p *SeicodeProvider) headers() map[string]string {
 	return map[string]string{
-		"User-Agent": config.DefaultUserAgent,
+		"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
 		"Accept":     "application/json",
 		"Referer":    "https://seicode.net/",
 		"Origin":     "https://seicode.net",
@@ -39,10 +39,16 @@ func (p *SeicodeProvider) GetCatalog(ctx context.Context, page int) ([]MediaItem
 	u := fmt.Sprintf("%s/anime?page=%d", p.apiBase(), page)
 	var data struct {
 		Animes []struct {
-			Slug        string `json:"slug"`
-			Title       string `json:"title"`
-			Description string `json:"description"`
-			PosterURL   string `json:"poster_url"`
+			ID       string `json:"id"`
+			Slug     string `json:"slug"`
+			English  string `json:"english"`
+			Name     string `json:"name"`
+			Title    string `json:"title"`
+			Pictures struct {
+				Avatar string `json:"avatar"`
+				Banner string `json:"banner"`
+			} `json:"pictures"`
+			Summary string `json:"summary"`
 		} `json:"animes"`
 	}
 	if err := FetchJSON(ctx, u, p.headers(), &data); err != nil {
@@ -50,15 +56,33 @@ func (p *SeicodeProvider) GetCatalog(ctx context.Context, page int) ([]MediaItem
 	}
 	var items []MediaItem
 	for _, a := range data.Animes {
-		if a.Slug == "" || a.Title == "" {
+		slug := a.Slug
+		if slug == "" {
+			slug = a.ID
+		}
+		if slug == "" {
 			continue
 		}
+		title := a.English
+		if title == "" {
+			title = a.Name
+		}
+		if title == "" {
+			title = a.Title
+		}
+		if title == "" {
+			title = slug
+		}
+		poster := a.Pictures.Avatar
+		if poster == "" {
+			poster = a.Pictures.Banner
+		}
 		items = append(items, MediaItem{
-			ID:          a.Slug,
-			Title:       a.Title,
+			ID:          slug,
+			Title:       CleanHTMLText(title),
 			Type:        MediaTypeAnime,
-			PosterURL:   a.PosterURL,
-			Description: a.Description,
+			PosterURL:   poster,
+			Description: a.Summary,
 		})
 	}
 	return items, nil
@@ -67,25 +91,49 @@ func (p *SeicodeProvider) GetCatalog(ctx context.Context, page int) ([]MediaItem
 func (p *SeicodeProvider) Search(ctx context.Context, query string) ([]MediaItem, error) {
 	u := fmt.Sprintf("%s/anime/search?q=%s", p.apiBase(), url.QueryEscape(strings.TrimSpace(query)))
 	var results []struct {
-		Slug        string `json:"slug"`
-		Title       string `json:"title"`
-		Description string `json:"description"`
-		PosterURL   string `json:"poster_url"`
+		ID       string `json:"id"`
+		Slug     string `json:"slug"`
+		English  string `json:"english"`
+		Name     string `json:"name"`
+		Title    string `json:"title"`
+		Pictures struct {
+			Avatar string `json:"avatar"`
+			Banner string `json:"banner"`
+		} `json:"pictures"`
+		Summary string `json:"summary"`
 	}
 	if err := FetchJSON(ctx, u, p.headers(), &results); err != nil {
 		return nil, err
 	}
 	var items []MediaItem
 	for _, a := range results {
-		if a.Slug == "" || a.Title == "" {
+		slug := a.Slug
+		if slug == "" {
+			slug = a.ID
+		}
+		if slug == "" {
 			continue
 		}
+		title := a.English
+		if title == "" {
+			title = a.Name
+		}
+		if title == "" {
+			title = a.Title
+		}
+		if title == "" {
+			title = slug
+		}
+		poster := a.Pictures.Avatar
+		if poster == "" {
+			poster = a.Pictures.Banner
+		}
 		items = append(items, MediaItem{
-			ID:          a.Slug,
-			Title:       a.Title,
+			ID:          slug,
+			Title:       CleanHTMLText(title),
 			Type:        MediaTypeAnime,
-			PosterURL:   a.PosterURL,
-			Description: a.Description,
+			PosterURL:   poster,
+			Description: a.Summary,
 		})
 	}
 	return items, nil
@@ -95,23 +143,40 @@ func (p *SeicodeProvider) GetDetails(ctx context.Context, mediaID string) (*Medi
 	slug := strings.TrimPrefix(mediaID, "seicode:")
 	u := fmt.Sprintf("%s/anime/%s", p.apiBase(), url.PathEscape(slug))
 	var data struct {
-		Title       string `json:"title"`
-		Description string `json:"description"`
-		PosterURL   string `json:"poster_url"`
-		Seasons     []struct {
+		English  string `json:"english"`
+		Name     string `json:"name"`
+		Title    string `json:"title"`
+		Summary  string `json:"summary"`
+		Pictures struct {
+			Avatar string `json:"avatar"`
+			Banner string `json:"banner"`
+		} `json:"pictures"`
+		Seasons []struct {
 			SeasonNumber int `json:"season_number"`
 			Episodes     []struct {
 				EpisodeNumber int    `json:"episode_number"`
 				Title         string `json:"title"`
+				Name          string `json:"name"`
 			} `json:"episodes"`
 		} `json:"seasons"`
 	}
 	if err := FetchJSON(ctx, u, p.headers(), &data); err != nil {
 		return nil, err
 	}
-	title := data.Title
+	title := data.English
+	if title == "" {
+		title = data.Name
+	}
+	if title == "" {
+		title = data.Title
+	}
 	if title == "" {
 		title = slug
+	}
+
+	poster := data.Pictures.Avatar
+	if poster == "" {
+		poster = data.Pictures.Banner
 	}
 
 	var seasons []Season
@@ -127,6 +192,9 @@ func (p *SeicodeProvider) GetDetails(ctx context.Context, mediaID string) (*Medi
 				eNum = 1
 			}
 			epTitle := ep.Title
+			if epTitle == "" {
+				epTitle = ep.Name
+			}
 			if epTitle == "" {
 				epTitle = fmt.Sprintf("Bölüm %d", eNum)
 			}
@@ -164,10 +232,10 @@ func (p *SeicodeProvider) GetDetails(ctx context.Context, mediaID string) (*Medi
 	return &MediaDetail{
 		MediaItem: MediaItem{
 			ID:          slug,
-			Title:       title,
+			Title:       CleanHTMLText(title),
 			Type:        MediaTypeAnime,
-			PosterURL:   data.PosterURL,
-			Description: data.Description,
+			PosterURL:   poster,
+			Description: data.Summary,
 		},
 		Seasons: seasons,
 	}, nil
@@ -182,6 +250,9 @@ func (p *SeicodeProvider) GetEpisodes(ctx context.Context, mediaID string, seaso
 		if s.Number == season {
 			return s.Episodes, nil
 		}
+	}
+	if len(det.Seasons) > 0 {
+		return det.Seasons[0].Episodes, nil
 	}
 	return nil, nil
 }
@@ -207,11 +278,8 @@ func (p *SeicodeProvider) ResolveStream(ctx context.Context, streamID string) (*
 		Seasons []struct {
 			SeasonNumber int `json:"season_number"`
 			Episodes     []struct {
-				EpisodeNumber int `json:"episode_number"`
-				VideoLinks    []struct {
-					Label string `json:"label"`
-					URL   string `json:"url"`
-				} `json:"video_links"`
+				EpisodeNumber int               `json:"episode_number"`
+				VideoLinks    map[string]string `json:"video_links"`
 			} `json:"episodes"`
 		} `json:"seasons"`
 	}
@@ -220,6 +288,8 @@ func (p *SeicodeProvider) ResolveStream(ctx context.Context, streamID string) (*
 	}
 
 	var sources []StreamSource
+	ref := "https://seicode.net/"
+
 	for _, s := range data.Seasons {
 		sNum := s.SeasonNumber
 		if sNum <= 0 {
@@ -229,16 +299,40 @@ func (p *SeicodeProvider) ResolveStream(ctx context.Context, streamID string) (*
 			continue
 		}
 		for _, ep := range s.Episodes {
-			if ep.EpisodeNumber == episode {
-				for _, vl := range ep.VideoLinks {
-					if vl.URL == "" {
+			if ep.EpisodeNumber == episode || (len(s.Episodes) == 1 && episode == 1) {
+				for hostKey, link := range ep.VideoLinks {
+					link = strings.TrimSpace(link)
+					if link == "" {
 						continue
 					}
-					extracted := ExtractAnyIframe(ctx, vl.URL, "https://seicode.net/")
-					sources = append(sources, extracted...)
+					if strings.HasPrefix(link, "//") {
+						link = "https:" + link
+					}
+					lowerKey := strings.ToLower(hostKey)
+					lowerLink := strings.ToLower(link)
+
+					switch {
+					case strings.Contains(lowerKey, "tau-video") || strings.Contains(lowerLink, "tau-video.xyz"):
+						sources = append(sources, ExtractTauVideo(ctx, link)...)
+					case strings.Contains(lowerKey, "okru") || strings.Contains(lowerLink, "ok.ru"):
+						sources = append(sources, ExtractOkRu(ctx, link)...)
+					case strings.Contains(lowerKey, "sibnet") || strings.Contains(lowerLink, "sibnet.ru"):
+						sources = append(sources, ExtractSibnet(ctx, link, ref)...)
+					case strings.Contains(lowerKey, "vidmoly") || strings.Contains(lowerLink, "vidmoly"):
+						sources = append(sources, ExtractVidMoly(ctx, link, ref)...)
+					case strings.Contains(lowerKey, "mp4upload") || strings.Contains(lowerLink, "mp4upload"):
+						sources = append(sources, ExtractMP4Upload(ctx, link)...)
+					default:
+						sources = append(sources, ExtractAnyIframe(ctx, link, ref)...)
+					}
 				}
 			}
 		}
 	}
+
+	if len(sources) == 0 {
+		return nil, fmt.Errorf("seicode: no stream sources found for '%s' S%02dE%02d", slug, season, episode)
+	}
+
 	return SelectBestStream(sources)
 }

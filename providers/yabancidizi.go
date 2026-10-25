@@ -21,12 +21,12 @@ func (p *YabanciDiziProvider) ID() string   { return "yabancidizi" }
 func (p *YabanciDiziProvider) Name() string { return "YabanciDizi" }
 
 func (p *YabanciDiziProvider) baseURL() string {
-	return config.RemoteString("urls.series_foreign.yabancidizi.base", "https://yabancidizi.news")
+	return config.RemoteString("urls.series.yabancidizi.base", config.RemoteString("urls.series_foreign.yabancidizi.base", "https://yabancidizi.news"))
 }
 
 var (
-	yabanciDiziCardRe = regexp.MustCompile(`(?is)<a[^>]+href="(?:https?://[^"]*yabancidizi\.[^/]+)?/dizi/([^"/?#]+)"[^>]*>(.*?)</a>`)
-	yabanciDiziEpRe   = regexp.MustCompile(`(?i)href="(?:https?://[^"]*yabancidizi\.[^/]+)?/dizi/[^/]+/sezon-(\d+)/bolum-(\d+)"`)
+	yabanciDiziCardRe = regexp.MustCompile(`(?is)<a[^>]+href="(?:https?://[^"]*yabancidizi\.[^/]+)?/?dizi/([^"/?#]+)"[^>]*>(.*?)</a>`)
+	yabanciDiziEpRe   = regexp.MustCompile(`(?i)(?:/?dizi/[^"'/]+/)?sezon-(\d+)/bolum-(\d+)`)
 )
 
 func (p *YabanciDiziProvider) parseCards(htmlStr string) []MediaItem {
@@ -54,7 +54,7 @@ func (p *YabanciDiziProvider) parseCards(htmlStr string) []MediaItem {
 
 func (p *YabanciDiziProvider) GetCatalog(ctx context.Context, page int) ([]MediaItem, error) {
 	base := p.baseURL()
-	htmlStr, _, err := FetchString(ctx, base+"/", DefaultHeaders(base+"/"))
+	htmlStr, _, err := FetchStringHTTP11(ctx, base+"/", DefaultHeaders(base+"/"))
 	if err != nil {
 		return nil, err
 	}
@@ -74,11 +74,12 @@ func (p *YabanciDiziProvider) Search(ctx context.Context, query string) ([]Media
 			} `json:"result"`
 		} `json:"data"`
 	}
-	if err := FetchJSON(ctx, u, map[string]string{
+	if err := FetchJSONWithBodyHTTP11(ctx, "POST", u, map[string]string{
 		"User-Agent":       config.DefaultUserAgent,
 		"Referer":          base + "/",
 		"X-Requested-With": "XMLHttpRequest",
-	}, &data); err == nil && len(data.Data.Result) > 0 {
+		"Accept":           "application/json, text/javascript, */*; q=0.01",
+	}, nil, &data); err == nil && len(data.Data.Result) > 0 {
 		var items []MediaItem
 		for _, r := range data.Data.Result {
 			slug := strings.Trim(strings.TrimPrefix(r.Link, "/dizi/"), "/")
@@ -100,7 +101,7 @@ func (p *YabanciDiziProvider) GetDetails(ctx context.Context, mediaID string) (*
 	slug := strings.Trim(strings.TrimPrefix(mediaID, "yabancidizi:"), "/")
 	base := p.baseURL()
 	seriesURL := fmt.Sprintf("%s/dizi/%s", base, slug)
-	htmlStr, _, err := FetchString(ctx, seriesURL, DefaultHeaders(base+"/"))
+	htmlStr, _, err := FetchStringHTTP11(ctx, seriesURL, DefaultHeaders(base+"/"))
 	if err != nil {
 		return nil, err
 	}
@@ -187,13 +188,13 @@ func (p *YabanciDiziProvider) ResolveStream(ctx context.Context, streamID string
 	}
 	base := p.baseURL()
 	epURL := fmt.Sprintf("%s/dizi/%s/sezon-%d/bolum-%d", base, slug, season, episode)
-	htmlStr, _, err := FetchString(ctx, epURL, DefaultHeaders(base+"/"))
+	htmlStr, _, err := FetchStringHTTP11(ctx, epURL, DefaultHeaders(base+"/"))
 	if err != nil {
 		return nil, err
 	}
 
 	var sources []StreamSource
-	for _, vm := range regexp.MustCompile(`vidmoly\.[a-z]+/(?:dl/|embed-)([a-zA-Z0-9]+)`).FindAllStringSubmatch(htmlStr, 4) {
+	for _, vm := range regexp.MustCompile(`vidmoly\.[a-z]+/(?:dl/|embed-)([a-zA-Z0-9]+)`).FindAllStringSubmatch(htmlStr, -1) {
 		sources = append(sources, ExtractVidMoly(ctx, "https://vidmoly.biz/embed-"+vm[1]+".html", epURL)...)
 	}
 	for _, im := range regexp.MustCompile(`(?i)<iframe[^>]+src="([^"]+)"`).FindAllStringSubmatch(htmlStr, 4) {

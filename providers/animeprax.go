@@ -75,27 +75,35 @@ func (p *AnimePraxProvider) Search(ctx context.Context, query string) ([]MediaIt
 	base := p.baseURL()
 	u := fmt.Sprintf("%s/api/search?q=%s", base, url.QueryEscape(strings.TrimSpace(query)))
 	var results []struct {
-		Slug      string `json:"slug"`
-		Title     string `json:"title"`
-		CoverPath string `json:"cover_path"`
+		Slug          string `json:"slug"`
+		Title         string `json:"title"`
+		CoverImageURL string `json:"cover_image_url"`
 	}
 	if err := FetchJSON(ctx, u, map[string]string{
-		"User-Agent":       config.DefaultUserAgent,
-		"Referer":          base + "/",
-		"X-Requested-With": "XMLHttpRequest",
+		"User-Agent": config.DefaultUserAgent,
+		"Accept":     "application/json",
+		"Referer":    base + "/",
 	}, &results); err != nil {
 		return nil, err
 	}
 	var items []MediaItem
 	for _, r := range results {
-		if r.Slug == "" || r.Title == "" {
+		if r.Slug == "" {
 			continue
+		}
+		title := r.Title
+		if title == "" {
+			title = r.Slug
+		}
+		poster := r.CoverImageURL
+		if poster != "" && !strings.HasPrefix(poster, "http") {
+			poster = ResolveRelativeURL(poster, base)
 		}
 		items = append(items, MediaItem{
 			ID:        r.Slug,
-			Title:     r.Title,
+			Title:     CleanHTMLText(title),
 			Type:      MediaTypeAnime,
-			PosterURL: ResolveRelativeURL(r.CoverPath, base),
+			PosterURL: poster,
 		})
 	}
 	return items, nil
@@ -177,6 +185,9 @@ func (p *AnimePraxProvider) GetEpisodes(ctx context.Context, mediaID string, sea
 			return s.Episodes, nil
 		}
 	}
+	if len(det.Seasons) > 0 {
+		return det.Seasons[0].Episodes, nil
+	}
 	return nil, nil
 }
 
@@ -189,6 +200,13 @@ func (p *AnimePraxProvider) ResolveStream(ctx context.Context, streamID string) 
 		season, _ = strconv.Atoi(parts[1])
 		episode, _ = strconv.Atoi(parts[2])
 	}
+	if season <= 0 {
+		season = 1
+	}
+	if episode <= 0 {
+		episode = 1
+	}
+
 	base := p.baseURL()
 	epURL := fmt.Sprintf("%s/anime/%s/season/%d/episode/%d", base, slug, season, episode)
 	htmlStr, _, err := FetchString(ctx, epURL, DefaultHeaders(base+"/"))
@@ -209,25 +227,53 @@ func (p *AnimePraxProvider) ResolveStream(ctx context.Context, streamID string) 
 	}
 
 	var sources []StreamSource
+	hdrs := map[string]string{
+		"User-Agent":       config.DefaultUserAgent,
+		"Referer":          epURL,
+		"X-Requested-With": "XMLHttpRequest",
+		"Accept":           "application/json, text/plain, */*",
+	}
+
 	for _, tid := range teamIDs {
 		srcURL := fmt.Sprintf("%s/anime/%s/season/%d/episode/%d/sources?team=%s&t=%d", base, slug, season, episode, tid, time.Now().UnixMilli())
 		var resp struct {
 			Sources []struct {
-				Player string `json:"player"`
-				Src    string `json:"src"`
+				ProviderName string `json:"provider_name"`
+				EmbedURL     string `json:"embed_url"`
 			} `json:"sources"`
 		}
-		if err := FetchJSON(ctx, srcURL, map[string]string{
-			"User-Agent":       config.DefaultUserAgent,
-			"Referer":          epURL,
-			"X-Requested-With": "XMLHttpRequest",
-		}, &resp); err == nil {
+		if err := FetchJSON(ctx, srcURL, hdrs, &resp); err == nil {
 			for _, s := range resp.Sources {
-				if s.Src != "" {
-					sources = append(sources, ExtractAnyIframe(ctx, s.Src, epURL)...)
+				embed := strings.TrimSpace(s.EmbedURL)
+				if embed == "" {
+					continue
+				}
+				if strings.HasPrefix(embed, "//") {
+					embed = "https:" + embed
+				}
+				pName := strings.ToLower(s.ProviderName)
+				lowerEmbed := strings.ToLower(embed)
+
+				switch {
+				case strings.Contains(pName, "sibnet") || strings.Contains(lowerEmbed, "sibnet.ru"):
+					sources = append(sources, ExtractSibnet(ctx, embed, base+"/")...)
+				case strings.Contains(pName, "ok") || strings.Contains(lowerEmbed, "ok.ru"):
+					sources = append(sources, ExtractOkRu(ctx, embed)...)
+				case strings.Contains(pName, "dailymotion") || strings.Contains(lowerEmbed, "dailymotion.com"):
+					sources = append(sources, ExtractDailymotion(ctx, embed)...)
+				default:
+					sources = append(sources, ExtractAnyIframe(ctx, embed, epURL)...)
 				}
 			}
 		}
+		if len(sources) > 0 {
+			break
+		}
 	}
+
+	if len(sources) == 0 {
+		return nil, fmt.Errorf("animeprax: no working streams found for '%s' S%02dE%02d", slug, season, episode)
+	}
+
 	return SelectBestStream(sources)
 }

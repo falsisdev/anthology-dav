@@ -2,6 +2,7 @@ package providers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -25,20 +26,27 @@ func (p *TvDizilerProvider) baseURL() string {
 }
 
 var (
-	tvDizilerSeriesRe = regexp.MustCompile(`(?is)<a[^>]+href="(?:https?://[^"]*tvdiziler\.[^/]+)?/dizi/([^"/?#]+)"[^>]*>(.*?)</a>`)
-	tvDizilerEpRe     = regexp.MustCompile(`(?is)<a[^>]+href="(?:https?://[^"]*tvdiziler\.[^/]+)?/([a-z0-9-]+-(\d+)-bolum[^"/?#]*)"[^>]*>(.*?)</a>`)
-	tvDizilerHhsRe    = regexp.MustCompile(`(?i)data-hhs="([^"]+)"`)
+	tvDizilerSeriesRe = regexp.MustCompile(`(?is)<a[^>]+href=["'](?:https?://[^"'/]+)?/?dizi/([^"'/?#]+)["'][^>]*>(.*?)</a>`)
+	tvDizilerEpRe     = regexp.MustCompile(`(?is)<a[^>]+href=["'](?:https?://[^"'/]+)?/?([a-z0-9-]+-(\d+)-bolum[^"'/?#]*)["'][^>]*>(.*?)</a>`)
+	tvDizilerHhsRe    = regexp.MustCompile(`(?i)data-hhs=["']([^"']+)["']`)
 )
 
 func (p *TvDizilerProvider) parseSeries(htmlStr string) []MediaItem {
+	cleanHTML := strings.ReplaceAll(htmlStr, `\/`, `/`)
 	var items []MediaItem
 	seen := make(map[string]bool)
-	for _, m := range tvDizilerSeriesRe.FindAllStringSubmatch(htmlStr, -1) {
-		slug := m[1]
+	for _, m := range tvDizilerSeriesRe.FindAllStringSubmatch(cleanHTML, -1) {
+		slug := strings.Trim(m[1], "/")
 		if slug == "" || seen[slug] {
 			continue
 		}
-		title := CleanMediaTitle(m[2])
+		title := ""
+		if tm := regexp.MustCompile(`(?i)<h[23][^>]*>(.*?)</h[23]>`).FindStringSubmatch(m[2]); len(tm) > 1 {
+			title = CleanMediaTitle(tm[1])
+		}
+		if title == "" {
+			title = CleanMediaTitle(m[2])
+		}
 		if title == "" {
 			continue
 		}
@@ -64,21 +72,28 @@ func (p *TvDizilerProvider) GetCatalog(ctx context.Context, page int) ([]MediaIt
 func (p *TvDizilerProvider) Search(ctx context.Context, query string) ([]MediaItem, error) {
 	base := p.baseURL()
 	u := fmt.Sprintf("%s/search?qr=%s", base, url.QueryEscape(strings.TrimSpace(query)))
-	var res struct {
-		Data string `json:"data"`
-	}
-	if err := FetchJSON(ctx, u, map[string]string{
+	headers := map[string]string{
 		"User-Agent":       config.DefaultUserAgent,
 		"Referer":          base + "/",
 		"X-Requested-With": "XMLHttpRequest",
-	}, &res); err == nil && res.Data != "" {
-		return p.parseSeries(res.Data), nil
+		"Accept":           "application/json, text/javascript, */*; q=0.01",
+	}
+
+	bodyBytes, _, _, _, err := FetchBytes(ctx, "POST", u, headers, nil)
+	if err == nil && len(bodyBytes) > 0 {
+		var res struct {
+			Data string `json:"data"`
+		}
+		if json.Unmarshal(bodyBytes, &res) == nil && res.Data != "" {
+			return p.parseSeries(res.Data), nil
+		}
 	}
 	return p.GetCatalog(ctx, 1)
 }
 
 func (p *TvDizilerProvider) GetDetails(ctx context.Context, mediaID string) (*MediaDetail, error) {
 	slug := strings.Trim(strings.TrimPrefix(mediaID, "tvdiziler:"), "/")
+	slug = strings.TrimPrefix(slug, "dizi/")
 	base := p.baseURL()
 	seriesURL := fmt.Sprintf("%s/dizi/%s", base, slug)
 	htmlStr, _, err := FetchString(ctx, seriesURL, DefaultHeaders(base+"/"))
@@ -93,7 +108,7 @@ func (p *TvDizilerProvider) GetDetails(ctx context.Context, mediaID string) (*Me
 	var eps []Episode
 	seen := make(map[string]bool)
 	for _, m := range tvDizilerEpRe.FindAllStringSubmatch(htmlStr, -1) {
-		epSlug := m[1]
+		epSlug := strings.Trim(m[1], "/")
 		if seen[epSlug] {
 			continue
 		}
@@ -156,9 +171,15 @@ func (p *TvDizilerProvider) ResolveStream(ctx context.Context, streamID string) 
 	}
 
 	var sources []StreamSource
-	for _, m := range tvDizilerHhsRe.FindAllStringSubmatch(htmlStr, 4) {
-		plyURL := ResolveRelativeURL(m[1], base)
-		sources = append(sources, ExtractAnyIframe(ctx, plyURL, epURL)...)
+	for _, m := range tvDizilerHhsRe.FindAllStringSubmatch(htmlStr, 10) {
+		for _, part := range strings.Split(m[1], ",") {
+			part = strings.TrimSpace(part)
+			if part == "" {
+				continue
+			}
+			plyURL := ResolveRelativeURL(part, base)
+			sources = append(sources, ExtractAnyIframe(ctx, plyURL, epURL)...)
+		}
 	}
 	for _, im := range regexp.MustCompile(`(?i)<iframe[^>]+src="([^"]+)"`).FindAllStringSubmatch(htmlStr, 4) {
 		sources = append(sources, ExtractAnyIframe(ctx, ResolveRelativeURL(im[1], base), epURL)...)

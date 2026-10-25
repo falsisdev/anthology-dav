@@ -21,24 +21,28 @@ func (p *DDiziProvider) ID() string   { return "ddizi" }
 func (p *DDiziProvider) Name() string { return "DDizi" }
 
 func (p *DDiziProvider) baseURL() string {
-	return config.RemoteString("urls.series_local.ddizi.base", "https://www.ddizi.im")
+	b := config.RemoteString("urls.series.ddizi.base", "https://www.ddizi.tel")
+	if strings.Contains(b, "ddizi.im") || strings.Contains(b, "ddizi.pw") {
+		return "https://www.ddizi.tel"
+	}
+	return b
 }
 
 var (
-	ddiziSeriesRe = regexp.MustCompile(`(?is)<a[^>]+href="(?:https?://[^"]*ddizi\.[^/]+)?/diziler/([^"/?#]+)"[^>]*>(.*?)</a>`)
-	ddiziEpRe     = regexp.MustCompile(`(?is)<a[^>]+href="(?:https?://[^"]*ddizi\.[^/]+)?/izle/([^"/?#]+)"[^>]*>(.*?)</a>`)
+	ddiziSeriesRe = regexp.MustCompile(`(?is)<a[^>]+href="(?:https?://[^"]*)?/diziler/([^"/?#]+(?:/[^"/?#]+)?)"[^>]*>(.*?)</a>`)
+	ddiziEpRe     = regexp.MustCompile(`(?is)<a[^>]+href="(?:https?://[^"]*)?/izle/([^"/?#]+(?:/[^"/?#]+)?)"[^>]*>(.*?)</a>`)
 )
 
 func (p *DDiziProvider) parseSeries(htmlStr string) []MediaItem {
 	var items []MediaItem
 	seen := make(map[string]bool)
 	for _, m := range ddiziSeriesRe.FindAllStringSubmatch(htmlStr, -1) {
-		slug := m[1]
-		if slug == "" || seen[slug] {
+		slug := strings.Trim(m[1], "/")
+		if slug == "" || seen[slug] || strings.Contains(slug, "sayfa-") {
 			continue
 		}
 		title := CleanMediaTitle(m[2])
-		if title == "" {
+		if title == "" || len(title) < 2 {
 			continue
 		}
 		seen[slug] = true
@@ -73,6 +77,7 @@ func (p *DDiziProvider) Search(ctx context.Context, query string) ([]MediaItem, 
 
 func (p *DDiziProvider) GetDetails(ctx context.Context, mediaID string) (*MediaDetail, error) {
 	slug := strings.Trim(strings.TrimPrefix(mediaID, "ddizi:"), "/")
+	slug = strings.TrimPrefix(slug, "diziler/")
 	base := p.baseURL()
 	seriesURL := fmt.Sprintf("%s/diziler/%s", base, slug)
 	htmlStr, _, err := FetchString(ctx, seriesURL, DefaultHeaders(base+"/"))
@@ -87,7 +92,7 @@ func (p *DDiziProvider) GetDetails(ctx context.Context, mediaID string) (*MediaD
 	var eps []Episode
 	seen := make(map[string]bool)
 	for _, m := range ddiziEpRe.FindAllStringSubmatch(htmlStr, -1) {
-		epSlug := m[1]
+		epSlug := strings.Trim(m[1], "/")
 		if seen[epSlug] {
 			continue
 		}
@@ -143,15 +148,22 @@ func (p *DDiziProvider) GetEpisodes(ctx context.Context, mediaID string, season 
 
 func (p *DDiziProvider) ResolveStream(ctx context.Context, streamID string) (*StreamResult, error) {
 	epSlug := strings.Trim(strings.TrimPrefix(streamID, "ddizi:"), "/")
+	epSlug = strings.TrimPrefix(epSlug, "izle/")
 	base := p.baseURL()
-	epURL := fmt.Sprintf("%s/izle/%s", base, epSlug)
+	var epURL string
+	if strings.HasPrefix(epSlug, "http") {
+		epURL = epSlug
+	} else {
+		epURL = fmt.Sprintf("%s/izle/%s", base, epSlug)
+	}
 	htmlStr, _, err := FetchString(ctx, epURL, DefaultHeaders(base+"/"))
 	if err != nil {
 		return nil, err
 	}
 
 	var sources []StreamSource
-	for _, im := range regexp.MustCompile(`(?i)<iframe[^>]+src="([^"]+)"`).FindAllStringSubmatch(htmlStr, 5) {
+	iframeMatches := regexp.MustCompile(`(?i)<iframe[^>]+src=["']([^"']+)["']`).FindAllStringSubmatch(htmlStr, 10)
+	for _, im := range iframeMatches {
 		iframeURL := ResolveRelativeURL(im[1], base)
 		if strings.Contains(iframeURL, "daily.php") {
 			sources = append(sources, ExtractDailymotion(ctx, iframeURL)...)

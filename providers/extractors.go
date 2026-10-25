@@ -22,10 +22,25 @@ import (
 	"anthology-dav/config"
 )
 
+const DefaultTimeout = 15 * time.Second
+
 var sharedHTTPClient = &http.Client{
 	Timeout: 18 * time.Second,
 	Transport: &http.Transport{
 		TLSClientConfig:     &tls.Config{InsecureSkipVerify: true},
+		ForceAttemptHTTP2:   true,
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 20,
+		IdleConnTimeout:     90 * time.Second,
+	},
+}
+
+var http11Client = &http.Client{
+	Timeout: 18 * time.Second,
+	Transport: &http.Transport{
+		TLSClientConfig:     &tls.Config{InsecureSkipVerify: true},
+		ForceAttemptHTTP2:   false,
+		TLSNextProto:        make(map[string]func(authority string, c *tls.Conn) http.RoundTripper),
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 20,
 		IdleConnTimeout:     90 * time.Second,
@@ -35,7 +50,8 @@ var sharedHTTPClient = &http.Client{
 var noRedirectHTTPClient = &http.Client{
 	Timeout: 12 * time.Second,
 	Transport: &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		TLSClientConfig:   &tls.Config{InsecureSkipVerify: true},
+		ForceAttemptHTTP2: true,
 	},
 	CheckRedirect: func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse
@@ -88,6 +104,80 @@ func FetchString(ctx context.Context, targetURL string, headers map[string]strin
 // FetchJSON performs a GET request and decodes JSON into dest.
 func FetchJSON(ctx context.Context, targetURL string, headers map[string]string, dest any) error {
 	b, code, _, _, err := FetchBytes(ctx, http.MethodGet, targetURL, headers, nil)
+	if err != nil {
+		return err
+	}
+	if code < 200 || code >= 400 {
+		return fmt.Errorf("HTTP %d from %s", code, targetURL)
+	}
+	return json.Unmarshal(b, dest)
+}
+
+// FetchJSONWithBody performs an HTTP request with body and decodes JSON response into dest.
+func FetchJSONWithBody(ctx context.Context, method, targetURL string, headers map[string]string, body []byte, dest any) error {
+	var bodyReader io.Reader
+	if body != nil {
+		bodyReader = bytes.NewReader(body)
+	}
+	b, code, _, _, err := FetchBytes(ctx, method, targetURL, headers, bodyReader)
+	if err != nil {
+		return err
+	}
+	if code < 200 || code >= 400 {
+		return fmt.Errorf("HTTP %d from %s", code, targetURL)
+	}
+	return json.Unmarshal(b, dest)
+}
+
+// FetchBytesHTTP11 performs an HTTP request forcing HTTP/1.1 (bypasses Cloudflare HTTP/2 fingerprinting).
+func FetchBytesHTTP11(ctx context.Context, method, targetURL string, headers map[string]string, body io.Reader) ([]byte, int, http.Header, string, error) {
+	req, err := http.NewRequestWithContext(ctx, method, targetURL, body)
+	if err != nil {
+		return nil, 0, nil, "", err
+	}
+	req.Header.Set("User-Agent", config.DefaultUserAgent)
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	resp, err := http11Client.Do(req)
+	if err != nil {
+		return nil, 0, nil, "", err
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 15*1024*1024))
+	finalURL := targetURL
+	if resp.Request != nil && resp.Request.URL != nil {
+		finalURL = resp.Request.URL.String()
+	}
+	return data, resp.StatusCode, resp.Header, finalURL, err
+}
+
+// FetchStringHTTP11 performs a GET request forcing HTTP/1.1 and returns body as string.
+func FetchStringHTTP11(ctx context.Context, targetURL string, headers map[string]string) (string, int, error) {
+	b, code, _, _, err := FetchBytesHTTP11(ctx, http.MethodGet, targetURL, headers, nil)
+	return string(b), code, err
+}
+
+// FetchJSONHTTP11 performs a GET request forcing HTTP/1.1 and decodes JSON into dest.
+func FetchJSONHTTP11(ctx context.Context, targetURL string, headers map[string]string, dest any) error {
+	b, code, _, _, err := FetchBytesHTTP11(ctx, http.MethodGet, targetURL, headers, nil)
+	if err != nil {
+		return err
+	}
+	if code < 200 || code >= 400 {
+		return fmt.Errorf("HTTP %d from %s", code, targetURL)
+	}
+	return json.Unmarshal(b, dest)
+}
+
+// FetchJSONWithBodyHTTP11 performs an HTTP request forcing HTTP/1.1 with body and decodes JSON response into dest.
+func FetchJSONWithBodyHTTP11(ctx context.Context, method, targetURL string, headers map[string]string, body []byte, dest any) error {
+	var bodyReader io.Reader
+	if body != nil {
+		bodyReader = bytes.NewReader(body)
+	}
+	b, code, _, _, err := FetchBytesHTTP11(ctx, method, targetURL, headers, bodyReader)
 	if err != nil {
 		return err
 	}
@@ -310,35 +400,44 @@ func encodeBaseN(n, radix int) string {
 }
 
 // UnpackJS unpacks Dean Edwards eval(function(p,a,c,k,e,d)...) blocks.
+// If multiple blocks exist in the given string, it unpacks each and joins them.
 func UnpackJS(packed string) string {
-	m := packedJSRe.FindStringSubmatch(packed)
-	if len(m) < 5 {
+	matches := packedJSRe.FindAllStringSubmatch(packed, -1)
+	if len(matches) == 0 {
 		return ""
 	}
-	p := m[1]
-	a, err1 := strconv.Atoi(m[2])
-	c, err2 := strconv.Atoi(m[3])
-	if err1 != nil || err2 != nil || a <= 0 {
-		return ""
-	}
-	k := strings.Split(m[4], "|")
-
-	dict := make(map[string]string, c)
-	for i := c - 1; i >= 0; i-- {
-		key := encodeBaseN(i, a)
-		val := key
-		if i < len(k) && k[i] != "" {
-			val = k[i]
+	var results []string
+	for _, m := range matches {
+		if len(m) < 5 {
+			continue
 		}
-		dict[key] = val
-	}
-
-	return wordTokenRe.ReplaceAllStringFunc(p, func(tok string) string {
-		if rep, ok := dict[tok]; ok {
-			return rep
+		p := m[1]
+		a, err1 := strconv.Atoi(m[2])
+		c, err2 := strconv.Atoi(m[3])
+		if err1 != nil || err2 != nil || a <= 0 {
+			continue
 		}
-		return tok
-	})
+		k := strings.Split(m[4], "|")
+
+		dict := make(map[string]string, c)
+		for i := c - 1; i >= 0; i-- {
+			key := encodeBaseN(i, a)
+			val := key
+			if i < len(k) && k[i] != "" {
+				val = k[i]
+			}
+			dict[key] = val
+		}
+
+		unpacked := wordTokenRe.ReplaceAllStringFunc(p, func(tok string) string {
+			if rep, ok := dict[tok]; ok {
+				return rep
+			}
+			return tok
+		})
+		results = append(results, unpacked)
+	}
+	return strings.Join(results, "\n")
 }
 
 // ── Common Embed Extractors (Ported from src/shared/helpers.js & providers) ─
@@ -946,6 +1045,57 @@ func VTTToSRT(vtt []byte) []byte {
 var genericM3U8Re = regexp.MustCompile(`(?i)https?://[^\s"'\\<>]+\.m3u8[^\s"'\\<>]*`)
 var genericMP4Re = regexp.MustCompile(`(?i)(?:file|src)\s*:\s*["'](https?://[^\s"'\\<>]+\.mp4[^\s"'\\<>]*)["']`)
 
+// ExtractDiziPodPlayer extracts HLS streams from player.dizipod.com/embed/...
+func ExtractDiziPodPlayer(ctx context.Context, embedURL, referer string) []StreamSource {
+	if strings.HasPrefix(embedURL, "//") {
+		embedURL = "https:" + embedURL
+	}
+	htmlStr, _, err := FetchString(ctx, embedURL, map[string]string{
+		"User-Agent": config.DefaultUserAgent,
+		"Referer":    "https://dizipod.com/",
+	})
+	if err != nil || htmlStr == "" {
+		return nil
+	}
+	unpacked := UnpackJS(htmlStr)
+	combined := strings.ReplaceAll(htmlStr+"\n"+unpacked, `\`, "")
+
+	m := regexp.MustCompile(`(?i)(https?://[a-zA-Z0-9.-]+\.tyuopix\.com[^\s"']+\.m3u8)`).FindStringSubmatch(combined)
+	if len(m) > 1 {
+		return []StreamSource{
+			{
+				Name:    "DiziPod",
+				Title:   "DiziPod • 1080p HLS",
+				URL:     m[1],
+				Quality: "1080p",
+				Format:  "hls",
+				IsHLS:   true,
+				Headers: map[string]string{
+					"User-Agent": config.DefaultUserAgent,
+					"Referer":    "https://player.dizipod.com/",
+				},
+			},
+		}
+	}
+	for _, gm := range genericM3U8Re.FindAllString(combined, -1) {
+		return []StreamSource{
+			{
+				Name:    "DiziPod",
+				Title:   "DiziPod • 1080p HLS",
+				URL:     gm,
+				Quality: "1080p",
+				Format:  "hls",
+				IsHLS:   true,
+				Headers: map[string]string{
+					"User-Agent": config.DefaultUserAgent,
+					"Referer":    "https://player.dizipod.com/",
+				},
+			},
+		}
+	}
+	return nil
+}
+
 // ExtractAnyIframe inspects an embed URL and dispatches to the appropriate extractor or unpacks Dean Edwards JS.
 func ExtractAnyIframe(ctx context.Context, iframeURL, referer string) []StreamSource {
 	iframeURL = strings.TrimSpace(strings.ReplaceAll(iframeURL, `\/`, `/`))
@@ -974,6 +1124,15 @@ func ExtractAnyIframe(ctx context.Context, iframeURL, referer string) []StreamSo
 		return ExtractYourUpload(iframeURL)
 	case strings.Contains(lower, "dailymotion.com") || strings.Contains(lower, "dai.ly"):
 		return ExtractDailymotion(ctx, iframeURL)
+	case strings.Contains(lower, "player.dizipod.com") || strings.Contains(lower, "dizipod.com/embed") ||
+		strings.Contains(lower, "player.dizibak.net") || strings.Contains(lower, "dizibak.net/embed"):
+		return ExtractDiziPodPlayer(ctx, iframeURL, referer)
+	case strings.Contains(lower, "git.php?id=") || strings.Contains(lower, "streambox1"):
+		if ym := regexp.MustCompile(`(?:git\.php\?id=|v=|youtu\.be/|/embed/)([a-zA-Z0-9_-]{11})`).FindStringSubmatch(iframeURL); len(ym) > 1 {
+			if s := ExtractYouTubeInnertube(ctx, ym[1]); s != nil {
+				return []StreamSource{*s}
+			}
+		}
 	case strings.Contains(lower, "youtube.com") || strings.Contains(lower, "youtu.be"):
 		if s := ExtractYouTubeInnertube(ctx, iframeURL); s != nil {
 			return []StreamSource{*s}
@@ -987,7 +1146,7 @@ func ExtractAnyIframe(ctx context.Context, iframeURL, referer string) []StreamSo
 		return nil
 	}
 	unpacked := UnpackJS(htmlStr)
-	combined := htmlStr + "\n" + unpacked
+	combined := strings.ReplaceAll(htmlStr+"\n"+unpacked, `\/`, `/`)
 	subs := ExtractVTTSubtitles(combined)
 
 	parsed, _ := url.Parse(iframeURL)
@@ -1036,6 +1195,17 @@ func ExtractAnyIframe(ctx context.Context, iframeURL, referer string) []StreamSo
 					},
 					Subtitles: subs,
 				})
+			}
+		}
+	}
+	if len(out) == 0 {
+		for _, ifr := range regexp.MustCompile(`(?i)<iframe[^>]+src=["']([^"']+)["']`).FindAllStringSubmatch(htmlStr, 3) {
+			nestedURL := ResolveRelativeURL(ifr[1], iframeURL)
+			if nestedURL != iframeURL && !strings.Contains(nestedURL, "about:blank") {
+				if sub := ExtractAnyIframe(ctx, nestedURL, iframeURL); len(sub) > 0 {
+					out = append(out, sub...)
+					break
+				}
 			}
 		}
 	}
@@ -1251,19 +1421,15 @@ func extractRunsText(v any) string {
 
 // ExtractDYGVideo resolves streams from Dogus Digital (dygvideo.dygdigital.com).
 func ExtractDYGVideo(ctx context.Context, publisherID int, referenceID, referer string) []StreamSource {
-	apiURL := fmt.Sprintf("https://dygvideo.dygdigital.com/api/video_info?PublisherId=%d&ReferenceId=%s&SecretKey=NtvApiSecret2014*", publisherID, url.QueryEscape(referenceID))
+	apiURL := fmt.Sprintf("https://dygvideo.dygdigital.com/api/video_info?akamai=true&PublisherId=%d&ReferenceId=%s&SecretKey=NtvApiSecret2014*", publisherID, url.QueryEscape(referenceID))
 	var res struct {
 		Data struct {
-			Title   string `json:"title"`
-			Flavors struct {
-				HLS string `json:"hls"`
-				MP4 []struct {
-					Name    string `json:"name"`
-					Flavors string `json:"flavors"`
-				} `json:"mp4"`
-			} `json:"flavors"`
-			Tracks []struct {
+			Title   string         `json:"title"`
+			HLSLink string         `json:"hls_link"`
+			Flavors map[string]any `json:"flavors"`
+			Tracks  []struct {
 				File  string `json:"file"`
+				URL   string `json:"url"`
 				Label string `json:"label"`
 				Lang  string `json:"lang"`
 			} `json:"tracks"`
@@ -1275,23 +1441,42 @@ func ExtractDYGVideo(ctx context.Context, publisherID int, referenceID, referer 
 
 	var subs []Subtitle
 	for i, tr := range res.Data.Tracks {
-		if tr.File != "" {
+		file := tr.File
+		if file == "" {
+			file = tr.URL
+		}
+		if file != "" {
+			lang := tr.Lang
+			if lang == "" {
+				lang = "tr"
+			}
+			lbl := tr.Label
+			if lbl == "" {
+				lbl = "Türkçe"
+			}
 			subs = append(subs, Subtitle{
 				ID:       fmt.Sprintf("dyg_sub_%d", i),
-				Language: "tr",
-				Label:    tr.Label,
+				Language: lang,
+				Label:    lbl,
 				Format:   "vtt",
-				URL:      tr.File,
+				URL:      file,
 			})
 		}
 	}
 
 	var out []StreamSource
-	if res.Data.Flavors.HLS != "" {
+	hlsURL := ""
+	if h, ok := res.Data.Flavors["hls"].(string); ok && h != "" {
+		hlsURL = h
+	} else if res.Data.HLSLink != "" {
+		hlsURL = res.Data.HLSLink
+	}
+
+	if hlsURL != "" {
 		out = append(out, StreamSource{
-			Name:      "DYG Video",
+			Name:      "PuhuTV / DYG",
 			Title:     res.Data.Title + " • 1080p HLS",
-			URL:       res.Data.Flavors.HLS,
+			URL:       hlsURL,
 			Quality:   "1080p",
 			Format:    "hls",
 			IsHLS:     true,
@@ -1299,22 +1484,33 @@ func ExtractDYGVideo(ctx context.Context, publisherID int, referenceID, referer 
 			Subtitles: subs,
 		})
 	}
-	for _, m := range res.Data.Flavors.MP4 {
-		if m.Flavors != "" {
-			q := m.Name
-			if q == "" {
-				q = "720p"
+
+	// Also scan any other video links in flavors
+	for _, val := range res.Data.Flavors {
+		if s, ok := val.(string); ok && s != "" && s != hlsURL {
+			if strings.Contains(s, ".mp4") {
+				out = append(out, StreamSource{
+					Name:      "PuhuTV / DYG",
+					Title:     res.Data.Title + " • 1080p MP4",
+					URL:       s,
+					Quality:   "1080p",
+					Format:    "mp4",
+					IsHLS:     false,
+					Headers:   DefaultHeaders(referer),
+					Subtitles: subs,
+				})
+			} else if strings.Contains(s, ".m3u8") && hlsURL == "" {
+				out = append(out, StreamSource{
+					Name:      "PuhuTV / DYG",
+					Title:     res.Data.Title + " • HLS",
+					URL:       s,
+					Quality:   "1080p",
+					Format:    "hls",
+					IsHLS:     true,
+					Headers:   DefaultHeaders(referer),
+					Subtitles: subs,
+				})
 			}
-			out = append(out, StreamSource{
-				Name:      "DYG Video",
-				Title:     res.Data.Title + " • " + q,
-				URL:       m.Flavors,
-				Quality:   q,
-				Format:    "mp4",
-				IsHLS:     false,
-				Headers:   DefaultHeaders(referer),
-				Subtitles: subs,
-			})
 		}
 	}
 	return out
@@ -1630,8 +1826,10 @@ func VidmodyDecrypt(hexStr string, key int) string {
 
 // SPGDecode decodes SPG.cerceve(n, o) XOR base64 strings used by SetFilmIzle and HDFilmIzle.
 func SPGDecode(n, o string) string {
-	a, err1 := base64.StdEncoding.DecodeString(n)
-	b, err2 := base64.StdEncoding.DecodeString(o)
+	cleanN := strings.ReplaceAll(strings.ReplaceAll(n, `\/`, `/`), `\`, "")
+	cleanO := strings.ReplaceAll(strings.ReplaceAll(o, `\/`, `/`), `\`, "")
+	a, err1 := base64.StdEncoding.DecodeString(cleanN)
+	b, err2 := base64.StdEncoding.DecodeString(cleanO)
 	if err1 != nil || err2 != nil || len(b) == 0 {
 		return ""
 	}
@@ -1677,23 +1875,38 @@ func DecodeVidmoxy(encoded string) string {
 
 var (
 	fastplayManRe  = regexp.MustCompile(`(?:src|stream)\s*:\s*"(/manifests/[^"]+)"`)
+	fastplaySpRe   = regexp.MustCompile(`"sp"\s*:\s*"([^"]+)"`)
+	fastplaySpTRe  = regexp.MustCompile(`"spT"\s*:\s*(\d+)`)
 	fastplaySubsRe = regexp.MustCompile(`subtitles\s*:\s*(\[[\s\S]*?\])`)
 )
 
+func BuildFastPlayXSp(sp string, spT int64) string {
+	n := spT
+	r := strconv.FormatInt(rand.Int63n(2176782336), 36)
+	toHash := fmt.Sprintf("%s|%d|%s", sp, n, r)
+	var t uint32 = 2166136261
+	for i := 0; i < len(toHash); i++ {
+		t ^= uint32(toHash[i])
+		t = t * 16777619
+	}
+	h := fmt.Sprintf("%x", t)
+	return fmt.Sprintf("%d.%s.%s", n, r, h)
+}
+
 // ResolveFastPlay resolves fastplay.*/stfplay.php manifests and subtitles.
-func ResolveFastPlay(ctx context.Context, fastplayURL, referer string) (string, []Subtitle, string) {
+func ResolveFastPlay(ctx context.Context, fastplayURL, referer string) (string, []Subtitle, string, map[string]string) {
 	bodyBytes, _, _, finalURL, err := FetchBytes(ctx, http.MethodGet, fastplayURL, DefaultHeaders(referer), nil)
 	if err != nil {
-		return "", nil, ""
+		return "", nil, "", nil
 	}
 	fpHTML := string(bodyBytes)
 	m := fastplayManRe.FindStringSubmatch(fpHTML)
 	if len(m) < 2 {
-		return "", nil, ""
+		return "", nil, "", nil
 	}
 	parsed, err := url.Parse(fastplayURL)
 	if err != nil {
-		return "", nil, ""
+		return "", nil, "", nil
 	}
 	origin := parsed.Scheme + "://" + parsed.Host
 	manifestURL := origin + strings.ReplaceAll(m[1], "&amp;", "&")
@@ -1701,7 +1914,22 @@ func ResolveFastPlay(ctx context.Context, fastplayURL, referer string) (string, 
 	if finalURL == "" {
 		finalURL = fastplayURL
 	}
-	return manifestURL, subs, finalURL
+
+	headers := map[string]string{
+		"Referer":    finalURL,
+		"User-Agent": config.DefaultUserAgent,
+	}
+
+	spM := fastplaySpRe.FindStringSubmatch(fpHTML)
+	sptM := fastplaySpTRe.FindStringSubmatch(fpHTML)
+	if len(spM) > 1 && len(sptM) > 1 {
+		sptVal, _ := strconv.ParseInt(sptM[1], 10, 64)
+		if sptVal > 0 {
+			headers["X-Sp"] = BuildFastPlayXSp(spM[1], sptVal)
+		}
+	}
+
+	return manifestURL, subs, finalURL, headers
 }
 
 // BuildAniziumCfControl generates the XOR hex Cf-Control header required by api.anizium.co.

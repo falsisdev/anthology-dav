@@ -29,40 +29,55 @@ func (p *DiziYouProvider) storageURL() string {
 }
 
 var (
-	diziYouSearchRe = regexp.MustCompile(`(?is)<div[^>]*id="list-series"[^>]*>.*?<a[^>]+href="([^"]+)"[^>]*title="([^"]*)"`)
-	diziYouLinkRe   = regexp.MustCompile(`(?is)<a[^>]+href="(https?://[^"]*diziyou\.[^/]+/([a-z0-9-]+)/?)"[^>]*title="([^"]+)"`)
-	diziYouEpRe     = regexp.MustCompile(`(?i)href="(https?://[^"]*-(\d+)-sezon-(\d+)-bolum/?)"`)
-	diziYouPlayerRe = regexp.MustCompile(`(?i)<iframe[^>]+id="diziyouPlayer"[^>]+src="([^"]+)"`)
-	diziYouItemIDRe = regexp.MustCompile(`/(\d+)\.html`)
+	diziYouDataFetchRe = regexp.MustCompile(`(?is)<div id="searchelement">.*?<a[^>]+href="(?:https?://[^"]*diziyou\.[^/]+)?/([a-z0-9-]+)/?"[^>]*>.*?<a[^>]+href="[^"]*"[^>]*>([^<]+)</a>(?:.*?<div id="search-cat-year">(\d+)</div>)?`)
+	diziYouGeneralRe   = regexp.MustCompile(`(?is)<a[^>]+href="(?:https?://[^"]*diziyou\.[^/]+)?/([a-z0-9-]+)/?"[^>]*>([^<]+)</a>`)
+	diziYouEpRe        = regexp.MustCompile(`(?i)href="https?://[^"]*diziyou\.[^/]+/([a-z0-9-]+)-(\d+)-sezon-(\d+)-bolum/?"`)
+	diziYouPlayerRe    = regexp.MustCompile(`(?i)<iframe[^>]+id="diziyouPlayer"[^>]+src="([^"]+)"`)
+	diziYouItemIDRe    = regexp.MustCompile(`/(\d+)\.html`)
 )
 
 func (p *DiziYouProvider) parseSeriesLinks(htmlStr string) []MediaItem {
 	var items []MediaItem
 	seen := make(map[string]bool)
-	for _, m := range diziYouSearchRe.FindAllStringSubmatch(htmlStr, -1) {
-		href := strings.TrimSpace(m[1])
-		slug := strings.Trim(strings.ReplaceAll(href, p.baseURL(), ""), "/")
-		if slug == "" || seen[slug] {
+
+	// First try structured data_fetch results
+	for _, m := range diziYouDataFetchRe.FindAllStringSubmatch(htmlStr, -1) {
+		slug := strings.Trim(m[1], "/")
+		if slug == "" || seen[slug] || strings.Contains(slug, "-sezon-") || slug == "kategori" {
 			continue
 		}
 		seen[slug] = true
+		title := CleanMediaTitle(m[2])
+		year := ""
+		if len(m) > 3 && m[3] != "" {
+			year = m[3]
+		}
 		items = append(items, MediaItem{
 			ID:    slug,
-			Title: CleanMediaTitle(m[2]),
-			Year:  ExtractYear(m[2]),
+			Title: title,
+			Year:  year,
 			Type:  MediaTypeSeries,
 		})
 	}
-	for _, m := range diziYouLinkRe.FindAllStringSubmatch(htmlStr, -1) {
-		slug := strings.Trim(m[2], "/")
-		if slug == "" || seen[slug] || strings.Contains(slug, "-sezon-") || strings.Contains(slug, "kategori") || strings.Contains(slug, "turkce") || strings.Contains(slug, "arsiv") {
+	if len(items) > 0 {
+		return items
+	}
+
+	// Fallback to general links
+	for _, m := range diziYouGeneralRe.FindAllStringSubmatch(htmlStr, -1) {
+		slug := strings.Trim(m[1], "/")
+		if slug == "" || seen[slug] || strings.Contains(slug, "-sezon-") || slug == "kategori" || slug == "feed" || slug == "uye-ol" || slug == "wp-login" {
+			continue
+		}
+		title := CleanMediaTitle(m[2])
+		if title == "" || strings.EqualFold(title, "Diziyou") || strings.Contains(title, "İzle") && len(title) < 8 {
 			continue
 		}
 		seen[slug] = true
 		items = append(items, MediaItem{
 			ID:    slug,
-			Title: CleanMediaTitle(m[3]),
-			Year:  ExtractYear(m[3]),
+			Title: title,
+			Year:  ExtractYear(m[2]),
 			Type:  MediaTypeSeries,
 		})
 	}
@@ -83,6 +98,25 @@ func (p *DiziYouProvider) GetCatalog(ctx context.Context, page int) ([]MediaItem
 
 func (p *DiziYouProvider) Search(ctx context.Context, query string) ([]MediaItem, error) {
 	base := p.baseURL()
+
+	// 1. Try admin-ajax.php data_fetch (fast and accurate)
+	ajaxURL := fmt.Sprintf("%s/wp-admin/admin-ajax.php", base)
+	form := url.Values{}
+	form.Set("action", "data_fetch")
+	form.Set("keyword", strings.TrimSpace(query))
+	respStr, _, err := PostForm(ctx, ajaxURL, form, map[string]string{
+		"User-Agent":       config.DefaultUserAgent,
+		"Referer":          base + "/",
+		"Origin":           base,
+		"X-Requested-With": "XMLHttpRequest",
+	})
+	if err == nil && len(respStr) > 0 {
+		if items := p.parseSeriesLinks(respStr); len(items) > 0 {
+			return items, nil
+		}
+	}
+
+	// 2. Fallback to /?s=
 	u := fmt.Sprintf("%s/?s=%s", base, url.QueryEscape(strings.TrimSpace(query)))
 	htmlStr, _, err := FetchString(ctx, u, DefaultHeaders(base+"/"))
 	if err != nil {

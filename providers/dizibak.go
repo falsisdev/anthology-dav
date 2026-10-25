@@ -78,14 +78,44 @@ func (p *DiziBakProvider) Search(ctx context.Context, query string) ([]MediaItem
 			"Referer":          base + "/",
 			"X-Requested-With": "XMLHttpRequest",
 		})
-		if err == nil {
+		if err == nil && len(respStr) > 0 {
 			var res struct {
-				Data struct {
-					HTML string `json:"html"`
+				Success bool `json:"success"`
+				Data    struct {
+					Diziler []struct {
+						Title string `json:"title"`
+						Link  string `json:"link"`
+					} `json:"diziler"`
+					Filmler []struct {
+						Title string `json:"title"`
+						Link  string `json:"link"`
+					} `json:"filmler"`
 				} `json:"data"`
 			}
-			if json.Unmarshal([]byte(respStr), &res) == nil && res.Data.HTML != "" {
-				if items := p.parseCards(res.Data.HTML); len(items) > 0 {
+			if json.Unmarshal([]byte(respStr), &res) == nil && res.Success {
+				var items []MediaItem
+				for _, d := range res.Data.Diziler {
+					slug := strings.Trim(strings.TrimPrefix(d.Link, base+"/diziler/"), "/")
+					if slug == "" {
+						parts := strings.Split(strings.Trim(d.Link, "/"), "/")
+						slug = parts[len(parts)-1]
+					}
+					items = append(items, MediaItem{
+						ID:    slug,
+						Title: CleanMediaTitle(d.Title),
+						Type:  MediaTypeSeries,
+					})
+				}
+				for _, f := range res.Data.Filmler {
+					parts := strings.Split(strings.Trim(f.Link, "/"), "/")
+					slug := parts[len(parts)-1]
+					items = append(items, MediaItem{
+						ID:    slug,
+						Title: CleanMediaTitle(f.Title),
+						Type:  MediaTypeMovie,
+					})
+				}
+				if len(items) > 0 {
 					return items, nil
 				}
 			}
@@ -205,16 +235,15 @@ func (p *DiziBakProvider) ResolveStream(ctx context.Context, streamID string) (*
 				"Referer":          epURL,
 				"X-Requested-With": "XMLHttpRequest",
 			})
-			if err == nil {
-				var ajaxRes struct {
-					Data struct {
-						HTML string `json:"html"`
-					} `json:"data"`
-				}
-				if json.Unmarshal([]byte(respStr), &ajaxRes) == nil && ajaxRes.Data.HTML != "" {
-					if im := regexp.MustCompile(`(?i)src="([^"]+)"`).FindStringSubmatch(ajaxRes.Data.HTML); len(im) > 1 {
-						sources = append(sources, ExtractAnyIframe(ctx, im[1], epURL)...)
+			if err == nil && len(respStr) > 0 {
+				cleanResp := strings.ReplaceAll(respStr, `\/`, `/`)
+				cleanResp = strings.ReplaceAll(cleanResp, `\`, "")
+				if im := regexp.MustCompile(`(?i)src=["']([^"']+)["']`).FindStringSubmatch(cleanResp); len(im) > 1 {
+					embedURL := im[1]
+					if strings.HasPrefix(embedURL, "//") {
+						embedURL = "https:" + embedURL
 					}
+					sources = append(sources, ExtractAnyIframe(ctx, embedURL, epURL)...)
 				}
 			}
 		}

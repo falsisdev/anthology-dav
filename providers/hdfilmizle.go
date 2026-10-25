@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -22,7 +24,11 @@ func (p *HDFilmIzleProvider) ID() string   { return "hdfilmizle" }
 func (p *HDFilmIzleProvider) Name() string { return "HDFilmİzle" }
 
 func (p *HDFilmIzleProvider) baseURL() string {
-	return config.RemoteString("urls.movies.hdfilmizle", "https://www.hdfilmizle.vip")
+	b := config.RemoteString("urls.movies.hdfilmizle", "https://www.hdfilmizle.ink")
+	if strings.Contains(b, "vip") {
+		return "https://www.hdfilmizle.ink"
+	}
+	return b
 }
 
 func (p *HDFilmIzleProvider) GetCatalog(ctx context.Context, page int) ([]MediaItem, error) {
@@ -95,11 +101,19 @@ func (p *HDFilmIzleProvider) Search(ctx context.Context, query string) ([]MediaI
 func (p *HDFilmIzleProvider) parseCards(html string) []MediaItem {
 	var items []MediaItem
 	seen := make(map[string]bool)
-	re := regexp.MustCompile(`(?is)<a[^>]+href="(https?://[^"]*hdfilmizle[^"]+/[^"/]+/?)"[^>]*title="([^"]+)"`)
+	re := regexp.MustCompile(`(?is)<a[^>]+href="(https?://[^"']*hdfilmizle\.[^"']*/(?:film|dizi)/[^"'/]+/?)"[^>]*>(?:.*?<div[^>]*class="[^"]*tooltip-title[^"]*"[^>]*>([^<]+)</div>|.*?(?:aria-label="([^"]+)"|title="([^"]+)"))`)
 	for _, m := range re.FindAllStringSubmatch(html, 60) {
 		href := m[1]
-		title := CleanMediaTitle(m[2])
-		if title == "" || seen[href] || strings.Contains(href, "/tur/") || strings.Contains(href, "/kategori/") || strings.Contains(href, "/yil/") {
+		rawT := m[2]
+		if rawT == "" {
+			rawT = m[3]
+		}
+		if rawT == "" {
+			rawT = m[4]
+		}
+		rawT = strings.TrimSuffix(rawT, " - Film detayları")
+		title := CleanMediaTitle(rawT)
+		if title == "" || seen[href] {
 			continue
 		}
 		seen[href] = true
@@ -110,7 +124,7 @@ func (p *HDFilmIzleProvider) parseCards(html string) []MediaItem {
 		items = append(items, MediaItem{
 			ID:    href,
 			Title: title,
-			Year:  ExtractYear(m[2]),
+			Year:  ExtractYear(rawT),
 			Type:  mType,
 		})
 	}
@@ -211,9 +225,79 @@ func (p *HDFilmIzleProvider) ResolveStream(ctx context.Context, streamID string)
 		iframeURLs = append(iframeURLs, strings.ReplaceAll(m[1], `\/`, `/`))
 	}
 
+	// 1. WordPress admin-ajax get_video_url (hdfilmizle.ink SetPlay/FastPlay)
+	reVideoNonce := regexp.MustCompile(`video\s*:\s*["']([a-z0-9]+)["']`)
+	reNonce := regexp.MustCompile(`data-nonce=["']([a-z0-9]+)["']`)
+	rePostID := regexp.MustCompile(`data-post-id=["'](\d+)["']`)
+	rePlayer := regexp.MustCompile(`data-player-name=["']([^"'$]+)["']`)
+
+	var nonces []string
+	if vm := reVideoNonce.FindStringSubmatch(body); len(vm) > 1 {
+		nonces = append(nonces, vm[1])
+	}
+	for _, nm := range reNonce.FindAllStringSubmatch(body, -1) {
+		if !slices.Contains(nonces, nm[1]) {
+			nonces = append(nonces, nm[1])
+		}
+	}
+	var postIDs []string
+	for _, pm := range rePostID.FindAllStringSubmatch(body, -1) {
+		if !slices.Contains(postIDs, pm[1]) {
+			postIDs = append(postIDs, pm[1])
+		}
+	}
+	var players []string
+	for _, plm := range rePlayer.FindAllStringSubmatch(body, -1) {
+		if !slices.Contains(players, plm[1]) {
+			players = append(players, plm[1])
+		}
+	}
+
+	ajaxURL := p.baseURL() + "/wp-admin/admin-ajax.php"
+	for _, postID := range postIDs {
+		if len(iframeURLs) > 0 {
+			break
+		}
+		for _, plName := range players {
+			if len(iframeURLs) > 0 {
+				break
+			}
+			for _, nonce := range nonces {
+				form := url.Values{
+					"action":      {"get_video_url"},
+					"nonce":       {nonce},
+					"post_id":     {postID},
+					"player_name": {plName},
+					"part_key":    {""},
+				}
+				headers := map[string]string{
+					"Referer":          u,
+					"Origin":           p.baseURL(),
+					"X-Requested-With": "XMLHttpRequest",
+					"Content-Type":     "application/x-www-form-urlencoded; charset=UTF-8",
+					"User-Agent":       config.DefaultUserAgent,
+				}
+				bodyBytes, status, _, _, err := FetchBytes(ctx, http.MethodPost, ajaxURL, headers, strings.NewReader(form.Encode()))
+				if err != nil || status != http.StatusOK {
+					continue
+				}
+				var aj struct {
+					Success bool `json:"success"`
+					Data    struct {
+						URL string `json:"url"`
+					} `json:"data"`
+				}
+				if err := json.Unmarshal(bodyBytes, &aj); err == nil && aj.Success && aj.Data.URL != "" {
+					iframeURLs = append(iframeURLs, strings.ReplaceAll(aj.Data.URL, `\/`, `/`))
+					break // Found working nonce for this player
+				}
+			}
+		}
+	}
+
 	reVidrameArr := regexp.MustCompile(`var\s+d\s*=\s*\[([\d,\s]+)\].*?var\s+k\s*=\s*["']([^"']+)["']`)
 	reEE := regexp.MustCompile(`ee\s*\(\s*["']([^"']+)["']\s*\)`)
-	reSPG := regexp.MustCompile(`SPG\.cerceve\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*\)`)
+	reSPG := regexp.MustCompile(`SPG\.cerceve\(\s*(?:["'][^"']*["']\s*,\s*)?["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*\)`)
 
 	for _, iframeURL := range iframeURLs {
 		embedHTML, _, err := FetchString(ctx, iframeURL, DefaultHeaders(u))
@@ -271,22 +355,29 @@ func (p *HDFilmIzleProvider) ResolveStream(ctx context.Context, streamID string)
 					targetURL = dec
 				}
 			}
-			manifestURL, fpSubs, finalRef := ResolveFastPlay(ctx, targetURL, iframeURL)
+			manifestURL, fpSubs, finalRef, fpHeaders := ResolveFastPlay(ctx, targetURL, iframeURL)
 			if manifestURL != "" {
-				sources = append(sources, StreamSource{
-					Name:    "HDFilmİzle FastPlay",
-					Title:   "FastPlay • 1080p",
-					URL:     manifestURL,
-					Quality: "1080p",
-					Format:  "hls",
-					IsHLS:   true,
-					Headers: map[string]string{
+				if fpHeaders == nil {
+					fpHeaders = map[string]string{
 						"Referer":    finalRef,
-						"User-Agent": "ExoPlayerLib/2.19.1",
-					},
+						"User-Agent": config.DefaultUserAgent,
+					}
+				}
+				sources = append(sources, StreamSource{
+					Name:      "HDFilmİzle FastPlay",
+					Title:     "FastPlay • 1080p",
+					URL:       manifestURL,
+					Quality:   "1080p",
+					Format:    "hls",
+					IsHLS:     true,
+					Headers:   fpHeaders,
 					Subtitles: append(subs, fpSubs...),
 				})
+				break
 			}
+		}
+		if len(sources) > 0 {
+			break
 		}
 	}
 

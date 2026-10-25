@@ -2,6 +2,7 @@ package providers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -77,34 +78,45 @@ func (p *DiziPodProvider) Search(ctx context.Context, query string) ([]MediaItem
 		"User-Agent":       config.DefaultUserAgent,
 		"Referer":          base + "/",
 		"X-Requested-With": "XMLHttpRequest",
+		"Content-Type":     "application/x-www-form-urlencoded",
 	})
-	if err == nil {
+	if err == nil && len(respStr) > 0 {
 		var ajaxRes struct {
-			Data []struct {
-				Title string `json:"title"`
-				URL   string `json:"url"`
-				Type  string `json:"type"`
-				Year  string `json:"year"`
+			Success bool `json:"success"`
+			Data    struct {
+				Films []struct {
+					ID    int    `json:"id"`
+					Title string `json:"title"`
+					URL   string `json:"url"`
+					IMDb  string `json:"imdb"`
+				} `json:"films"`
+				Series []struct {
+					ID    int    `json:"id"`
+					Title string `json:"title"`
+					URL   string `json:"url"`
+					IMDb  string `json:"imdb"`
+				} `json:"series"`
 			} `json:"data"`
 		}
-		if jsonUnmarshalErr := FetchJSON(ctx, fmt.Sprintf("%s/?s=%s", base, url.QueryEscape(query)), nil, &ajaxRes); jsonUnmarshalErr == nil && len(ajaxRes.Data) > 0 {
+		if err := json.Unmarshal([]byte(respStr), &ajaxRes); err == nil && ajaxRes.Success {
 			var items []MediaItem
-			for _, d := range ajaxRes.Data {
-				mType := MediaTypeSeries
-				if strings.Contains(d.URL, "/film/") {
-					mType = MediaTypeMovie
-				}
+			for _, s := range ajaxRes.Data.Series {
 				items = append(items, MediaItem{
-					ID:    d.URL,
-					Title: CleanMediaTitle(d.Title),
-					Year:  d.Year,
-					Type:  mType,
+					ID:    s.URL,
+					Title: CleanMediaTitle(s.Title),
+					Type:  MediaTypeSeries,
 				})
 			}
-			return items, nil
-		}
-		if items := p.parseCards(respStr); len(items) > 0 {
-			return items, nil
+			for _, f := range ajaxRes.Data.Films {
+				items = append(items, MediaItem{
+					ID:    f.URL,
+					Title: CleanMediaTitle(f.Title),
+					Type:  MediaTypeMovie,
+				})
+			}
+			if len(items) > 0 {
+				return items, nil
+			}
 		}
 	}
 	htmlStr, _, err := FetchString(ctx, fmt.Sprintf("%s/?s=%s", base, url.QueryEscape(query)), DefaultHeaders(base+"/"))
@@ -219,18 +231,22 @@ func (p *DiziPodProvider) ResolveStream(ctx context.Context, streamID string) (*
 	for _, m := range diziPodPostIDRe.FindAllStringSubmatch(htmlStr, 4) {
 		postID := m[1]
 		ajaxURL := fmt.Sprintf("%s/wp/wp-admin/admin-ajax.php?action=get_episode_player&post_id=%s", base, postID)
-		var resp struct {
-			Data struct {
-				HTML string `json:"html"`
-			} `json:"data"`
-		}
-		if err := FetchJSON(ctx, ajaxURL, map[string]string{
+		respStr, _, err := FetchString(ctx, ajaxURL, map[string]string{
 			"User-Agent":       config.DefaultUserAgent,
 			"Referer":          epURL,
 			"X-Requested-With": "XMLHttpRequest",
-		}, &resp); err == nil && resp.Data.HTML != "" {
-			if im := regexp.MustCompile(`(?i)src="([^"]+)"`).FindStringSubmatch(resp.Data.HTML); len(im) > 1 {
-				sources = append(sources, ExtractAnyIframe(ctx, im[1], epURL)...)
+		})
+		if err == nil && len(respStr) > 0 {
+			cleanResp := strings.ReplaceAll(respStr, `\/`, `/`)
+			cleanResp = strings.ReplaceAll(cleanResp, `\`, "")
+			if im := regexp.MustCompile(`(?i)src=["']([^"']+)["']`).FindStringSubmatch(cleanResp); len(im) > 1 {
+				embedURL := im[1]
+				if strings.HasPrefix(embedURL, "//") {
+					embedURL = "https:" + embedURL
+				} else if strings.HasPrefix(embedURL, "/") {
+					embedURL = "https://player.dizipod.com" + embedURL
+				}
+				sources = append(sources, ExtractAnyIframe(ctx, embedURL, epURL)...)
 			}
 		}
 	}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 
 	"anthology-dav/config"
@@ -48,15 +49,24 @@ func (p *SetFilmIzleProvider) Search(ctx context.Context, query string) ([]Media
 func (p *SetFilmIzleProvider) parseCards(html string) []MediaItem {
 	var items []MediaItem
 	seen := make(map[string]bool)
-	re := regexp.MustCompile(`(?is)<a[^>]+href="(https?://[^"]*setfilmizle[^"]+/[^"/]+/?)"[^>]*>.*?(?:<h[234][^>]*>([^<]+)</h[234]>|title="([^"]+)")`)
+	re := regexp.MustCompile(`(?is)<a[^>]+class="[^"]*card-link[^"]*"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)</a>`)
+	reH := regexp.MustCompile(`(?is)<h[234][^>]*>([^<]+)</h[234]>`)
+	reAlt := regexp.MustCompile(`(?is)alt="([^"]+)"`)
+
 	for _, m := range re.FindAllStringSubmatch(html, 60) {
-		href := m[1]
-		rawT := m[2]
-		if rawT == "" {
-			rawT = m[3]
+		href := ResolveRelativeURL(m[1], p.baseURL())
+		inner := m[2]
+		if seen[href] {
+			continue
+		}
+		rawT := ""
+		if tm := reH.FindStringSubmatch(inner); len(tm) > 1 {
+			rawT = tm[1]
+		} else if am := reAlt.FindStringSubmatch(inner); len(am) > 1 {
+			rawT = am[1]
 		}
 		title := CleanMediaTitle(rawT)
-		if title == "" || seen[href] || strings.Contains(href, "/tur/") || strings.Contains(href, "/kategori/") || strings.Contains(href, "/yil/") {
+		if title == "" {
 			continue
 		}
 		seen[href] = true
@@ -162,58 +172,106 @@ func (p *SetFilmIzleProvider) ResolveStream(ctx context.Context, streamID string
 
 	var sources []StreamSource
 
-	reNonce := regexp.MustCompile(`"video"\s*:\s*"([a-zA-Z0-9]+)"`)
-	nonce := ""
-	if nm := reNonce.FindStringSubmatch(body); len(nm) > 1 {
-		nonce = nm[1]
+	reNonce := regexp.MustCompile(`(?i)(?:video\s*:\s*|data-nonce=)["']([a-zA-Z0-9]+)["']`)
+	var nonces []string
+	for _, nm := range reNonce.FindAllStringSubmatch(body, -1) {
+		if !slices.Contains(nonces, nm[1]) {
+			nonces = append(nonces, nm[1])
+		}
 	}
-	rePart := regexp.MustCompile(`(?is)data-post-id="(\d+)"[^>]+data-player-name="([^"]+)"[^>]+data-part-key="([^"]*)"`)
-	reSPG := regexp.MustCompile(`SPG\.cerceve\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*\)`)
 
-	for _, m := range rePart.FindAllStringSubmatch(body, 6) {
-		postID, playerName, partKey := m[1], m[2], m[3]
-		form := url.Values{}
-		form.Set("action", "get_video_url")
-		form.Set("nonce", nonce)
-		form.Set("post_id", postID)
-		form.Set("player_name", playerName)
-		form.Set("part_key", partKey)
+	rePostID := regexp.MustCompile(`data-post-id=["'](\d+)["']`)
+	var postIDs []string
+	for _, pm := range rePostID.FindAllStringSubmatch(body, -1) {
+		if !slices.Contains(postIDs, pm[1]) {
+			postIDs = append(postIDs, pm[1])
+		}
+	}
 
-		ajaxURL := p.baseURL() + "/wp-admin/admin-ajax.php"
-		respStr, _, err := PostForm(ctx, ajaxURL, form, map[string]string{
-			"Referer":          u,
-			"X-Requested-With": "XMLHttpRequest",
-		})
-		if err != nil {
-			continue
+	type playerBtn struct {
+		name string
+		key  string
+	}
+	reBtn := regexp.MustCompile(`(?is)data-player-name=["']([^"'$]+)["'](?:[^>]*data-part-key=["']([^"']*)["'])?`)
+	var buttons []playerBtn
+	for _, bm := range reBtn.FindAllStringSubmatch(body, -1) {
+		key := ""
+		if len(bm) > 2 {
+			key = bm[2]
 		}
-		var ajaxRes struct {
-			Data struct {
-				URL string `json:"url"`
-			} `json:"data"`
+		buttons = append(buttons, playerBtn{name: bm[1], key: key})
+	}
+	if len(buttons) == 0 {
+		buttons = append(buttons, playerBtn{name: "SetPlay", key: ""})
+	}
+
+	reSPG := regexp.MustCompile(`SPG\.cerceve\(\s*(?:["'][^"']*["']\s*,\s*)?["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*\)`)
+
+	for _, postID := range postIDs {
+		if len(sources) > 0 {
+			break
 		}
-		if json.Unmarshal([]byte(respStr), &ajaxRes) == nil && ajaxRes.Data.URL != "" {
-			embedURL := ajaxRes.Data.URL
-			embedHTML, _, err := FetchString(ctx, embedURL, DefaultHeaders(u))
-			if err == nil {
-				targetURL := embedURL
-				if sm := reSPG.FindStringSubmatch(embedHTML); len(sm) > 2 {
-					if dec := SPGDecode(sm[1], sm[2]); strings.HasPrefix(dec, "http") {
-						targetURL = dec
-					}
+		for _, btn := range buttons {
+			if len(sources) > 0 {
+				break
+			}
+			for _, nonce := range nonces {
+				form := url.Values{}
+				form.Set("action", "get_video_url")
+				form.Set("nonce", nonce)
+				form.Set("post_id", postID)
+				form.Set("player_name", btn.name)
+				form.Set("part_key", btn.key)
+
+				ajaxURL := p.baseURL() + "/wp-admin/admin-ajax.php"
+				respStr, _, err := PostForm(ctx, ajaxURL, form, map[string]string{
+					"Referer":          u,
+					"X-Requested-With": "XMLHttpRequest",
+				})
+				if err != nil {
+					continue
 				}
-				manifestURL, fpSubs, finalRef := ResolveFastPlay(ctx, targetURL, embedURL)
-				if manifestURL != "" {
-					sources = append(sources, StreamSource{
-						Name:      "SetFilmİzle FastPlay",
-						Title:     "FastPlay • 1080p",
-						URL:       manifestURL,
-						Quality:   "1080p",
-						Format:    "hls",
-						IsHLS:     true,
-						Headers:   map[string]string{"Referer": finalRef},
-						Subtitles: fpSubs,
-					})
+				var ajaxRes struct {
+					Success bool `json:"success"`
+					Data    struct {
+						URL    string `json:"url"`
+						Stream struct {
+							URL string `json:"url"`
+						} `json:"stream"`
+					} `json:"data"`
+				}
+				if json.Unmarshal([]byte(respStr), &ajaxRes) == nil && (ajaxRes.Data.Stream.URL != "" || ajaxRes.Data.URL != "") {
+					embedURL := ajaxRes.Data.Stream.URL
+					if embedURL == "" {
+						embedURL = ajaxRes.Data.URL
+					}
+					embedURL = strings.ReplaceAll(embedURL, `\/`, `/`)
+					embedHTML, _, err := FetchString(ctx, embedURL, DefaultHeaders(u))
+					if err == nil {
+						targetURL := embedURL
+						if sm := reSPG.FindStringSubmatch(embedHTML); len(sm) > 2 {
+							if dec := SPGDecode(sm[1], sm[2]); strings.HasPrefix(dec, "http") {
+								targetURL = dec
+							}
+						}
+						manifestURL, fpSubs, finalRef, fpHeaders := ResolveFastPlay(ctx, targetURL, embedURL)
+						if manifestURL != "" {
+							if fpHeaders == nil {
+								fpHeaders = map[string]string{"Referer": finalRef}
+							}
+							sources = append(sources, StreamSource{
+								Name:      "SetFilmİzle FastPlay",
+								Title:     "FastPlay • 1080p",
+								URL:       manifestURL,
+								Quality:   "1080p",
+								Format:    "hls",
+								IsHLS:     true,
+								Headers:   fpHeaders,
+								Subtitles: fpSubs,
+							})
+							break // Found working stream for this player
+						}
+					}
 				}
 			}
 		}

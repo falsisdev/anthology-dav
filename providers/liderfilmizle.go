@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"anthology-dav/config"
@@ -42,31 +43,48 @@ func (p *LiderFilmIzleProvider) Search(ctx context.Context, query string) ([]Med
 	body, _, err := FetchString(ctx, apiURL, map[string]string{
 		"Referer":          p.baseURL() + "/",
 		"X-Requested-With": "XMLHttpRequest",
+		"User-Agent":       config.DefaultUserAgent,
 	})
 	if err == nil {
-		var res []struct {
-			Title  string `json:"title"`
-			URL    string `json:"url"`
-			Slug   string `json:"slug"`
-			Type   string `json:"type"`
-			Poster string `json:"poster"`
+		var res struct {
+			Results []struct {
+				ID            int    `json:"id"`
+				Title         string `json:"title"`
+				OriginalTitle string `json:"original_title"`
+				URL           string `json:"url"`
+				Slug          string `json:"slug"`
+				Year          int    `json:"year"`
+				Type          string `json:"type"`
+				Poster        string `json:"poster"`
+			} `json:"results"`
 		}
-		if json.Unmarshal([]byte(body), &res) == nil && len(res) > 0 {
+		if json.Unmarshal([]byte(body), &res) == nil && len(res.Results) > 0 {
 			var items []MediaItem
-			for _, r := range res {
+			for _, r := range res.Results {
 				href := r.URL
 				if href == "" && r.Slug != "" {
-					href = p.baseURL() + "/" + strings.TrimPrefix(r.Slug, "/")
+					slug := strings.TrimPrefix(r.Slug, "/")
+					if strings.Contains(r.Type, "dizi") || r.Type == "tv" || r.Type == "series" {
+						href = p.baseURL() + "/dizi/" + slug
+					} else {
+						href = p.baseURL() + "/" + slug
+					}
 				}
 				href = ResolveRelativeURL(href, p.baseURL())
 				mType := MediaTypeMovie
-				if strings.Contains(r.Type, "dizi") || strings.Contains(href, "/dizi/") {
+				if strings.Contains(r.Type, "dizi") || r.Type == "tv" || r.Type == "series" || strings.Contains(href, "/dizi/") {
 					mType = MediaTypeSeries
+				}
+				yr := ""
+				if r.Year > 0 {
+					yr = strconv.Itoa(r.Year)
+				} else {
+					yr = ExtractYear(r.Title)
 				}
 				items = append(items, MediaItem{
 					ID:        href,
 					Title:     CleanMediaTitle(r.Title),
-					Year:      ExtractYear(r.Title),
+					Year:      yr,
 					Type:      mType,
 					PosterURL: r.Poster,
 				})
@@ -212,27 +230,63 @@ func (p *LiderFilmIzleProvider) ResolveStream(ctx context.Context, streamID stri
 			}
 			if json.Unmarshal(dec, &vsList) == nil {
 				for _, item := range vsList {
+					if strings.Contains(item.URL, "youtube.com") || item.ID == "trailer" {
+						continue
+					}
 					embedURL := ResolveRelativeURL(item.URL, p.baseURL())
 					pBody, _, err := FetchString(ctx, embedURL, DefaultHeaders(u))
 					if err != nil {
 						continue
 					}
-					subs := ExtractVTTSubtitles(pBody)
-					if fm := reFile.FindStringSubmatch(pBody); len(fm) > 1 {
+
+					targetBody := pBody
+					targetURL := embedURL
+					if ifm := regexp.MustCompile(`(?i)<iframe[^>]+src=["']([^"']+)["']`).FindStringSubmatch(pBody); len(ifm) > 1 {
+						innerURL := ResolveRelativeURL(ifm[1], embedURL)
+						if inBody, _, err := FetchString(ctx, innerURL, DefaultHeaders(embedURL)); err == nil {
+							targetBody = inBody
+							targetURL = innerURL
+						}
+					}
+
+					subs := ExtractVTTSubtitles(targetBody)
+					if subM := regexp.MustCompile(`"subtitle"\s*:\s*"([^"]+)"`).FindStringSubmatch(targetBody); len(subM) > 1 {
+						subVal := subM[1]
+						if idx := strings.Index(subVal, "]"); idx != -1 {
+							subVal = subVal[idx+1:]
+						}
+						subFullURL := ResolveRelativeURL(subVal, targetURL)
+						subs = append(subs, Subtitle{
+							URL:      subFullURL,
+							Language: "tr",
+							Label:    "Türkçe",
+						})
+					}
+
+					if fm := reFile.FindStringSubmatch(targetBody); len(fm) > 1 {
 						sources = append(sources, StreamSource{
 							Name:      "LiderFilm VOD",
 							Title:     "LiderFilm VOD • 1080p",
-							URL:       ResolveRelativeURL(fm[1], embedURL),
+							URL:       ResolveRelativeURL(fm[1], targetURL),
 							Quality:   "1080p",
 							Format:    "hls",
 							IsHLS:     true,
-							Headers:   map[string]string{"Referer": embedURL},
+							Headers:   map[string]string{"Referer": targetURL},
 							Subtitles: subs,
 						})
 					}
-					if dm := reDL.FindStringSubmatch(pBody); len(dm) > 1 {
-						dlURL := ResolveRelativeURL(dm[1], embedURL)
-						dlResp, _, err := FetchString(ctx, dlURL, DefaultHeaders(embedURL))
+					if dm := reDL.FindStringSubmatch(targetBody); len(dm) > 1 {
+						dlURL := ResolveRelativeURL(dm[1], targetURL)
+						parsed, _ := url.Parse(targetURL)
+						origin := ""
+						if parsed != nil {
+							origin = parsed.Scheme + "://" + parsed.Host
+						}
+						dlResp, _, err := FetchString(ctx, dlURL, map[string]string{
+							"Referer":    targetURL,
+							"Origin":     origin,
+							"User-Agent": config.DefaultUserAgent,
+						})
 						if err == nil {
 							var dlObj struct {
 								URL string `json:"url"`
@@ -245,11 +299,17 @@ func (p *LiderFilmIzleProvider) ResolveStream(ctx context.Context, streamID stri
 									Quality:   "1080p",
 									Format:    "hls",
 									IsHLS:     true,
-									Headers:   map[string]string{"Referer": embedURL},
+									Headers: map[string]string{
+										"Referer":    origin + "/",
+										"User-Agent": config.DefaultUserAgent,
+									},
 									Subtitles: subs,
 								})
 							}
 						}
+					}
+					if len(sources) > 0 {
+						break
 					}
 				}
 			}

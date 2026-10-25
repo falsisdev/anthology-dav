@@ -20,42 +20,56 @@ func (p *SonAnimeProvider) ID() string   { return "sonanime" }
 func (p *SonAnimeProvider) Name() string { return "SonAnime" }
 
 func (p *SonAnimeProvider) apiBase() string {
-	return config.RemoteString("urls.anime.sonanime.api", "https://api.sonanime.com")
+	return config.RemoteString("urls.anime.sonanime.api_base", "https://api.sonanime.com")
 }
 
 func (p *SonAnimeProvider) headers() map[string]string {
 	return map[string]string{
-		"User-Agent": config.DefaultUserAgent,
-		"Accept":     "application/json",
+		"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+		"Accept":     "application/json, text/plain, */*",
 		"Referer":    "https://sonanime.com/",
 		"Origin":     "https://sonanime.com",
 	}
 }
 
 func (p *SonAnimeProvider) GetCatalog(ctx context.Context, page int) ([]MediaItem, error) {
-	u := p.apiBase() + "/api/anime/browse?type=series&sortBy=rating&sortDir=desc"
+	u := p.apiBase() + "/api/anime/search?q=a"
 	var itemsRaw []struct {
-		Slug        string `json:"slug"`
-		Name        string `json:"anime_name"`
-		Image       string `json:"anime_image"`
-		Description string `json:"description"`
-		ReleaseYear any    `json:"release_year"`
+		ID        int    `json:"anime_id"`
+		Slug      string `json:"anime_link"`
+		Name      string `json:"anime_name"`
+		NameEn    string `json:"anime_name_en"`
+		Image     string `json:"anime_photo"`
+		Desc      string `json:"anime_description"`
+		Year      any    `json:"anime_year"`
+		AnimeType string `json:"anime_type"`
 	}
 	if err := FetchJSON(ctx, u, p.headers(), &itemsRaw); err != nil {
 		return nil, err
 	}
 	var items []MediaItem
 	for i, it := range itemsRaw {
-		if i >= 60 || it.Slug == "" || it.Name == "" {
+		if i >= 60 || it.Slug == "" {
 			continue
+		}
+		title := it.Name
+		if title == "" {
+			title = it.NameEn
+		}
+		if title == "" {
+			title = it.Slug
+		}
+		mType := MediaTypeAnime
+		if it.AnimeType == "movie" {
+			mType = MediaTypeMovie
 		}
 		items = append(items, MediaItem{
 			ID:          it.Slug,
-			Title:       it.Name,
-			Year:        ExtractYear(fmt.Sprintf("%v", it.ReleaseYear)),
-			Type:        MediaTypeAnime,
+			Title:       CleanHTMLText(title),
+			Year:        ExtractYear(fmt.Sprintf("%v", it.Year)),
+			Type:        mType,
 			PosterURL:   it.Image,
-			Description: it.Description,
+			Description: it.Desc,
 		})
 	}
 	return items, nil
@@ -64,27 +78,41 @@ func (p *SonAnimeProvider) GetCatalog(ctx context.Context, page int) ([]MediaIte
 func (p *SonAnimeProvider) Search(ctx context.Context, query string) ([]MediaItem, error) {
 	u := fmt.Sprintf("%s/api/anime/search?q=%s", p.apiBase(), url.QueryEscape(strings.TrimSpace(query)))
 	var itemsRaw []struct {
-		Slug        string `json:"slug"`
-		Name        string `json:"anime_name"`
-		Image       string `json:"anime_image"`
-		Description string `json:"description"`
-		ReleaseYear any    `json:"release_year"`
+		ID        int    `json:"anime_id"`
+		Slug      string `json:"anime_link"`
+		Name      string `json:"anime_name"`
+		NameEn    string `json:"anime_name_en"`
+		Image     string `json:"anime_photo"`
+		Desc      string `json:"anime_description"`
+		Year      any    `json:"anime_year"`
+		AnimeType string `json:"anime_type"`
 	}
 	if err := FetchJSON(ctx, u, p.headers(), &itemsRaw); err != nil {
 		return nil, err
 	}
 	var items []MediaItem
 	for _, it := range itemsRaw {
-		if it.Slug == "" || it.Name == "" {
+		if it.Slug == "" {
 			continue
+		}
+		title := it.Name
+		if title == "" {
+			title = it.NameEn
+		}
+		if title == "" {
+			title = it.Slug
+		}
+		mType := MediaTypeAnime
+		if it.AnimeType == "movie" {
+			mType = MediaTypeMovie
 		}
 		items = append(items, MediaItem{
 			ID:          it.Slug,
-			Title:       it.Name,
-			Year:        ExtractYear(fmt.Sprintf("%v", it.ReleaseYear)),
-			Type:        MediaTypeAnime,
+			Title:       CleanHTMLText(title),
+			Year:        ExtractYear(fmt.Sprintf("%v", it.Year)),
+			Type:        mType,
 			PosterURL:   it.Image,
-			Description: it.Description,
+			Description: it.Desc,
 		})
 	}
 	return items, nil
@@ -94,13 +122,20 @@ func (p *SonAnimeProvider) GetDetails(ctx context.Context, mediaID string) (*Med
 	slug := strings.TrimPrefix(mediaID, "sonanime:")
 	u := fmt.Sprintf("%s/api/anime/link/%s", p.apiBase(), url.PathEscape(slug))
 	var data struct {
-		Name        string `json:"anime_name"`
-		Image       string `json:"anime_image"`
-		Description string `json:"description"`
-		Episodes    []struct {
-			SeasonNumber  int    `json:"season_number"`
+		Name      string `json:"anime_name"`
+		NameEn    string `json:"anime_name_en"`
+		Photo     string `json:"anime_photo"`
+		Desc      string `json:"anime_description"`
+		AnimeType string `json:"anime_type"`
+		Year      any    `json:"anime_year"`
+		Episodes  []struct {
+			ID            int    `json:"id"`
+			AnimeSeason   int    `json:"anime_season"`
 			EpisodeNumber int    `json:"episode_number"`
-			EpisodeName   string `json:"episode_name"`
+			Link1080      string `json:"episode_link_1080"`
+			Link720       string `json:"episode_link_720"`
+			Link480       string `json:"episode_link_480"`
+			Link360       string `json:"episode_link_360"`
 		} `json:"episodes"`
 	}
 	if err := FetchJSON(ctx, u, p.headers(), &data); err != nil {
@@ -108,12 +143,15 @@ func (p *SonAnimeProvider) GetDetails(ctx context.Context, mediaID string) (*Med
 	}
 	title := data.Name
 	if title == "" {
+		title = data.NameEn
+	}
+	if title == "" {
 		title = slug
 	}
 
 	seasonMap := make(map[int][]Episode)
 	for _, ep := range data.Episodes {
-		sNum := ep.SeasonNumber
+		sNum := ep.AnimeSeason
 		if sNum <= 0 {
 			sNum = 1
 		}
@@ -121,10 +159,7 @@ func (p *SonAnimeProvider) GetDetails(ctx context.Context, mediaID string) (*Med
 		if eNum <= 0 {
 			eNum = 1
 		}
-		epTitle := ep.EpisodeName
-		if epTitle == "" {
-			epTitle = fmt.Sprintf("Bölüm %d", eNum)
-		}
+		epTitle := fmt.Sprintf("Bölüm %d", eNum)
 		seasonMap[sNum] = append(seasonMap[sNum], Episode{
 			ID:       fmt.Sprintf("%s:%d:%d", slug, sNum, eNum),
 			StreamID: fmt.Sprintf("%s:%d:%d", slug, sNum, eNum),
@@ -153,13 +188,18 @@ func (p *SonAnimeProvider) GetDetails(ctx context.Context, mediaID string) (*Med
 			Episodes: eps,
 		})
 	}
+	mType := MediaTypeAnime
+	if data.AnimeType == "movie" {
+		mType = MediaTypeMovie
+	}
 	return &MediaDetail{
 		MediaItem: MediaItem{
 			ID:          slug,
-			Title:       title,
-			Type:        MediaTypeAnime,
-			PosterURL:   data.Image,
-			Description: data.Description,
+			Title:       CleanHTMLText(title),
+			Year:        ExtractYear(fmt.Sprintf("%v", data.Year)),
+			Type:        mType,
+			PosterURL:   data.Photo,
+			Description: data.Desc,
 		},
 		Seasons: seasons,
 	}, nil
@@ -174,6 +214,9 @@ func (p *SonAnimeProvider) GetEpisodes(ctx context.Context, mediaID string, seas
 		if s.Number == season {
 			return s.Episodes, nil
 		}
+	}
+	if len(det.Seasons) > 0 {
+		return det.Seasons[0].Episodes, nil
 	}
 	return nil, nil
 }
@@ -197,9 +240,9 @@ func (p *SonAnimeProvider) ResolveStream(ctx context.Context, streamID string) (
 	u := fmt.Sprintf("%s/api/anime/link/%s", p.apiBase(), url.PathEscape(slug))
 	var data struct {
 		Episodes []struct {
-			SeasonNumber  int    `json:"season_number"`
+			ID            int    `json:"id"`
+			AnimeSeason   int    `json:"anime_season"`
 			EpisodeNumber int    `json:"episode_number"`
-			Fansub        string `json:"fansub"`
 			Link1080      string `json:"episode_link_1080"`
 			Link720       string `json:"episode_link_720"`
 			Link480       string `json:"episode_link_480"`
@@ -212,24 +255,22 @@ func (p *SonAnimeProvider) ResolveStream(ctx context.Context, streamID string) (
 
 	var sources []StreamSource
 	hdrs := map[string]string{
-		"User-Agent": config.DefaultUserAgent,
+		"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
 		"Referer":    "https://sonanime.com/",
 	}
+
 	for _, ep := range data.Episodes {
-		sNum := ep.SeasonNumber
+		sNum := ep.AnimeSeason
 		if sNum <= 0 {
 			sNum = 1
 		}
-		if (sNum == season && ep.EpisodeNumber == episode) || (season > 1 && ep.EpisodeNumber == episode) {
-			fansub := ep.Fansub
-			if fansub == "" {
-				fansub = "Varsayılan"
-			}
+		if (sNum == season && ep.EpisodeNumber == episode) || (len(data.Episodes) == 1 && episode == 1) || (season > 1 && ep.EpisodeNumber == episode) {
 			addLink := func(link, q string) {
+				link = strings.TrimSpace(link)
 				if link != "" {
 					sources = append(sources, StreamSource{
 						Name:    "SonAnime",
-						Title:   fmt.Sprintf("SonAnime (%s) • %s", fansub, q),
+						Title:   fmt.Sprintf("SonAnime • %s Direct MP4", q),
 						URL:     link,
 						Quality: q,
 						Format:  "mp4",
@@ -244,5 +285,10 @@ func (p *SonAnimeProvider) ResolveStream(ctx context.Context, streamID string) (
 			addLink(ep.Link360, "360p")
 		}
 	}
+
+	if len(sources) == 0 {
+		return nil, fmt.Errorf("sonanime: no streams found for '%s' S%02dE%02d", slug, season, episode)
+	}
+
 	return SelectBestStream(sources)
 }

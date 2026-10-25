@@ -21,12 +21,12 @@ func (p *DiziMomProvider) ID() string   { return "dizimom" }
 func (p *DiziMomProvider) Name() string { return "DiziMom" }
 
 func (p *DiziMomProvider) baseURL() string {
-	return config.RemoteString("urls.series_foreign.dizimom.base", "https://www.dizimom.diy")
+	return config.RemoteString("urls.series_foreign.dizimom.base", "https://www.dizidad.com")
 }
 
 var (
-	diziMomCardRe = regexp.MustCompile(`(?is)<a[^>]+href="(https?://[^"]*dizimom\.[^/]+/diziler/([^"/?#]+)/?)"[^>]*title="([^"]+)"`)
-	diziMomEpRe   = regexp.MustCompile(`(?i)href="(https?://[^"]*dizimom\.[^/]+/([a-z0-9-]+-(\d+)-sezon-(\d+)-bolum[^"/?#]*)/?)"`)
+	diziMomCardRe = regexp.MustCompile(`(?is)<a[^>]+href="(https?://[^"]*(?:dizidad|dizimom)\.[^/]+/diziler/([^"/?#]+)/?)"[^>]*>([^<]+)</a>`)
+	diziMomEpRe   = regexp.MustCompile(`(?i)href="(https?://[^"]*(?:dizidad|dizimom)\.[^/]+/([a-z0-9-]+-(\d+)-sezon-(\d+)-bolum[^"/?#]*)/?)"`)
 )
 
 func (p *DiziMomProvider) parseCards(htmlStr string) []MediaItem {
@@ -37,13 +37,33 @@ func (p *DiziMomProvider) parseCards(htmlStr string) []MediaItem {
 		if slug == "" || seen[slug] {
 			continue
 		}
+		title := CleanMediaTitle(m[3])
+		if title == "" || strings.EqualFold(title, "Dizi izle") {
+			continue
+		}
 		seen[slug] = true
 		items = append(items, MediaItem{
 			ID:    slug,
-			Title: CleanMediaTitle(m[3]),
+			Title: title,
 			Year:  ExtractYear(m[3]),
 			Type:  MediaTypeSeries,
 		})
+	}
+	// Fallback to general cards on search
+	if len(items) == 0 {
+		for _, m := range regexp.MustCompile(`(?is)<a[^>]+href="(https?://[^"]*(?:dizidad|dizimom)\.[^/]+/diziler/([a-z0-9-]+)/?)"[^>]*title="([^"]+)"`).FindAllStringSubmatch(htmlStr, -1) {
+			slug := m[2]
+			if slug == "" || seen[slug] {
+				continue
+			}
+			seen[slug] = true
+			items = append(items, MediaItem{
+				ID:    slug,
+				Title: CleanMediaTitle(m[3]),
+				Year:  ExtractYear(m[3]),
+				Type:  MediaTypeSeries,
+			})
+		}
 	}
 	return items
 }
@@ -154,13 +174,27 @@ func (p *DiziMomProvider) ResolveStream(ctx context.Context, streamID string) (*
 	if err != nil {
 		return nil, err
 	}
+
 	var sources []StreamSource
-	for _, im := range regexp.MustCompile(`(?i)<iframe[^>]+src="([^"]+)"`).FindAllStringSubmatch(htmlStr, 5) {
-		u := im[1]
-		if strings.Contains(u, "youtube.com") {
-			continue
-		}
-		sources = append(sources, ExtractAnyIframe(ctx, u, epURL)...)
+	seenURLs := make(map[string]bool)
+
+	// Collect candidate embeds from data-src, src, embedUrl, and iframes
+	embedPatterns := []*regexp.Regexp{
+		regexp.MustCompile(`(?i)(?:data-src|src)=["'](https?://[^"']*(?:hdplayersystem|hdmomplayer|vidmoly|ok\.ru)[^"']*)["']`),
+		regexp.MustCompile(`(?i)"embedUrl":\s*"([^"]+)"`),
+		regexp.MustCompile(`(?i)<iframe[^>]+src="([^"]+)"`),
 	}
+
+	for _, pat := range embedPatterns {
+		for _, m := range pat.FindAllStringSubmatch(htmlStr, -1) {
+			u := strings.TrimSpace(m[1])
+			if u == "" || u == "about:blank" || seenURLs[u] || strings.Contains(u, "youtube.com") {
+				continue
+			}
+			seenURLs[u] = true
+			sources = append(sources, ExtractAnyIframe(ctx, u, epURL)...)
+		}
+	}
+
 	return SelectBestStream(sources)
 }

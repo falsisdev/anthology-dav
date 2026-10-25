@@ -2,7 +2,9 @@ package providers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
@@ -47,11 +49,24 @@ func (p *KultFilmlerProvider) Search(ctx context.Context, query string) ([]Media
 func (p *KultFilmlerProvider) parseCards(html string) []MediaItem {
 	var items []MediaItem
 	seen := make(map[string]bool)
-	re := regexp.MustCompile(`(?is)<a[^>]+href="(https?://[^"]*kultfilmler[^"]+/[^"/]+/?)"[^>]*title="([^"]+)"`)
+	re := regexp.MustCompile(`(?is)<a[^>]+class="[^"]*\bmcard\b[^"]*"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)</a>`)
+	reH3 := regexp.MustCompile(`(?is)<h3[^>]*>([^<]+)</h3>`)
+	reAlt := regexp.MustCompile(`(?is)alt="([^"]+)"`)
+
 	for _, m := range re.FindAllStringSubmatch(html, 60) {
-		href := m[1]
-		title := CleanMediaTitle(m[2])
-		if title == "" || seen[href] || strings.Contains(href, "/category/") || strings.Contains(href, "/tag/") {
+		href := ResolveRelativeURL(m[1], p.baseURL())
+		inner := m[2]
+		if seen[href] {
+			continue
+		}
+		rawT := ""
+		if tm := reH3.FindStringSubmatch(inner); len(tm) > 1 {
+			rawT = tm[1]
+		} else if am := reAlt.FindStringSubmatch(inner); len(am) > 1 {
+			rawT = am[1]
+		}
+		title := CleanMediaTitle(rawT)
+		if title == "" {
 			continue
 		}
 		seen[href] = true
@@ -62,7 +77,7 @@ func (p *KultFilmlerProvider) parseCards(html string) []MediaItem {
 		items = append(items, MediaItem{
 			ID:    href,
 			Title: title,
-			Year:  ExtractYear(m[2]),
+			Year:  ExtractYear(rawT),
 			Type:  mType,
 		})
 	}
@@ -136,10 +151,95 @@ func (p *KultFilmlerProvider) ResolveStream(ctx context.Context, streamID string
 		return nil, err
 	}
 	var sources []StreamSource
+	var iframeURLs []string
+
 	reIframe := regexp.MustCompile(`(?i)<iframe[^>]+src=["']([^"']+)["']`)
-	for _, m := range reIframe.FindAllStringSubmatch(body, 6) {
-		sources = append(sources, ExtractAnyIframe(ctx, m[1], u)...)
+	for _, m := range reIframe.FindAllStringSubmatch(body, -1) {
+		iframeURLs = append(iframeURLs, strings.ReplaceAll(m[1], `\/`, `/`))
 	}
+	reSrcData := regexp.MustCompile(`(?i)<script[^>]+id="kf-srcdata"[^>]*>([\s\S]*?)</script>`)
+	if sm := reSrcData.FindStringSubmatch(body); len(sm) > 1 {
+		reSrc := regexp.MustCompile(`src=\\?["']([^"'\\]+)`)
+		for _, m := range reSrc.FindAllStringSubmatch(sm[1], -1) {
+			raw := strings.ReplaceAll(m[1], `\/`, `/`)
+			if strings.HasPrefix(raw, "//") {
+				raw = "https:" + raw
+			}
+			if strings.HasPrefix(raw, "http") {
+				iframeURLs = append(iframeURLs, raw)
+			}
+		}
+	}
+
+	for _, ifr := range iframeURLs {
+		if strings.Contains(ifr, "youtube.com") || strings.Contains(ifr, "youtu.be") {
+			continue
+		}
+		if strings.Contains(ifr, "vidmoly") {
+			sources = append(sources, ExtractVidMoly(ctx, ifr, u)...)
+		} else if strings.Contains(ifr, "vidpapi.xyz") || strings.Contains(ifr, "vidpapi.com") {
+			parts := strings.Split(strings.Trim(ifr, "/"), "/")
+			if len(parts) > 0 {
+				videoID := parts[len(parts)-1]
+				_, _, headers, _, err := FetchBytes(ctx, http.MethodGet, ifr, map[string]string{
+					"User-Agent": config.DefaultUserAgent,
+					"Referer":    u,
+				}, nil)
+				cookie := ""
+				if err == nil && headers != nil {
+					if sc := headers.Get("Set-Cookie"); sc != "" {
+						for _, c := range strings.Split(sc, ";") {
+							if strings.Contains(c, "fireplayer_player=") {
+								cookie = strings.TrimSpace(c)
+								break
+							}
+						}
+					}
+				}
+				form := url.Values{
+					"data": {videoID},
+					"do":   {"getVideo"},
+				}
+				apiURL := fmt.Sprintf("https://vidpapi.xyz/player/index.php?data=%s&do=getVideo", url.QueryEscape(videoID))
+				reqHdrs := map[string]string{
+					"User-Agent":       config.DefaultUserAgent,
+					"Referer":          ifr,
+					"X-Requested-With": "XMLHttpRequest",
+					"Content-Type":     "application/x-www-form-urlencoded; charset=UTF-8",
+				}
+				if cookie != "" {
+					reqHdrs["Cookie"] = cookie
+				}
+				apiResp, status, err := PostForm(ctx, apiURL, form, reqHdrs)
+				if err == nil && status == http.StatusOK {
+					var vpRes struct {
+						SecuredLink string `json:"securedLink"`
+					}
+					if json.Unmarshal([]byte(apiResp), &vpRes) == nil && vpRes.SecuredLink != "" {
+						streamURL := strings.ReplaceAll(vpRes.SecuredLink, `\/`, `/`)
+						sources = append(sources, StreamSource{
+							Name:    "KültFilmler Vidpapi",
+							Title:   "Vidpapi • 1080p",
+							URL:     streamURL,
+							Quality: "1080p",
+							Format:  "hls",
+							IsHLS:   true,
+							Headers: map[string]string{
+								"Referer":    "https://vidpapi.xyz/",
+								"User-Agent": config.DefaultUserAgent,
+							},
+						})
+					}
+				}
+			}
+		} else {
+			sources = append(sources, ExtractAnyIframe(ctx, ifr, u)...)
+		}
+		if len(sources) > 0 {
+			break
+		}
+	}
+
 	if len(sources) == 0 {
 		sources = append(sources, ExtractAnyIframe(ctx, u, p.baseURL()+"/")...)
 	}

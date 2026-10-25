@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"anthology-dav/config"
 )
 
 type VidmodyProvider struct{}
@@ -111,63 +113,121 @@ func (p *VidmodyProvider) GetEpisodes(ctx context.Context, mediaID string, seaso
 
 func (p *VidmodyProvider) ResolveStream(ctx context.Context, streamID string) (*StreamResult, error) {
 	parts := strings.Split(streamID, ":")
-	targetURL := fmt.Sprintf("https://vidmody.com/vs/%s", streamID)
+	idPart := streamID
+	isMovie := true
+	seasonNum := 1
+	episodeNum := 1
+
 	if len(parts) >= 2 {
-		idPart := parts[1]
-		if !strings.HasPrefix(idPart, "tt") {
-			mType := MediaTypeMovie
-			if parts[0] == "tv" {
-				mType = MediaTypeSeries
+		idPart = parts[1]
+		if parts[0] == "tv" || parts[0] == "series" {
+			isMovie = false
+			if len(parts) >= 4 {
+				seasonNum, _ = strconv.Atoi(parts[2])
+				episodeNum, _ = strconv.Atoi(parts[3])
 			}
-			if info, err := ResolveTMDBInfo(ctx, idPart, mType); err == nil && info != nil && info.IMDbID != "" {
-				idPart = info.IMDbID
-			}
-		}
-		if parts[0] == "movie" {
-			targetURL = fmt.Sprintf("https://vidmody.com/vs/%s", idPart)
-		} else if parts[0] == "tv" && len(parts) >= 4 {
-			eNum, _ := strconv.Atoi(parts[3])
-			targetURL = fmt.Sprintf("https://vidmody.com/vs/%s/s%s/e%02d", idPart, parts[2], eNum)
 		}
 	}
 
-	body, _, err := FetchString(ctx, targetURL, DefaultHeaders("https://vidmody.com/"))
-	if err != nil {
-		return nil, err
+	if !strings.HasPrefix(idPart, "tt") {
+		mType := MediaTypeMovie
+		if !isMovie {
+			mType = MediaTypeSeries
+		}
+		if info, err := ResolveTMDBInfo(ctx, idPart, mType); err == nil && info != nil && info.IMDbID != "" {
+			idPart = info.IMDbID
+		}
+	}
+
+	var candidateURLs []string
+	if isMovie {
+		candidateURLs = []string{
+			fmt.Sprintf("https://ha.vixolity.com/vs/%s", idPart),
+			fmt.Sprintf("https://vidmody.com/vs/%s", idPart),
+		}
+	} else {
+		candidateURLs = []string{
+			fmt.Sprintf("https://ha.vixolity.com/vs/%s/s%d/e%02d", idPart, seasonNum, episodeNum),
+			fmt.Sprintf("https://vidmody.com/vs/%s/s%d/e%02d", idPart, seasonNum, episodeNum),
+		}
+	}
+
+	headers := map[string]string{
+		"User-Agent": config.DefaultUserAgent,
+		"Referer":    "https://pl.vixolity.com/",
+		"Origin":     "https://pl.vixolity.com",
+		"Accept":     "*/*",
 	}
 
 	var sources []StreamSource
-	subs := ExtractVTTSubtitles(body)
 
-	reDec := regexp.MustCompile(`decrypt\(\s*["']([0-9a-fA-F]+)["']\s*,\s*(\d+)\s*\)`)
-	reFile := regexp.MustCompile(`file\s*:\s*["'](https?://[^"']+)["']`)
-	if dm := reDec.FindStringSubmatch(body); len(dm) > 2 {
-		key, _ := strconv.Atoi(dm[2])
-		decStr := VidmodyDecrypt(dm[1], key)
-		if fm := reFile.FindStringSubmatch(decStr); len(fm) > 1 {
+	for _, targetURL := range candidateURLs {
+		body, code, err := FetchString(ctx, targetURL, headers)
+		if err != nil || code != 200 {
+			continue
+		}
+
+		var subs []Subtitle
+		// 1. Check if the response is directly an HLS playlist (#EXTM3U)
+		if strings.Contains(body, "#EXTM3U") {
+			subRe := regexp.MustCompile(`(?i)#EXT-X-MEDIA:TYPE=SUBTITLES.*?NAME="([^"]+)".*?URI="([^"]+)"`)
+			for _, sm := range subRe.FindAllStringSubmatch(body, -1) {
+				subs = append(subs, Subtitle{
+					Language: strings.ToLower(sm[1]),
+					Label:    sm[1],
+					URL:      ResolveRelativeURL(sm[2], targetURL),
+					Format:   "vtt",
+					Headers:  headers,
+				})
+			}
 			sources = append(sources, StreamSource{
-				Name:      "Vidmody HLS",
-				Title:     "Vidmody • 1080p",
-				URL:       fm[1],
+				Name:      "Vidmody (Vixolity)",
+				Title:     "Vidmody • 1080p HLS",
+				URL:       targetURL,
 				Quality:   "1080p",
 				Format:    "hls",
 				IsHLS:     true,
-				Headers:   map[string]string{"Referer": "https://vidmody.com/"},
+				Headers:   headers,
 				Subtitles: subs,
 			})
+			break
 		}
-	}
-	if m3u8 := genericM3U8Re.FindString(body); m3u8 != "" {
-		sources = append(sources, StreamSource{
-			Name:      "Vidmody Direct",
-			Title:     "Vidmody Direct • 1080p",
-			URL:       strings.ReplaceAll(m3u8, `\/`, `/`),
-			Quality:   "1080p",
-			Format:    "hls",
-			IsHLS:     true,
-			Headers:   map[string]string{"Referer": "https://vidmody.com/"},
-			Subtitles: subs,
-		})
+
+		// 2. Encrypted HTML block (VidmodyDecrypt)
+		subs = append(subs, ExtractVTTSubtitles(body)...)
+		reDec := regexp.MustCompile(`(?i)(?:decrypt|\))\s*\(\s*["']([0-9a-fA-F]+)["']\s*,\s*(\d+)\s*\)`)
+		reFile := regexp.MustCompile(`file\s*:\s*["'](https?://[^"']+)["']`)
+		if dm := reDec.FindStringSubmatch(body); len(dm) > 2 {
+			key, _ := strconv.Atoi(dm[2])
+			decStr := VidmodyDecrypt(dm[1], key)
+			if fm := reFile.FindStringSubmatch(decStr); len(fm) > 1 {
+				sources = append(sources, StreamSource{
+					Name:      "Vidmody HLS",
+					Title:     "Vidmody • 1080p",
+					URL:       fm[1],
+					Quality:   "1080p",
+					Format:    "hls",
+					IsHLS:     true,
+					Headers:   headers,
+					Subtitles: subs,
+				})
+				break
+			}
+		}
+
+		if m3u8 := genericM3U8Re.FindString(body); m3u8 != "" {
+			sources = append(sources, StreamSource{
+				Name:      "Vidmody Direct",
+				Title:     "Vidmody Direct • 1080p",
+				URL:       strings.ReplaceAll(m3u8, `\/`, `/`),
+				Quality:   "1080p",
+				Format:    "hls",
+				IsHLS:     true,
+				Headers:   headers,
+				Subtitles: subs,
+			})
+			break
+		}
 	}
 
 	return SelectBestStream(sources)
