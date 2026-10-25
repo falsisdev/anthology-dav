@@ -686,9 +686,9 @@ func (h *Handler) HandlePlaylistM3U(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte(sb.String()))
 }
 
-// ── SwiftUI Glassmorphism Single Page App (Embedded HTML/CSS/JS) ─────
+// ── Material 3 (Material You) Native Design Web App (Embedded HTML/CSS/JS) ─────
 
-const glassmorphismHTML = `<!DOCTYPE html>
+const material3HTML = `<!DOCTYPE html>
 <html lang="tr">
 <head>
   <meta charset="UTF-8">
@@ -697,25 +697,85 @@ const glassmorphismHTML = `<!DOCTYPE html>
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;500;600;700&family=SF+Pro+Text:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
-      --bg-acrylic: rgba(18, 22, 31, 0.76);
-      --glass-panel: rgba(255, 255, 255, 0.05);
-      --glass-panel-hover: rgba(255, 255, 255, 0.09);
-      --glass-border: rgba(255, 255, 255, 0.12);
-      --glass-border-subtle: rgba(255, 255, 255, 0.07);
-      --accent-blue: #0A84FF;
-      --accent-purple: #BF5AF2;
-      --accent-pink: #FF375F;
-      --accent-orange: #FF9F0A;
-      --accent-green: #30D158;
-      --accent-cyan: #64D2FF;
-      --text-primary: #FFFFFF;
-      --text-secondary: rgba(255, 255, 255, 0.65);
-      --text-tertiary: rgba(255, 255, 255, 0.42);
-      --spring-curve: cubic-bezier(0.16, 1, 0.3, 1);
+      /* Google Material 3 - Dark Cinema Tonal Palette */
+      --md-sys-color-primary: #A8C7FA;
+      --md-sys-color-on-primary: #003062;
+      --md-sys-color-primary-container: #084282;
+      --md-sys-color-on-primary-container: #D3E4FF;
+
+      --md-sys-color-secondary: #BEC6DC;
+      --md-sys-color-on-secondary: #283141;
+      --md-sys-color-secondary-container: #334460;
+      --md-sys-color-on-secondary-container: #DBE2F9;
+
+      --md-sys-color-tertiary: #FFB786;
+      --md-sys-color-on-tertiary: #4D2600;
+      --md-sys-color-tertiary-container: #6F3800;
+      --md-sys-color-on-tertiary-container: #FFDCC3;
+
+      --md-sys-color-error: #FFB4AB;
+      --md-sys-color-on-error: #690005;
+      --md-sys-color-error-container: #93000A;
+      --md-sys-color-on-error-container: #FFDAD6;
+
+      --md-sys-color-background: #0E1219;
+      --md-sys-color-on-background: #E1E2E8;
+      --md-sys-color-surface: #0E1219;
+      --md-sys-color-on-surface: #E1E2E8;
+      --md-sys-color-surface-dim: #090C11;
+      --md-sys-color-surface-bright: #343A46;
+      --md-sys-color-surface-container-lowest: #07090E;
+      --md-sys-color-surface-container-low: #131720;
+      --md-sys-color-surface-container: #181D27;
+      --md-sys-color-surface-container-high: #212734;
+      --md-sys-color-surface-container-highest: #2C3343;
+
+      --md-sys-color-surface-variant: #424754;
+      --md-sys-color-on-surface-variant: #C3C6CF;
+      --md-sys-color-outline: #8C919D;
+      --md-sys-color-outline-variant: #313746;
+      --md-sys-color-scrim: #000000;
+
+      --md-sys-color-inverse-surface: #E1E2E8;
+      --md-sys-color-inverse-on-surface: #2D3139;
+      --md-sys-color-inverse-primary: #1961B7;
+
+      /* Media Category Badges */
+      --badge-movie-bg: rgba(8, 66, 130, 0.85);
+      --badge-movie-fg: #D3E4FF;
+      --badge-series-bg: rgba(85, 39, 104, 0.85);
+      --badge-series-fg: #F7D8FF;
+      --badge-anime-bg: rgba(124, 43, 60, 0.85);
+      --badge-anime-fg: #FFD9DF;
+
+      /* Shape tokens */
+      --md-sys-shape-corner-none: 0px;
+      --md-sys-shape-corner-extra-small: 4px;
+      --md-sys-shape-corner-small: 8px;
+      --md-sys-shape-corner-medium: 12px;
+      --md-sys-shape-corner-large: 16px;
+      --md-sys-shape-corner-extra-large: 28px;
+      --md-sys-shape-corner-full: 9999px;
+
+      /* Elevation Shadows */
+      --md-sys-elevation-0: none;
+      --md-sys-elevation-1: 0 1px 3px 1px rgba(0,0,0,0.35), 0 1px 2px 0 rgba(0,0,0,0.3);
+      --md-sys-elevation-2: 0 2px 6px 2px rgba(0,0,0,0.4), 0 1px 2px 0 rgba(0,0,0,0.3);
+      --md-sys-elevation-3: 0 4px 12px 3px rgba(0,0,0,0.45), 0 1px 3px 0 rgba(0,0,0,0.35);
+      --md-sys-elevation-4: 0 6px 16px 4px rgba(0,0,0,0.5), 0 2px 4px 0 rgba(0,0,0,0.4);
+
+      /* Motion tokens */
+      --md-sys-motion-easing-emphasized: cubic-bezier(0.2, 0, 0, 1);
+      --md-sys-motion-easing-emphasized-decelerate: cubic-bezier(0.05, 0.7, 0.1, 1);
+      --md-sys-motion-easing-emphasized-accelerate: cubic-bezier(0.3, 0, 0.8, 0.15);
+      --md-sys-motion-duration-short: 150ms;
+      --md-sys-motion-duration-medium: 300ms;
+      --md-sys-motion-duration-long: 500ms;
+
+      --font-family: Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
     }
 
     * {
@@ -723,1129 +783,1471 @@ const glassmorphismHTML = `<!DOCTYPE html>
       margin: 0;
       padding: 0;
       -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
 
     body {
-      font-family: var(--font-display);
-      background: #090B10;
-      color: var(--text-primary);
+      font-family: var(--font-family);
+      background-color: var(--md-sys-color-background);
+      color: var(--md-sys-color-on-background);
       min-height: 100vh;
       overflow-x: hidden;
       display: flex;
-      flex-direction: column;
+    }
+
+    /* Common M3 Icon styling */
+    .m3-icon {
+      width: 22px;
+      height: 22px;
+      fill: currentColor;
+      flex-shrink: 0;
+      display: inline-block;
+      vertical-align: middle;
+      transition: transform var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-emphasized);
+    }
+
+    /* M3 Ripple Wave Animation */
+    .m3-ripple-container {
       position: relative;
-    }
-
-    /* Modern SwiftUI App Root Container */
-    .app-container {
-      position: relative;
-      width: 100%;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      z-index: 1;
-    }
-
-    /* SwiftUI Translucent Glass Navigation Bar */
-    .app-header {
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      background: rgba(14, 17, 24, 0.75);
-      backdrop-filter: blur(35px) saturate(190%);
-      -webkit-backdrop-filter: blur(35px) saturate(190%);
-      border-bottom: 1px solid var(--glass-border-subtle);
-      padding: 0 32px;
-      height: 68px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 20px;
-    }
-
-    .app-brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
+      overflow: hidden;
       user-select: none;
     }
 
-    .app-brand-logo {
-      width: 36px;
-      height: 36px;
-      object-fit: contain;
-      filter: drop-shadow(0 2px 8px rgba(10, 132, 255, 0.4));
+    .m3-ripple-wave {
+      position: absolute;
+      border-radius: 50%;
+      background-color: currentColor;
+      opacity: 0.18;
+      pointer-events: none;
+      transform: scale(0);
+      animation: m3-ripple-anim 550ms var(--md-sys-motion-easing-emphasized-decelerate) forwards;
     }
 
-    .app-brand-text {
-      font-size: 16px;
+    @keyframes m3-ripple-anim {
+      to {
+        transform: scale(2.6);
+        opacity: 0;
+      }
+    }
+
+    /* App Root Layout */
+    .m3-app-root {
+      display: flex;
+      width: 100%;
+      min-height: 100vh;
+      position: relative;
+    }
+
+    /* Desktop Navigation Rail (>= 840px) */
+    .m3-nav-rail {
+      width: 88px;
+      height: 100vh;
+      position: fixed;
+      top: 0;
+      left: 0;
+      background-color: var(--md-sys-color-surface-container-low);
+      border-right: 1px solid var(--md-sys-color-outline-variant);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px 0;
+      z-index: 90;
+      gap: 20px;
+    }
+
+    .m3-rail-brand {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 52px;
+      height: 52px;
+      border-radius: var(--md-sys-shape-corner-large);
+      background-color: var(--md-sys-color-surface-container);
+      box-shadow: var(--md-sys-elevation-1);
+      margin-bottom: 8px;
+    }
+
+    .m3-brand-logo {
+      width: 32px;
+      height: 32px;
+      object-fit: contain;
+      filter: drop-shadow(0 2px 6px rgba(168, 199, 250, 0.4));
+    }
+
+    .m3-rail-nav {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      flex: 1;
+      width: 100%;
+    }
+
+    .m3-rail-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--md-sys-color-on-surface-variant);
+      width: 100%;
+      padding: 4px 0;
+      transition: color var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-emphasized);
+      font-family: inherit;
+    }
+
+    .m3-rail-indicator {
+      width: 56px;
+      height: 32px;
+      border-radius: var(--md-sys-shape-corner-full);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      transition: all var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-emphasized);
+    }
+
+    .m3-rail-item:hover .m3-rail-indicator {
+      background-color: rgba(255, 255, 255, 0.06);
+      color: var(--md-sys-color-on-surface);
+    }
+
+    .m3-rail-item.active {
+      color: var(--md-sys-color-on-surface);
+    }
+
+    .m3-rail-item.active .m3-rail-indicator {
+      background-color: var(--md-sys-color-secondary-container);
+      color: var(--md-sys-color-on-secondary-container);
+      box-shadow: var(--md-sys-elevation-1);
+    }
+
+    .m3-rail-label {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.1px;
+    }
+
+    .m3-rail-badge {
+      position: absolute;
+      top: -3px;
+      right: 6px;
+      background-color: var(--md-sys-color-error);
+      color: var(--md-sys-color-on-error);
+      font-size: 10px;
+      font-weight: 700;
+      min-width: 18px;
+      height: 18px;
+      line-height: 18px;
+      border-radius: 9px;
+      text-align: center;
+      padding: 0 4px;
+    }
+
+    .m3-rail-footer {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+    }
+
+    /* Main Shell */
+    .m3-main-shell {
+      flex: 1;
+      margin-left: 88px;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      position: relative;
+      background-color: var(--md-sys-color-background);
+    }
+
+    /* Top App Bar */
+    .m3-top-app-bar {
+      height: 64px;
+      position: sticky;
+      top: 0;
+      z-index: 80;
+      background-color: rgba(14, 18, 25, 0.85);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--md-sys-color-outline-variant);
+      padding: 0 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .m3-top-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .m3-mobile-logo {
+      display: none;
+      width: 32px;
+      height: 32px;
+      object-fit: contain;
+    }
+
+    .m3-top-title {
+      font-size: 19px;
       font-weight: 700;
       letter-spacing: -0.3px;
-      color: #FFFFFF;
+      color: var(--md-sys-color-on-surface);
     }
 
-    .status-badge {
+    .m3-status-chip {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 4px 10px;
-      background: rgba(48, 209, 88, 0.14);
-      border: 1px solid rgba(48, 209, 88, 0.3);
-      border-radius: 20px;
+      padding: 4px 12px;
+      background-color: rgba(166, 245, 181, 0.12);
+      border: 1px solid rgba(166, 245, 181, 0.3);
+      border-radius: var(--md-sys-shape-corner-full);
       font-size: 11px;
-      font-weight: 500;
-      color: #30D158;
+      font-weight: 600;
+      color: #A6F5B5;
     }
 
-    .status-dot {
+    .m3-status-dot {
       width: 6px;
       height: 6px;
       border-radius: 50%;
-      background: #30D158;
+      background-color: #30D158;
       box-shadow: 0 0 8px #30D158;
-      animation: pulse 2s infinite;
+      animation: m3-pulse 2s infinite ease-in-out;
     }
 
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.5; transform: scale(0.85); }
+    @keyframes m3-pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(0.85); opacity: 0.5; }
     }
 
-    .webdav-pill {
-      font-size: 12px;
-      color: var(--text-secondary);
-      background: rgba(255, 255, 255, 0.06);
-      padding: 6px 14px;
-      border-radius: 12px;
-      border: 1px solid var(--glass-border-subtle);
+    .m3-top-actions {
       display: flex;
       align-items: center;
+      gap: 10px;
+    }
+
+    /* M3 Pill Buttons */
+    .m3-pill-btn {
+      display: inline-flex;
+      align-items: center;
       gap: 8px;
-    }
-
-    /* SwiftUI Segmented Navigation Bar */
-    .segmented-control {
-      display: flex;
-      background: rgba(0, 0, 0, 0.4);
-      border: 1px solid var(--glass-border-subtle);
-      border-radius: 14px;
-      padding: 4px;
-      gap: 4px;
-      box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);
-    }
-
-    .segment-btn {
-      background: transparent;
-      border: none;
-      color: var(--text-secondary);
-      padding: 7px 18px;
-      border-radius: 10px;
+      height: 40px;
+      padding: 0 18px;
+      border-radius: var(--md-sys-shape-corner-full);
+      font-family: inherit;
       font-size: 13px;
       font-weight: 500;
-      font-family: inherit;
       cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      transition: all 0.2s var(--spring-curve);
+      border: 1px solid var(--md-sys-color-outline-variant);
+      background-color: var(--md-sys-color-surface-container);
+      color: var(--md-sys-color-on-surface);
+      transition: all var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-emphasized);
     }
 
-    .segment-btn:hover {
-      color: var(--text-primary);
+    .m3-pill-btn:hover {
+      background-color: var(--md-sys-color-surface-container-high);
+      border-color: var(--md-sys-color-outline);
+      box-shadow: var(--md-sys-elevation-1);
     }
 
-    .segment-btn.active {
-      background: rgba(255, 255, 255, 0.14);
-      color: #FFFFFF;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.25);
+    .m3-pill-btn.primary {
+      background-color: var(--md-sys-color-primary);
+      color: var(--md-sys-color-on-primary);
+      border-color: transparent;
       font-weight: 600;
     }
 
-    /* Main Content Area */
-    .content-area {
+    .m3-pill-btn.primary:hover {
+      background-color: #BDD6FF;
+      box-shadow: var(--md-sys-elevation-2);
+    }
+
+    .m3-pill-btn.vlc {
+      background-color: var(--md-sys-color-tertiary-container);
+      color: var(--md-sys-color-on-tertiary-container);
+      border-color: rgba(255, 183, 134, 0.3);
+      font-weight: 600;
+    }
+
+    .m3-pill-btn.vlc:hover {
+      background-color: #8C4700;
+      box-shadow: var(--md-sys-elevation-2);
+    }
+
+    .m3-icon-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: none;
+      background: none;
+      color: var(--md-sys-color-on-surface-variant);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background-color var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-emphasized), color var(--md-sys-motion-duration-short);
+    }
+
+    .m3-icon-btn:hover {
+      background-color: rgba(255, 255, 255, 0.08);
+      color: var(--md-sys-color-on-surface);
+    }
+
+    /* Content Area */
+    .m3-content-area {
       flex: 1;
       width: 100%;
       max-width: 1400px;
       margin: 0 auto;
-      padding: 28px 32px 64px;
+      padding: 32px 32px 80px;
     }
 
-    /* Spotlight Search Bar */
-    .search-wrapper {
+    /* Tab Transition Container */
+    .m3-tab-pane {
+      display: none;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-emphasized),
+                  transform var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-emphasized);
+    }
+
+    .m3-tab-pane.active {
+      display: block;
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* M3 Floating Search Bar */
+    .m3-search-anchor {
+      max-width: 720px;
+      margin: 12px auto 28px;
       position: relative;
-      max-width: 680px;
-      margin: 10px auto 32px;
     }
 
-    .search-input {
-      width: 100%;
+    .m3-search-bar {
+      display: flex;
+      align-items: center;
       height: 56px;
-      padding: 0 54px 0 54px;
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid var(--glass-border);
-      border-radius: 18px;
-      font-size: 17px;
-      font-family: inherit;
-      color: #FFFFFF;
+      border-radius: var(--md-sys-shape-corner-full);
+      background-color: var(--md-sys-color-surface-container-high);
+      border: 1px solid var(--md-sys-color-outline-variant);
+      box-shadow: var(--md-sys-elevation-2);
+      padding: 0 16px 0 20px;
+      gap: 14px;
+      transition: all var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-emphasized);
+    }
+
+    .m3-search-bar:focus-within {
+      background-color: var(--md-sys-color-surface-container-highest);
+      border-color: var(--md-sys-color-primary);
+      box-shadow: var(--md-sys-elevation-3);
+    }
+
+    .m3-search-input {
+      flex: 1;
+      height: 100%;
+      background: none;
+      border: none;
       outline: none;
-      backdrop-filter: blur(20px);
-      box-shadow: 0 10px 30px -5px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.15);
-      transition: all 0.25s var(--spring-curve);
+      color: var(--md-sys-color-on-surface);
+      font-family: inherit;
+      font-size: 16px;
     }
 
-    .search-input:focus {
-      background: rgba(255, 255, 255, 0.09);
-      border-color: var(--accent-blue);
-      box-shadow: 0 12px 40px -5px rgba(10, 132, 255, 0.3), inset 0 1px 1px rgba(255,255,255,0.25);
+    .m3-search-input::placeholder {
+      color: var(--md-sys-color-on-surface-variant);
     }
 
-    .search-icon {
-      position: absolute;
-      left: 20px;
-      top: 50%;
-      transform: translateY(-50%);
-      color: var(--text-tertiary);
-      pointer-events: none;
+    .m3-search-clear {
+      display: none;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: none;
+      background: none;
+      color: var(--md-sys-color-on-surface-variant);
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
     }
 
-    .search-shortcut {
-      position: absolute;
-      right: 18px;
-      top: 50%;
-      transform: translateY(-50%);
+    .m3-search-clear:hover {
+      background-color: rgba(255, 255, 255, 0.1);
+      color: var(--md-sys-color-on-surface);
+    }
+
+    .m3-search-shortcut {
       font-size: 11px;
-      background: rgba(255, 255, 255, 0.1);
-      padding: 4px 8px;
-      border-radius: 6px;
-      color: var(--text-tertiary);
-      border: 1px solid var(--glass-border-subtle);
+      font-weight: 600;
+      color: var(--md-sys-color-on-surface-variant);
+      background-color: var(--md-sys-color-surface-container);
+      border: 1px solid var(--md-sys-color-outline-variant);
+      border-radius: var(--md-sys-shape-corner-small);
+      padding: 3px 8px;
+      user-select: none;
+    }
+
+    /* M3 Filter Chips Row */
+    .m3-chips-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
+
+    .m3-filter-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      height: 36px;
+      padding: 0 16px;
+      border-radius: var(--md-sys-shape-corner-small);
+      background-color: var(--md-sys-color-surface-container-low);
+      border: 1px solid var(--md-sys-color-outline-variant);
+      color: var(--md-sys-color-on-surface-variant);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-emphasized);
+    }
+
+    .m3-filter-chip:hover {
+      background-color: var(--md-sys-color-surface-container-high);
+      color: var(--md-sys-color-on-surface);
+    }
+
+    .m3-filter-chip.active {
+      background-color: var(--md-sys-color-secondary-container);
+      color: var(--md-sys-color-on-secondary-container);
+      border-color: transparent;
+      font-weight: 600;
+      box-shadow: var(--md-sys-elevation-1);
+    }
+
+    .m3-chip-check {
+      display: none;
+      width: 16px;
+      height: 16px;
+    }
+
+    .m3-filter-chip.active .m3-chip-check {
+      display: inline-block;
     }
 
     /* Section Headers */
-    .section-header {
+    .m3-section-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
+      margin-top: 24px;
       margin-bottom: 20px;
     }
 
-    .section-title {
-      font-size: 20px;
+    .m3-section-title {
+      font-size: 22px;
       font-weight: 700;
       letter-spacing: -0.4px;
+      color: var(--md-sys-color-on-surface);
     }
 
-    .filter-pills {
+    .m3-section-subtitle {
+      font-size: 13px;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+
+    /* M3 Banner Card (Library VLC info) */
+    .m3-banner-card {
+      background-color: var(--md-sys-color-surface-container);
+      border: 1px solid var(--md-sys-color-outline-variant);
+      border-radius: var(--md-sys-shape-corner-large);
+      padding: 20px 24px;
+      margin-bottom: 28px;
       display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-shadow: var(--md-sys-elevation-1);
+    }
+
+    .m3-banner-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .m3-banner-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--md-sys-color-on-surface);
+      display: flex;
+      align-items: center;
       gap: 8px;
     }
 
-    .filter-pill {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid var(--glass-border-subtle);
-      color: var(--text-secondary);
-      padding: 6px 14px;
-      border-radius: 12px;
-      font-size: 12px;
-      font-family: inherit;
-      cursor: pointer;
-      transition: all 0.2s var(--spring-curve);
+    .m3-banner-desc {
+      font-size: 13px;
+      color: var(--md-sys-color-on-surface-variant);
+      margin-top: 4px;
+      line-height: 1.5;
     }
 
-    .filter-pill.active {
-      background: var(--accent-blue);
-      color: white;
-      border-color: transparent;
-      box-shadow: 0 4px 14px rgba(10, 132, 255, 0.4);
+    .m3-banner-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
     }
 
-    /* Media Cards Grid */
-    .media-grid {
+    /* Media Grid & Cards */
+    .m3-media-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
       gap: 22px;
     }
 
-    .media-card {
-      background: var(--glass-panel);
-      border: 1px solid var(--glass-border-subtle);
-      border-radius: 18px;
+    .m3-media-card {
+      background-color: var(--md-sys-color-surface-container-low);
+      border: 1px solid var(--md-sys-color-outline-variant);
+      border-radius: var(--md-sys-shape-corner-large);
       overflow: hidden;
       display: flex;
       flex-direction: column;
       position: relative;
-      transition: all 0.3s var(--spring-curve);
-      box-shadow: 0 10px 24px -5px rgba(0, 0, 0, 0.4);
+      box-shadow: var(--md-sys-elevation-1);
+      transition: transform var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-emphasized),
+                  box-shadow var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-emphasized),
+                  border-color var(--md-sys-motion-duration-short);
     }
 
-    .media-card:hover {
-      transform: translateY(-6px) scale(1.02);
-      background: var(--glass-panel-hover);
-      border-color: var(--glass-border);
-      box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.75);
+    .m3-media-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--md-sys-elevation-3);
+      border-color: var(--md-sys-color-outline);
     }
 
-    .poster-box {
+    .m3-poster-box {
       width: 100%;
       height: 295px;
-      background: #14171E;
+      background-color: var(--md-sys-color-surface-container-highest);
       position: relative;
       overflow: hidden;
     }
 
-    .poster-img {
+    .m3-poster-img {
       width: 100%;
       height: 100%;
       object-fit: cover;
-      transition: transform 0.4s var(--spring-curve);
+      transition: transform var(--md-sys-motion-duration-long) var(--md-sys-motion-easing-emphasized);
     }
 
-    .media-card:hover .poster-img {
-      transform: scale(1.05);
+    .m3-media-card:hover .m3-poster-img {
+      transform: scale(1.04);
     }
 
-    .badge-type {
+    .m3-poster-scrim {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 80px;
+      background: linear-gradient(to top, rgba(14, 18, 25, 0.95), transparent);
+      pointer-events: none;
+    }
+
+    .m3-badge-type {
       position: absolute;
       top: 10px;
       left: 10px;
-      padding: 4px 9px;
-      border-radius: 8px;
-      font-size: 10px;
+      padding: 4px 10px;
+      border-radius: var(--md-sys-shape-corner-small);
+      font-size: 10.5px;
       font-weight: 700;
-      text-transform: uppercase;
       letter-spacing: 0.5px;
-      backdrop-filter: blur(12px);
+      text-transform: uppercase;
+      backdrop-filter: blur(10px);
+      box-shadow: var(--md-sys-elevation-1);
     }
 
-    .badge-movie { background: rgba(10, 132, 255, 0.75); color: #FFF; }
-    .badge-series { background: rgba(191, 90, 242, 0.75); color: #FFF; }
-    .badge-anime { background: rgba(255, 55, 95, 0.75); color: #FFF; }
+    .m3-badge-movie { background-color: var(--badge-movie-bg); color: var(--badge-movie-fg); }
+    .m3-badge-series { background-color: var(--badge-series-bg); color: var(--badge-series-fg); }
+    .m3-badge-anime { background-color: var(--badge-anime-bg); color: var(--badge-anime-fg); }
 
-    .rating-badge {
+    .m3-rating-badge {
       position: absolute;
       top: 10px;
       right: 10px;
-      background: rgba(0, 0, 0, 0.65);
+      background-color: rgba(0, 0, 0, 0.75);
       border: 1px solid rgba(255, 255, 255, 0.15);
-      backdrop-filter: blur(12px);
+      backdrop-filter: blur(10px);
       padding: 3px 8px;
-      border-radius: 8px;
+      border-radius: var(--md-sys-shape-corner-small);
       font-size: 11px;
       font-weight: 600;
       color: #FFD60A;
       display: flex;
       align-items: center;
-      gap: 3px;
+      gap: 4px;
+      box-shadow: var(--md-sys-elevation-1);
     }
 
-    .card-body {
-      padding: 14px;
+    .m3-card-body {
+      padding: 16px;
       display: flex;
       flex-direction: column;
       flex: 1;
       justify-content: space-between;
+      gap: 10px;
     }
 
-    .media-title {
-      font-size: 14px;
-      font-weight: 600;
-      color: #FFFFFF;
+    .m3-card-title {
+      font-size: 14.5px;
+      font-weight: 700;
+      color: var(--md-sys-color-on-surface);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      margin-bottom: 4px;
+      line-height: 1.3;
     }
 
-    .media-meta {
+    .m3-card-meta {
       font-size: 12px;
-      color: var(--text-secondary);
-      margin-bottom: 12px;
+      color: var(--md-sys-color-on-surface-variant);
       display: flex;
       align-items: center;
       gap: 6px;
     }
 
-    /* Glass Buttons */
-    .btn-action {
+    .m3-card-select {
       width: 100%;
-      height: 36px;
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid var(--glass-border);
-      border-radius: 10px;
-      color: #FFFFFF;
-      font-size: 12px;
-      font-weight: 600;
+      height: 38px;
+      background-color: var(--md-sys-color-surface-container);
+      border: 1px solid var(--md-sys-color-outline-variant);
+      border-radius: var(--md-sys-shape-corner-small);
+      color: var(--md-sys-color-on-surface);
       font-family: inherit;
+      font-size: 12px;
+      padding: 0 10px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .m3-card-select:focus {
+      border-color: var(--md-sys-color-primary);
+    }
+
+    .m3-card-btn {
+      width: 100%;
+      height: 38px;
+      border-radius: var(--md-sys-shape-corner-full);
+      font-family: inherit;
+      font-size: 12.5px;
+      font-weight: 600;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 6px;
-      transition: all 0.2s var(--spring-curve);
+      gap: 8px;
+      border: 1px solid var(--md-sys-color-outline-variant);
+      background-color: var(--md-sys-color-surface-container-high);
+      color: var(--md-sys-color-on-surface);
+      transition: all var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-emphasized);
     }
 
-    .btn-action:hover {
-      background: var(--accent-blue);
+    .m3-card-btn:hover {
+      background-color: var(--md-sys-color-surface-container-highest);
+      border-color: var(--md-sys-color-outline);
+    }
+
+    .m3-card-btn.add-btn {
+      background-color: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
       border-color: transparent;
-      box-shadow: 0 4px 16px rgba(10, 132, 255, 0.4);
     }
 
-    .btn-added {
-      background: rgba(48, 209, 88, 0.18);
+    .m3-card-btn.add-btn:hover {
+      background-color: #1A5296;
+      box-shadow: var(--md-sys-elevation-1);
+    }
+
+    .m3-card-btn.added {
+      background-color: rgba(48, 209, 88, 0.15);
       border-color: rgba(48, 209, 88, 0.35);
       color: #30D158;
       cursor: default;
     }
 
-    .btn-delete {
-      background: rgba(255, 69, 58, 0.15);
-      border-color: rgba(255, 69, 58, 0.3);
-      color: #FF453A;
-      margin-top: 8px;
-    }
-    .btn-delete:hover {
-      background: #FF453A;
-      color: white;
-      box-shadow: 0 4px 16px rgba(255, 69, 58, 0.4);
+    .m3-card-btn.vlc {
+      background-color: var(--md-sys-color-tertiary-container);
+      color: var(--md-sys-color-on-tertiary-container);
+      border-color: transparent;
     }
 
-    .provider-select {
-      width: 100%;
-      height: 32px;
-      background: rgba(0, 0, 0, 0.4);
-      border: 1px solid var(--glass-border-subtle);
-      border-radius: 8px;
-      color: var(--text-secondary);
-      font-size: 11px;
-      font-family: inherit;
-      padding: 0 8px;
-      margin-top: 6px;
-      outline: none;
+    .m3-card-btn.vlc:hover {
+      background-color: #8C4700;
+      box-shadow: var(--md-sys-elevation-1);
     }
 
-    /* Toast Alert */
-    .toast {
-      position: fixed;
-      top: 24px;
-      left: 50%;
-      transform: translateX(-50%) translateY(-100px);
-      background: rgba(30, 35, 45, 0.9);
-      backdrop-filter: blur(25px);
-      border: 1px solid var(--glass-border);
-      padding: 12px 24px;
-      border-radius: 16px;
-      color: #FFFFFF;
-      font-size: 13px;
-      font-weight: 500;
-      box-shadow: 0 15px 40px rgba(0,0,0,0.6);
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      z-index: 999;
-      transition: transform 0.4s var(--spring-curve);
+    .m3-card-btn.danger {
+      background: none;
+      border-color: transparent;
+      color: var(--md-sys-color-error);
     }
 
-    .toast.show {
-      transform: translateX(-50%) translateY(0);
+    .m3-card-btn.danger:hover {
+      background-color: rgba(255, 180, 171, 0.1);
     }
 
-    /* Providers Grid */
-    .providers-grid {
+    /* Providers Grid & Cards */
+    .m3-providers-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
-      gap: 14px;
+      gap: 16px;
     }
 
-    .provider-card {
-      background: var(--glass-panel);
-      border: 1px solid var(--glass-border-subtle);
-      border-radius: 16px;
-      padding: 14px 16px;
+    .m3-provider-card {
+      background-color: var(--md-sys-color-surface-container-low);
+      border: 1px solid var(--md-sys-color-outline-variant);
+      border-radius: var(--md-sys-shape-corner-large);
+      padding: 16px;
       display: flex;
       align-items: center;
       gap: 14px;
-      min-width: 0;
-      position: relative;
-      overflow: hidden;
-      transition: all 0.25s var(--spring-curve);
+      box-shadow: var(--md-sys-elevation-1);
+      transition: all var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-emphasized);
     }
 
-    .provider-card:hover {
-      background: var(--glass-panel-hover);
-      border-color: var(--glass-border);
+    .m3-provider-card:hover {
+      background-color: var(--md-sys-color-surface-container);
+      border-color: var(--md-sys-color-outline);
+      box-shadow: var(--md-sys-elevation-2);
       transform: translateY(-2px);
-      box-shadow: 0 10px 24px -6px rgba(0, 0, 0, 0.4);
     }
 
-    .provider-logo-box {
-      width: 46px;
-      height: 46px;
-      border-radius: 12px;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid var(--glass-border);
+    .m3-provider-logo-box {
+      width: 44px;
+      height: 44px;
+      border-radius: var(--md-sys-shape-corner-medium);
+      background-color: var(--md-sys-color-surface-container-high);
       display: flex;
       align-items: center;
       justify-content: center;
       flex-shrink: 0;
       overflow: hidden;
-      box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.15);
+      border: 1px solid var(--md-sys-color-outline-variant);
     }
 
-    .provider-logo-img {
+    .m3-provider-logo-img {
       width: 28px;
       height: 28px;
       object-fit: contain;
-      border-radius: 6px;
-      display: block;
     }
 
-    .provider-fallback-icon {
-      font-size: 22px;
-      line-height: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .provider-info {
+    .m3-provider-info {
       flex: 1;
-      min-width: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
+      overflow: hidden;
     }
 
-    .provider-title {
-      font-size: 13.5px;
-      font-weight: 600;
-      color: #FFFFFF;
+    .m3-provider-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--md-sys-color-on-surface);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      letter-spacing: -0.2px;
     }
 
-    .provider-meta {
+    .m3-provider-meta {
       font-size: 11.5px;
-      color: var(--text-secondary);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      color: var(--md-sys-color-on-surface-variant);
       display: flex;
       align-items: center;
       gap: 6px;
-    }
-
-    .provider-cat-tag {
-      font-weight: 500;
-      color: var(--accent-cyan);
-    }
-
-    .provider-status {
-      flex-shrink: 0;
-      margin-left: auto;
-    }
-
-    /* Empty State */
-    .empty-state {
-      text-align: center;
-      padding: 80px 20px;
-      color: var(--text-tertiary);
-    }
-
-    .empty-icon {
-      font-size: 48px;
-      margin-bottom: 14px;
-      opacity: 0.6;
-    }
-
-    /* Source Discovery Button & Glass Modal */
-    .btn-discover {
-      background: rgba(100, 210, 255, 0.14);
-      border-color: rgba(100, 210, 255, 0.35);
-      color: var(--accent-cyan);
-    }
-    .btn-discover:hover {
-      background: rgba(100, 210, 255, 0.25);
-      border-color: var(--accent-cyan);
-      color: #fff;
-    }
-
-    .modal-backdrop {
-      position: fixed;
-      inset: 0;
-      background: rgba(6, 9, 15, 0.72);
-      backdrop-filter: blur(18px);
-      -webkit-backdrop-filter: blur(18px);
-      z-index: 9000;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-    }
-    .modal-backdrop.open {
-      display: flex;
-    }
-
-    .modal-glass {
-      width: 100%;
-      max-width: 620px;
-      max-height: 85vh;
-      background: rgba(22, 27, 38, 0.88);
-      backdrop-filter: blur(40px) saturate(190%);
-      -webkit-backdrop-filter: blur(40px) saturate(190%);
-      border: 1px solid rgba(255, 255, 255, 0.16);
-      border-radius: 22px;
-      box-shadow: 0 28px 70px rgba(0, 0, 0, 0.75);
-      display: flex;
-      flex-direction: column;
+      margin-top: 3px;
+      white-space: nowrap;
       overflow: hidden;
+      text-overflow: ellipsis;
     }
 
-    .modal-header {
-      padding: 18px 22px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
+    .m3-provider-cat-tag {
+      padding: 1px 6px;
+      border-radius: var(--md-sys-shape-corner-extra-small);
+      background-color: var(--md-sys-color-surface-container-highest);
+      color: var(--md-sys-color-primary);
+      font-size: 10px;
+      font-weight: 600;
     }
-    .modal-title {
-      font-size: 16px;
-      font-weight: 700;
-      color: #fff;
-      letter-spacing: -0.3px;
-    }
-    .modal-close {
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      color: var(--text-secondary);
-      width: 30px;
-      height: 30px;
-      border-radius: 50%;
-      cursor: pointer;
-      font-size: 14px;
+
+    /* M3 Adaptive Modals & Bottom Sheets */
+    .m3-scrim {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(0, 0, 0, 0.72);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      z-index: 1000;
       display: flex;
       align-items: center;
       justify-content: center;
-    }
-    .modal-close:hover {
-      background: rgba(255, 255, 255, 0.16);
-      color: #fff;
-    }
-
-    .modal-controls {
-      padding: 12px 22px;
-      background: rgba(0, 0, 0, 0.25);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-    .modal-controls label {
-      font-size: 12px;
-      color: var(--text-secondary);
-      font-weight: 500;
-    }
-    .modal-input {
-      width: 68px;
-      padding: 6px 10px;
-      border-radius: 8px;
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      color: #fff;
-      font-size: 12.5px;
-      outline: none;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-emphasized);
+      padding: 16px;
     }
 
-    .modal-body {
-      padding: 18px 22px;
+    .m3-scrim.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .m3-dialog {
+      background-color: var(--md-sys-color-surface-container-high);
+      border: 1px solid var(--md-sys-color-outline-variant);
+      border-radius: var(--md-sys-shape-corner-extra-large);
+      box-shadow: var(--md-sys-elevation-4);
+      width: 100%;
+      max-width: 660px;
+      max-height: 88vh;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
+      transform: scale(0.92);
+      transition: transform var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-emphasized);
+    }
+
+    .m3-scrim.open .m3-dialog {
+      transform: scale(1);
+    }
+
+    .m3-sheet-handle {
+      display: none;
+      width: 36px;
+      height: 4px;
+      border-radius: 2px;
+      background-color: var(--md-sys-color-outline-variant);
+      margin: 12px auto 4px auto;
+    }
+
+    .m3-dialog-header {
+      padding: 24px 24px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--md-sys-color-outline-variant);
+    }
+
+    .m3-dialog-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--md-sys-color-on-surface);
+      display: flex;
+      align-items: center;
       gap: 10px;
     }
 
-    .source-row {
+    .m3-dialog-body {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow-y: auto;
+    }
+
+    .m3-source-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
+      padding: 14px 16px;
+      border-radius: var(--md-sys-shape-corner-medium);
+      background-color: var(--md-sys-color-surface-container);
+      border: 1px solid var(--md-sys-color-outline-variant);
       gap: 12px;
-      padding: 12px 15px;
-      border-radius: 14px;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.09);
-      transition: all 0.18s ease;
-    }
-    .source-row:hover {
-      background: rgba(255, 255, 255, 0.09);
-      border-color: rgba(255, 255, 255, 0.2);
-    }
-    .source-row-info {
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-      min-width: 0;
-    }
-    .source-row-name {
-      font-size: 13.5px;
-      font-weight: 600;
-      color: #fff;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .source-row-sub {
-      font-size: 11.5px;
-      color: var(--text-secondary);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .source-row-actions {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-shrink: 0;
-    }
-    .btn-mini {
-      padding: 6px 11px;
-      border-radius: 9px;
-      font-size: 11.5px;
-      font-weight: 600;
-      cursor: pointer;
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      background: rgba(255, 255, 255, 0.08);
-      color: #fff;
-      transition: all 0.15s ease;
-    }
-    .btn-mini.primary {
-      background: var(--accent-blue);
-      border-color: rgba(255, 255, 255, 0.25);
-    }
-    .btn-mini.vlc {
-      background: rgba(255, 159, 10, 0.2);
-      border-color: rgba(255, 159, 10, 0.45);
-      color: #FFB340;
-    }
-    .btn-mini:hover {
-      transform: translateY(-1px);
-      filter: brightness(1.12);
-    }
-
-    .btn-vlc {
-      background: rgba(255, 159, 10, 0.16);
-      border-color: rgba(255, 159, 10, 0.4);
-      color: #FFB340;
-      margin-top: 6px;
-    }
-    .btn-vlc:hover {
-      background: #FF9F0A;
-      border-color: transparent;
-      color: #000;
-      box-shadow: 0 4px 16px rgba(255, 159, 10, 0.45);
-    }
-
-    /* LAN & VLC Connection Banner / Guide Card */
-    .connect-banner {
-      background: linear-gradient(135deg, rgba(10, 132, 255, 0.12), rgba(255, 159, 10, 0.1));
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      border-radius: 18px;
-      padding: 16px 20px;
-      margin-bottom: 24px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      backdrop-filter: blur(20px);
-    }
-    .connect-banner-top {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
       flex-wrap: wrap;
-      gap: 12px;
     }
-    .connect-url-row {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 12px;
+
+    .m3-source-row-info {
+      flex: 1;
+      min-width: 200px;
     }
-    .connect-box {
-      background: rgba(0, 0, 0, 0.35);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 12px;
-      padding: 11px 14px;
+
+    .m3-source-row-name {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--md-sys-color-on-surface);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .m3-source-row-sub {
+      font-size: 11.5px;
+      color: var(--md-sys-color-on-surface-variant);
+      margin-top: 2px;
+    }
+
+    .m3-source-row-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    /* M3 Outlined Text Field */
+    .m3-text-field {
       display: flex;
       flex-direction: column;
       gap: 6px;
     }
-    .connect-box-label {
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--text-secondary);
-      text-transform: uppercase;
-      letter-spacing: 0.4px;
+
+    .m3-text-field-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--md-sys-color-primary);
     }
-    .connect-box-code {
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    .m3-text-field-input {
+      width: 100%;
+      height: 48px;
+      padding: 0 16px;
+      border-radius: var(--md-sys-shape-corner-small);
+      background-color: var(--md-sys-color-surface-container);
+      border: 1px solid var(--md-sys-color-outline);
+      color: var(--md-sys-color-on-surface);
+      font-family: inherit;
+      font-size: 14px;
+      outline: none;
+      transition: border-color var(--md-sys-motion-duration-short);
+    }
+
+    .m3-text-field-input:focus {
+      border-color: var(--md-sys-color-primary);
+      border-width: 2px;
+    }
+
+    /* M3 Code Snippet Container */
+    .m3-code-snippet {
+      background-color: var(--md-sys-color-surface-container-lowest);
+      border: 1px solid var(--md-sys-color-outline-variant);
+      border-radius: var(--md-sys-shape-corner-medium);
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       font-size: 12.5px;
-      color: #64D2FF;
+      color: #93C5FD;
       word-break: break-all;
     }
-    .connect-box-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-top: 4px;
-    }
-    .guide-note {
-      font-size: 12px;
-      line-height: 1.55;
-      color: var(--text-secondary);
-      background: rgba(255, 255, 255, 0.04);
-      border-left: 3px solid var(--accent-orange);
-      padding: 10px 14px;
-      border-radius: 8px;
-    }
 
-    /* Auth Modal & User Header Styles */
-    .auth-segmented {
-      display: flex;
-      background: rgba(0, 0, 0, 0.45);
-      border: 1px solid var(--glass-border-subtle);
-      border-radius: 14px;
-      padding: 4px;
-      margin-bottom: 20px;
-    }
-    .auth-segment-btn {
-      flex: 1;
-      background: transparent;
-      border: none;
-      color: var(--text-secondary);
-      padding: 8px 14px;
-      border-radius: 10px;
+    /* M3 Snackbar (Toast) */
+    .m3-snackbar {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(40px);
+      background-color: var(--md-sys-color-inverse-surface);
+      color: var(--md-sys-color-inverse-on-surface);
+      padding: 14px 22px;
+      border-radius: var(--md-sys-shape-corner-extra-small);
       font-size: 13.5px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s var(--spring-curve);
-      font-family: inherit;
-    }
-    .auth-segment-btn.active {
-      background: rgba(255, 255, 255, 0.16);
-      color: #fff;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.35);
-    }
-    .auth-input-group {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      margin-bottom: 14px;
-      text-align: left;
-    }
-    .auth-input-group label {
-      font-size: 12px;
-      color: var(--text-secondary);
       font-weight: 500;
-    }
-    .auth-input {
-      width: 100%;
-      padding: 12px 14px;
-      border-radius: 12px;
-      background: rgba(255, 255, 255, 0.07);
-      border: 1px solid var(--glass-border);
-      color: #fff;
-      font-size: 14px;
-      font-family: inherit;
-      outline: none;
-      box-sizing: border-box;
-      transition: all 0.2s ease;
-    }
-    .auth-input:focus {
-      border-color: var(--accent-blue);
-      background: rgba(255, 255, 255, 0.1);
-      box-shadow: 0 0 16px rgba(10, 132, 255, 0.25);
-    }
-    .auth-btn-submit {
-      width: 100%;
-      padding: 13px;
-      border-radius: 12px;
-      background: var(--accent-blue);
-      border: 1px solid rgba(255, 255, 255, 0.25);
-      color: #fff;
-      font-size: 14.5px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      margin-top: 8px;
-    }
-    .auth-btn-submit:hover {
-      filter: brightness(1.15);
-      transform: translateY(-1px);
-    }
-    .auth-error {
-      display: none;
-      padding: 10px 14px;
-      border-radius: 10px;
-      background: rgba(255, 69, 58, 0.16);
-      border: 1px solid rgba(255, 69, 58, 0.35);
-      color: #FF6961;
-      font-size: 12.5px;
-      margin-bottom: 14px;
-      text-align: left;
-    }
-    .user-badge-btn {
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid var(--glass-border-subtle);
-      color: #fff;
-      padding: 6px 12px;
-      border-radius: 12px;
-      font-size: 12px;
-      font-weight: 500;
+      box-shadow: var(--md-sys-elevation-3);
       display: flex;
       align-items: center;
-      gap: 8px;
-    }
-    .btn-logout {
-      background: rgba(255, 69, 58, 0.15);
-      border: 1px solid rgba(255, 69, 58, 0.3);
-      color: #FF6961;
-      border-radius: 6px;
-      padding: 2px 7px;
-      font-size: 11px;
-      cursor: pointer;
-      font-weight: 600;
-      transition: all 0.15s ease;
-    }
-    .btn-logout:hover {
-      background: #FF453A;
-      color: #fff;
+      gap: 12px;
+      z-index: 2000;
+      opacity: 0;
+      pointer-events: none;
+      transition: all var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-emphasized);
     }
 
-    @media (max-width: 820px) {
-      .app-header {
-        height: auto;
-        padding: 12px 16px;
-        flex-wrap: wrap;
+    .m3-snackbar.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* Mobile Bottom Navigation Bar (< 840px) */
+    .m3-bottom-nav {
+      display: none;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 76px;
+      background-color: var(--md-sys-color-surface-container);
+      border-top: 1px solid var(--md-sys-color-outline-variant);
+      z-index: 95;
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      align-items: center;
+      justify-content: space-around;
+    }
+
+    .m3-bottom-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      height: 100%;
+      background: none;
+      border: none;
+      color: var(--md-sys-color-on-surface-variant);
+      cursor: pointer;
+      gap: 4px;
+      padding: 8px 0;
+      transition: color var(--md-sys-motion-duration-short);
+      font-family: inherit;
+    }
+
+    .m3-bottom-indicator {
+      width: 64px;
+      height: 32px;
+      border-radius: var(--md-sys-shape-corner-full);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      transition: all var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-emphasized);
+    }
+
+    .m3-bottom-item.active {
+      color: var(--md-sys-color-on-surface);
+    }
+
+    .m3-bottom-item.active .m3-bottom-indicator {
+      background-color: var(--md-sys-color-secondary-container);
+      color: var(--md-sys-color-on-secondary-container);
+      box-shadow: var(--md-sys-elevation-1);
+    }
+
+    .m3-bottom-label {
+      font-size: 11.5px;
+      font-weight: 500;
+    }
+
+    .m3-bottom-badge {
+      position: absolute;
+      top: -2px;
+      right: 12px;
+      background-color: var(--md-sys-color-error);
+      color: var(--md-sys-color-on-error);
+      font-size: 10px;
+      font-weight: 700;
+      min-width: 18px;
+      height: 18px;
+      line-height: 18px;
+      border-radius: 9px;
+      text-align: center;
+      padding: 0 4px;
+    }
+
+    /* Empty States */
+    .m3-empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px 20px;
+      text-align: center;
+      color: var(--md-sys-color-on-surface-variant);
+      gap: 12px;
+    }
+
+    .m3-empty-icon {
+      width: 56px;
+      height: 56px;
+      color: var(--md-sys-color-outline);
+    }
+
+    /* Responsive Rules */
+    @media (max-width: 839px) {
+      .m3-nav-rail {
+        display: none;
       }
-      .content-area {
-        padding: 18px 16px 48px;
+      .m3-main-shell {
+        margin-left: 0;
+        padding-bottom: 84px;
+      }
+      .m3-bottom-nav {
+        display: flex;
+      }
+      .m3-mobile-logo {
+        display: block;
+      }
+      .m3-top-app-bar {
+        padding: 0 16px;
+      }
+      .m3-content-area {
+        padding: 20px 16px 88px;
+      }
+      .m3-media-grid {
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 14px;
+      }
+      .m3-poster-box {
+        height: 230px;
+      }
+      .m3-search-shortcut {
+        display: none;
+      }
+      .m3-snackbar {
+        bottom: 96px;
+      }
+
+      /* M3 Modal Bottom Sheet in Mobile */
+      .m3-scrim {
+        align-items: flex-end;
+        padding: 0;
+      }
+      .m3-dialog {
+        border-radius: 28px 28px 0 0;
+        max-height: 85vh;
+        transform: translateY(100%);
+        border-bottom: none;
+      }
+      .m3-scrim.open .m3-dialog {
+        transform: translateY(0);
+      }
+      .m3-sheet-handle {
+        display: block;
       }
     }
   </style>
 </head>
 <body>
-  <div class="toast" id="toast">
-    <span id="toastIcon">✓</span>
-    <span id="toastMsg">İşlem başarıyla tamamlandı.</span>
-  </div>
-
-  <!-- SwiftUI Glass Authentication Modal -->
-  <div class="modal-backdrop" id="authModal" onclick="if(event.target===this && !authRequired) closeAuthModal()">
-    <div class="modal-glass" style="max-width: 420px;">
-      <div class="modal-header">
-        <div style="display:flex; align-items:center; gap:10px;">
-          <img src="/logo.png" style="width:26px; height:26px; object-fit:contain;">
-          <div>
-            <div class="modal-title" id="authModalTitle">Anthology Hesabı</div>
-            <div style="font-size:11px; color:var(--text-secondary);">Kişisel kütüphaneniz ve WebDAV erişimi</div>
+  <div class="m3-app-root">
+    <!-- Desktop Navigation Rail (>= 840px) -->
+    <aside class="m3-nav-rail">
+      <div class="m3-rail-brand" title="Anthology">
+        <img src="/logo.png" class="m3-brand-logo" alt="Anthology Logo">
+      </div>
+      <nav class="m3-rail-nav">
+        <button class="m3-rail-item active" onclick="switchTab('search')" id="railTabSearch" title="Keşfet ve Ara (⌘K)">
+          <div class="m3-rail-indicator m3-ripple-container">
+            <svg class="m3-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
           </div>
-        </div>
-        <button class="modal-close" id="authModalClose" onclick="closeAuthModal()">✕</button>
-      </div>
-      <div class="modal-body" style="padding: 22px;">
-        <div class="auth-segmented">
-          <button class="auth-segment-btn active" id="authTabLogin" onclick="switchAuthMode('login')">Giriş Yap</button>
-          <button class="auth-segment-btn" id="authTabRegister" onclick="switchAuthMode('register')">Hesap Oluştur</button>
-        </div>
-        <div class="auth-error" id="authErrorMsg"></div>
-        <form onsubmit="handleAuthSubmit(event)">
-          <div class="auth-input-group">
-            <label for="authUsername">Kullanıcı Adı</label>
-            <input type="text" id="authUsername" class="auth-input" placeholder="Kullanıcı adınız (en az 3 harf)" required autocomplete="username">
-          </div>
-          <div class="auth-input-group">
-            <label for="authPassword">Şifre</label>
-            <input type="password" id="authPassword" class="auth-input" placeholder="Şifreniz (en az 4 karakter)" required autocomplete="current-password">
-          </div>
-          <button type="submit" class="auth-btn-submit" id="authSubmitText">Giriş Yap</button>
-        </form>
-        <div style="font-size:11.5px; color:var(--text-tertiary); text-align:center; margin-top:16px; line-height:1.5;">
-          🔒 Kütüphaneniz size özel olarak sunucudaki yerel SQLite veritabanında şifreli saklanır.
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Device & VLC Connection Guide Glass Modal -->
-  <div class="modal-backdrop" id="connectModal" onclick="if(event.target===this) closeConnectModal()">
-    <div class="modal-glass" style="max-width: 680px;">
-      <div class="modal-header">
-        <div>
-          <div class="modal-title">📱 Tablet, Telefon, TV & VLC Bağlantı Rehberi</div>
-          <div style="font-size:11.5px; color:var(--text-secondary); margin-top:2px;">Aynı Wi-Fi veya Mobil Hotspot üzerindeki cihazlardan kesintisiz izleme</div>
-        </div>
-        <button class="modal-close" onclick="closeConnectModal()">✕</button>
-      </div>
-      <div class="modal-body" style="gap: 14px;">
-        <div class="connect-url-row">
-          <div class="connect-box">
-            <div class="connect-box-label">🟠 VLC Oynatma Listesi (Android / iOS / PC)</div>
-            <div class="connect-box-code" id="connectVlcCode">http://&lt;Bilgisayar_IP&gt;:8085/playlist.m3u</div>
-            <div class="connect-box-actions">
-              <button class="btn-mini vlc" onclick="openFullPlaylistInVLC()">▶ VLC'de Tüm Kütüphaneyi Aç</button>
-              <button class="btn-mini primary" onclick="copyEndpointPath('/playlist.m3u', 'VLC M3U oynatma listesi adresi kopyalandı!')">📋 Kopyala</button>
-              <button class="btn-mini vlc" id="btnCopyVlcToken" style="display:none;" onclick="copyVlcTokenPlaylist()">🔑 Tokenli Link</button>
-              <a class="btn-mini" href="/playlist.m3u?download=1" style="text-decoration:none;">📥 .M3U İndir</a>
-            </div>
-          </div>
-          <div class="connect-box">
-            <div class="connect-box-label">🔵 WebDAV Klasör Adresi (Infuse / Kodi / Nova)</div>
-            <div class="connect-box-code" id="connectDavCode">http://&lt;Bilgisayar_IP&gt;:8085/dav/</div>
-            <div class="connect-box-actions">
-              <button class="btn-mini primary" onclick="copyEndpointPath('/dav/', 'WebDAV sunucu adresi kopyalandı!')">📋 WebDAV Adresini Kopyala</button>
-              <button class="btn-mini" onclick="copyEndpointPath('/', 'Web Arayüzü adresi kopyalandı!')">🌐 Web UI Linkini Kopyala</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="guide-note">
-          <strong>1. Android VLC'de Neden WebDAV Yok? (Sadece FTP, SMB, NFS Görünüyor):</strong><br>
-          Android için VLC uygulamasında yerleşik WebDAV klasör gezgini bulunmaz. Tablet veya telefonunuzda VLC ile izlemek için:<br>
-          • <strong>Yöntem A (En Pratik):</strong> Tabletinizin tarayıcısından bu sayfayı açıp herhangi bir film veya dizideki <strong>"▶ VLC'de Oynat"</strong> butonuna dokunun; video doğrudan VLC'de başlar.<br>
-          • <strong>Yöntem B (Tüm Liste):</strong> VLC içinde <strong>Daha Fazla (More) → Akışlar (Streams / Yeni Akış)</strong> bölümüne yukarıdaki <code>/playlist.m3u</code> adresini yapıştırın; tüm kütüphaneniz VLC içinde listelenir.
-        </div>
-
-        <div class="guide-note" style="border-left-color: var(--accent-blue);">
-          <strong>2. Tablet / Telefon / TV'den Bağlanırken Hangi IP Yazılmalı?</strong><br>
-          • <code>127.0.0.1</code> (localhost) sadece sunucunun çalıştığı bilgisayarın kendisinde geçerlidir; <code>bridge</code> veya sanal makine ağ adresleri ise diğer cihazlardan açılmaz.<br>
-          • Farklı bir cihazdan bağlanırken bilgisayarınızın aktif <strong>Wi-Fi / Hotspot IP</strong> adresini (<code>http://&lt;Bilgisayar_IP&gt;:8085</code>) veya yerel ağ cihaz adını (<code>http://&lt;Bilgisayar_Adi&gt;.local:8085</code>) kullanın.
-        </div>
-
-        <div class="guide-note" style="border-left-color: var(--accent-purple);">
-          <strong>3. Mobil İnternet Paylaşımı (Hotspot) Kullanırken Dikkat:</strong><br>
-          • <strong>Android Hotspot:</strong> Bağlı bilgisayar ve tabletin birbiriyle konuşmasına doğrudan izin verir.<br>
-          • <strong>iPhone (iOS Kişisel Erişim Noktası):</strong> iOS güvenlik gereği Wi-Fi üzerinden bağlanan iki cihazın birbirini görmesini engelleyebilir (<em>AP İstemci İzolasyonu</em>). Eğer iPhone Hotspot'ta sayfa açılmazsa telefonu Mac'e USB kablosuyla bağlayıp Mac'te <strong>Sistem Ayarları → Genel → Paylaşma → İnternet Paylaşımı</strong>'nı açabilir veya her iki cihaza ücretsiz <strong>Tailscale</strong> kurabilirsiniz.
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Working Source Discovery & Episode VLC Player Glass Modal -->
-  <div class="modal-backdrop" id="sourceModal" onclick="if(event.target===this) closeSourceModal()">
-    <div class="modal-glass">
-      <div class="modal-header">
-        <div>
-          <div class="modal-title" id="modalItemTitle">Bölüm Seç & Oynat</div>
-          <div style="font-size:11.5px; color:var(--text-secondary); margin-top:2px;">VLC'de doğrudan başlatabilir veya doğrulanmış çalışan kaynakları seçebilirsiniz</div>
-        </div>
-        <button class="modal-close" onclick="closeSourceModal()">✕</button>
-      </div>
-      <div class="modal-controls" id="modalEpisodeBar">
-        <label id="lblSeason">Sezon:</label>
-        <input type="number" id="modalSeason" class="modal-input" value="1" min="1">
-        <label id="lblEpisode">Bölüm:</label>
-        <input type="number" id="modalEpisode" class="modal-input" value="1" min="1">
-        <button class="btn-mini vlc" onclick="playModalCurrentInVLC('auto')">▶ VLC'de Oynat</button>
-        <button class="btn-mini primary" onclick="scanSourcesForModal()">🔍 Kaynakları Tara</button>
-        <button class="btn-mini" onclick="copyItemM3UPlaylist()">📋 M3U Listesi</button>
-      </div>
-      <div class="modal-body" id="modalSourceList"></div>
-    </div>
-  </div>
-
-  <div class="app-container">
-    <!-- SwiftUI App Navigation Header -->
-    <header class="app-header">
-      <div class="app-brand">
-        <img class="app-brand-logo" src="/logo.png" alt="Anthology Logo">
-        <span class="app-brand-text">Anthology WebDAV</span>
-      </div>
-
-      <!-- Centered Segmented Navigation -->
-      <nav class="segmented-control">
-        <button class="segment-btn active" onclick="switchTab('search')">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-          Keşfet & Ara
+          <span class="m3-rail-label">Keşfet</span>
         </button>
-        <button class="segment-btn" onclick="switchTab('library')">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>
-          Kütüphanem (<span id="libCountBadge">0</span>)
+
+        <button class="m3-rail-item" onclick="switchTab('library')" id="railTabLibrary" title="Kütüphanem">
+          <div class="m3-rail-indicator m3-ripple-container">
+            <svg class="m3-icon" viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8 12.5v-9l6 4.5-6 4.5z"/></svg>
+            <span class="m3-rail-badge" id="railLibCountBadge">0</span>
+          </div>
+          <span class="m3-rail-label">Kütüphane</span>
         </button>
-        <button class="segment-btn" onclick="switchTab('providers')">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-          Sağlayıcılar
+
+        <button class="m3-rail-item" onclick="switchTab('providers')" id="railTabProviders" title="Sağlayıcılar">
+          <div class="m3-rail-indicator m3-ripple-container">
+            <svg class="m3-icon" viewBox="0 0 24 24"><path d="M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7 1.49 0 2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5s-1.12-2.5-2.5-2.5z"/></svg>
+          </div>
+          <span class="m3-rail-label">Sağlayıcılar</span>
         </button>
       </nav>
 
-      <!-- Right Endpoint & VLC Connection Pill -->
-      <div style="display:flex; align-items:center; gap:10px;">
-        <div id="userHeaderBox"></div>
-        <button class="webdav-pill" onclick="openConnectModal()" style="cursor:pointer;" title="Tablet, Telefon, TV ve VLC Bağlantı Adreslerini Gör">
-          <span class="status-dot"></span>
-          <span id="headerLanBadge">📱 VLC & Cihaz Bağlantısı</span>
+      <div class="m3-rail-footer">
+        <button class="m3-icon-btn m3-ripple-container" onclick="openConnectModal()" title="VLC, TV ve Ağ Bağlantı Rehberi">
+          <svg class="m3-icon" viewBox="0 0 24 24"><path d="M4 6h18V4H4c-1.1 0-2 .9-2 2v11H0v3h14v-3H4V6zm19 2h-6c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h6c.55 0 1-.45 1-1V9c0-.55-.45-1-1-1zm-1 9h-4v-7h4v7z"/></svg>
         </button>
+        <div id="railUserHeaderBox"></div>
       </div>
-    </header>
+    </aside>
 
-    <!-- Main Content Tab Containers -->
-    <section class="content-area">
-      <!-- TAB 1: SEARCH & DISCOVER -->
-      <div id="tab-search">
-        <div class="search-wrapper">
-          <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-          <input type="text" id="searchInput" class="search-input" placeholder="Film, dizi veya anime ara (örn: Solo Leveling, Inception, Breaking Bad)..." autocomplete="off" autofocus>
-          <span class="search-shortcut">⌘K</span>
+    <!-- Main Shell -->
+    <div class="m3-main-shell">
+      <!-- Top App Bar -->
+      <header class="m3-top-app-bar">
+        <div class="m3-top-brand">
+          <img src="/logo.png" class="m3-mobile-logo" alt="Anthology">
+          <span class="m3-top-title">Anthology</span>
+          <div class="m3-status-chip">
+            <span class="m3-status-dot"></span>
+            <span>WebDAV Çevrimiçi</span>
+          </div>
         </div>
 
-        <div class="section-header">
-          <h2 class="section-title" id="searchHeader">Arama Sonuçları</h2>
-          <span id="searchResultCount" style="color:var(--text-tertiary); font-size:13px;"></span>
+        <div class="m3-top-actions">
+          <button class="m3-pill-btn m3-ripple-container" onclick="openConnectModal()" title="VLC, TV ve Ağ Bağlantısı">
+            <svg class="m3-icon" style="width:18px;height:18px;" viewBox="0 0 24 24"><path d="M4 6h18V4H4c-1.1 0-2 .9-2 2v11H0v3h14v-3H4V6zm19 2h-6c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h6c.55 0 1-.45 1-1V9c0-.55-.45-1-1-1zm-1 9h-4v-7h4v7z"/></svg>
+            <span id="headerLanBadge">VLC & Cihazlar</span>
+          </button>
+          <div id="topUserHeaderBox"></div>
         </div>
+      </header>
 
-        <div id="searchResults" class="media-grid"></div>
-      </div>
+      <!-- Content Area -->
+      <main class="m3-content-area">
+        <!-- TAB 1: SEARCH & DISCOVER -->
+        <section id="tab-search" class="m3-tab-pane active">
+          <!-- Floating M3 Search Bar -->
+          <div class="m3-search-anchor">
+            <div class="m3-search-bar">
+              <svg class="m3-icon" style="color:var(--md-sys-color-on-surface-variant);" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+              <input type="text" id="searchInput" class="m3-search-input" placeholder="Film, dizi veya anime ara (örn: Solo Leveling, Inception, Breaking Bad)..." autocomplete="off" autofocus>
+              <button class="m3-search-clear" id="searchClearBtn" onclick="clearSearch()" title="Temizle">
+                <svg class="m3-icon" style="width:18px;height:18px;" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+              </button>
+              <span class="m3-search-shortcut">⌘K</span>
+            </div>
 
-      <!-- TAB 2: MY LIBRARY -->
-      <div id="tab-library" style="display:none;">
-        <!-- Quick VLC & LAN Access Bar -->
-        <div class="connect-banner">
-          <div class="connect-banner-top">
-            <div>
-              <div style="font-size:14.5px; font-weight:700; color:#fff;">🟠 VLC & Yerel Ağ (Tablet / Telefon / TV) Hızlı Erişim</div>
-              <div style="font-size:12px; color:var(--text-secondary); margin-top:2px;">
-                Android VLC'de WebDAV olmadığı için <strong>"▶ VLC'de Oynat"</strong> butonlarını kullanabilir veya VLC <strong>Akışlar (Streams)</strong> kısmına M3U adresini yapıştırabilirsiniz.
+            <!-- Category Filter Chips -->
+            <div class="m3-chips-row">
+              <button class="m3-filter-chip active m3-ripple-container" onclick="filterSearchResults('all', this)">
+                <svg class="m3-icon m3-chip-check" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                <span>Tümü</span>
+              </button>
+              <button class="m3-filter-chip m3-ripple-container" onclick="filterSearchResults('movie', this)">
+                <svg class="m3-icon m3-chip-check" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                <span>🎬 Filmler</span>
+              </button>
+              <button class="m3-filter-chip m3-ripple-container" onclick="filterSearchResults('series', this)">
+                <svg class="m3-icon m3-chip-check" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                <span>📺 Diziler</span>
+              </button>
+              <button class="m3-filter-chip m3-ripple-container" onclick="filterSearchResults('anime', this)">
+                <svg class="m3-icon m3-chip-check" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                <span>⛩️ Animeler</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="m3-section-header">
+            <h2 class="m3-section-title" id="searchHeader">Arama Sonuçları</h2>
+            <span class="m3-section-subtitle" id="searchResultCount"></span>
+          </div>
+
+          <div id="searchResults" class="m3-media-grid"></div>
+        </section>
+
+        <!-- TAB 2: MY LIBRARY -->
+        <section id="tab-library" class="m3-tab-pane">
+          <!-- VLC & LAN Quick Connect Card -->
+          <div class="m3-banner-card">
+            <div class="m3-banner-header">
+              <div>
+                <div class="m3-banner-title">
+                  <span style="color:#FFB786;">🟠</span> VLC, Tablet, Telefon & TV Kolay Erişim
+                </div>
+                <div class="m3-banner-desc">
+                  Android VLC'de WebDAV tarayıcısı bulunmadığından içerikleri <strong>"▶ VLC'de Oynat"</strong> butonuyla doğrudan açabilir veya VLC <strong>Akışlar (Streams)</strong> sekmesine kütüphane M3U adresini ekleyebilirsiniz.
+                </div>
+              </div>
+              <div class="m3-banner-actions">
+                <button class="m3-pill-btn vlc m3-ripple-container" onclick="openFullPlaylistInVLC()">
+                  <svg class="m3-icon" style="width:16px;height:16px;" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Tümünü VLC'de Aç</span>
+                </button>
+                <button class="m3-pill-btn primary m3-ripple-container" onclick="copyEndpointPath('/playlist.m3u', 'VLC M3U adresi kopyalandı!')">
+                  <svg class="m3-icon" style="width:16px;height:16px;" viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+                  <span>M3U Kopyala</span>
+                </button>
+                <button class="m3-pill-btn m3-ripple-container" onclick="openConnectModal()">
+                  <svg class="m3-icon" style="width:16px;height:16px;" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+                  <span>Rehber</span>
+                </button>
               </div>
             </div>
-            <div style="display:flex; gap:8px; flex-wrap:wrap;">
-              <button class="btn-mini vlc" onclick="openFullPlaylistInVLC()">▶ Tüm Kütüphaneyi VLC'de Aç</button>
-              <button class="btn-mini primary" onclick="copyEndpointPath('/playlist.m3u', 'VLC M3U adresi kopyalandı!')">📋 VLC M3U Linkini Kopyala</button>
-              <button class="btn-mini" onclick="openConnectModal()">ℹ️ Bağlantı Rehberi</button>
+          </div>
+
+          <div class="m3-section-header">
+            <h2 class="m3-section-title">Kütüphanemdeki İçerikler</h2>
+            <div class="m3-chips-row" style="margin-top:0;">
+              <button class="m3-filter-chip active m3-ripple-container" onclick="filterLibrary('all', this)">
+                <svg class="m3-icon m3-chip-check" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                <span>Tümü</span>
+              </button>
+              <button class="m3-filter-chip m3-ripple-container" onclick="filterLibrary('movie', this)">
+                <svg class="m3-icon m3-chip-check" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                <span>🎬 Filmler</span>
+              </button>
+              <button class="m3-filter-chip m3-ripple-container" onclick="filterLibrary('series', this)">
+                <svg class="m3-icon m3-chip-check" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                <span>📺 Diziler</span>
+              </button>
+              <button class="m3-filter-chip m3-ripple-container" onclick="filterLibrary('anime', this)">
+                <svg class="m3-icon m3-chip-check" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                <span>⛩️ Animeler</span>
+              </button>
             </div>
           </div>
-        </div>
 
-        <div class="section-header">
-          <h2 class="section-title">Kütüphanemdeki İçerikler</h2>
-          <div class="filter-pills">
-            <button class="filter-pill active" onclick="filterLibrary('all', this)">Tümü</button>
-            <button class="filter-pill" onclick="filterLibrary('movie', this)">🎬 Filmler</button>
-            <button class="filter-pill" onclick="filterLibrary('series', this)">📺 Diziler</button>
-            <button class="filter-pill" onclick="filterLibrary('anime', this)">⛩️ Animeler</button>
+          <div id="libraryGrid" class="m3-media-grid"></div>
+        </section>
+
+        <!-- TAB 3: PROVIDERS -->
+        <section id="tab-providers" class="m3-tab-pane">
+          <div class="m3-section-header">
+            <h2 class="m3-section-title">Kayıtlı 34 Sağlayıcı Motoru</h2>
+            <span class="m3-section-subtitle">Anthology Akıllı Çözücü Aktif</span>
+          </div>
+          <div id="providersGrid" class="m3-providers-grid"></div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Mobile Bottom Navigation Bar (< 840px) -->
+    <nav class="m3-bottom-nav">
+      <button class="m3-bottom-item active" onclick="switchTab('search')" id="bottomTabSearch">
+        <div class="m3-bottom-indicator m3-ripple-container">
+          <svg class="m3-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+        </div>
+        <span class="m3-bottom-label">Keşfet</span>
+      </button>
+
+      <button class="m3-bottom-item" onclick="switchTab('library')" id="bottomTabLibrary">
+        <div class="m3-bottom-indicator m3-ripple-container">
+          <svg class="m3-icon" viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8 12.5v-9l6 4.5-6 4.5z"/></svg>
+          <span class="m3-bottom-badge" id="bottomLibCountBadge">0</span>
+        </div>
+        <span class="m3-bottom-label">Kütüphanem</span>
+      </button>
+
+      <button class="m3-bottom-item" onclick="switchTab('providers')" id="bottomTabProviders">
+        <div class="m3-bottom-indicator m3-ripple-container">
+          <svg class="m3-icon" viewBox="0 0 24 24"><path d="M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7 1.49 0 2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5s-1.12-2.5-2.5-2.5z"/></svg>
+        </div>
+        <span class="m3-bottom-label">Sağlayıcılar</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- MODAL 1: AUTH DIALOG / BOTTOM SHEET -->
+  <div class="m3-scrim" id="authModal" onclick="if(event.target===this && !authRequired) closeAuthModal()">
+    <div class="m3-dialog" style="max-width: 440px;">
+      <div class="m3-sheet-handle"></div>
+      <div class="m3-dialog-header">
+        <div class="m3-dialog-title" id="authModalTitle">Anthology Hesabı</div>
+        <button class="m3-icon-btn" id="authModalClose" onclick="closeAuthModal()" title="Kapat">
+          <svg class="m3-icon" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </div>
+      <div class="m3-dialog-body">
+        <div class="m3-chips-row" style="margin-top:0; justify-content:stretch;">
+          <button class="m3-filter-chip active m3-ripple-container" id="authTabLogin" style="flex:1; justify-content:center;" onclick="switchAuthMode('login')">Giriş Yap</button>
+          <button class="m3-filter-chip m3-ripple-container" id="authTabRegister" style="flex:1; justify-content:center;" onclick="switchAuthMode('register')">Yeni Kayıt</button>
+        </div>
+        <form onsubmit="handleAuthSubmit(event)" style="display:flex; flex-direction:column; gap:16px;">
+          <div class="m3-text-field">
+            <label class="m3-text-field-label" for="authUsername">Kullanıcı Adı</label>
+            <input type="text" id="authUsername" class="m3-text-field-input" required autocomplete="username">
+          </div>
+          <div class="m3-text-field">
+            <label class="m3-text-field-label" for="authPassword">Şifre</label>
+            <input type="password" id="authPassword" class="m3-text-field-input" required autocomplete="current-password">
+          </div>
+          <div id="authErrorMsg" style="display:none; color:var(--md-sys-color-error); font-size:12.5px; background:rgba(255,180,171,0.12); padding:10px 14px; border-radius:8px;"></div>
+          <button type="submit" class="m3-pill-btn primary m3-ripple-container" style="height:46px; justify-content:center; margin-top:8px;">
+            <span id="authSubmitText">Giriş Yap</span>
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 2: CONNECT / DEVICES / VLC GUIDE -->
+  <div class="m3-scrim" id="connectModal" onclick="if(event.target===this) closeConnectModal()">
+    <div class="m3-dialog">
+      <div class="m3-sheet-handle"></div>
+      <div class="m3-dialog-header">
+        <div class="m3-dialog-title">
+          <svg class="m3-icon" style="color:var(--md-sys-color-primary);" viewBox="0 0 24 24"><path d="M4 6h18V4H4c-1.1 0-2 .9-2 2v11H0v3h14v-3H4V6zm19 2h-6c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h6c.55 0 1-.45 1-1V9c0-.55-.45-1-1-1zm-1 9h-4v-7h4v7z"/></svg>
+          <span>Cihaz & VLC Bağlantı Rehberi</span>
+        </div>
+        <button class="m3-icon-btn" onclick="closeConnectModal()" title="Kapat">
+          <svg class="m3-icon" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </div>
+      <div class="m3-dialog-body">
+        <div>
+          <div style="font-size:14px; font-weight:700; color:var(--md-sys-color-on-surface); margin-bottom:6px;">1. VLC Streams (Android, iOS, iPadOS, Smart TV, PC)</div>
+          <div style="font-size:12.5px; color:var(--md-sys-color-on-surface-variant); margin-bottom:8px;">
+            VLC uygulamasında <strong>Daha Fazla / Akışlar (Streams)</strong> sekmesine gidip aşağıdaki M3U bağlantısını yapıştırın:
+          </div>
+          <div class="m3-code-snippet">
+            <span id="connectVlcCode">http://.../playlist.m3u</span>
+            <button class="m3-pill-btn primary m3-ripple-container" style="height:32px; padding:0 12px; font-size:11.5px;" onclick="copyEndpointPath('/playlist.m3u', 'VLC M3U adresi kopyalandı!')">Kopyala</button>
+          </div>
+          <div id="btnCopyVlcToken" style="display:none; margin-top:8px;">
+            <button class="m3-pill-btn vlc m3-ripple-container" style="height:34px; font-size:12px;" onclick="copyVlcTokenPlaylist()">
+              🔑 Şifresiz Tokenli VLC Linkini Kopyala
+            </button>
           </div>
         </div>
-        <div id="libraryGrid" class="media-grid"></div>
+
+        <div>
+          <div style="font-size:14px; font-weight:700; color:var(--md-sys-color-on-surface); margin-bottom:6px;">2. WebDAV Oynatıcılar (Infuse, Kodi, VidHub, Nova)</div>
+          <div style="font-size:12.5px; color:var(--md-sys-color-on-surface-variant); margin-bottom:8px;">
+            Infuse veya Kodi'de <strong>WebDAV</strong> kaynağı ekleyin:
+          </div>
+          <div class="m3-code-snippet">
+            <span id="connectDavCode">http://.../dav/</span>
+            <button class="m3-pill-btn primary m3-ripple-container" style="height:32px; padding:0 12px; font-size:11.5px;" onclick="copyEndpointPath('/dav/', 'WebDAV adresi kopyalandı!')">Kopyala</button>
+          </div>
+        </div>
+
+        <div style="background:var(--md-sys-color-surface-container); border-radius:12px; padding:14px; border:1px solid var(--md-sys-color-outline-variant);">
+          <div style="font-size:13px; font-weight:700; color:var(--md-sys-color-primary); margin-bottom:4px;">💡 İpucu: Tek Tıkla VLC</div>
+          <div style="font-size:12px; color:var(--md-sys-color-on-surface-variant); line-height:1.5;">
+            Android, iPhone veya Mac cihazınızda bir içeriği oynatmak için hiçbir şey kopyalamadan doğrudan web arayüzündeki <strong>"▶ VLC'de Oynat"</strong> butonuna basabilirsiniz. Cihazınızdaki VLC uygulaması otomatik olarak başlayacaktır.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 3: SOURCE FINDER & PLAY MODAL -->
+  <div class="m3-scrim" id="sourceModal" onclick="if(event.target===this) closeSourceModal()">
+    <div class="m3-dialog">
+      <div class="m3-sheet-handle"></div>
+      <div class="m3-dialog-header">
+        <div class="m3-dialog-title" id="modalItemTitle">Bölüm Seç & Oynat</div>
+        <button class="m3-icon-btn" onclick="closeSourceModal()" title="Kapat">
+          <svg class="m3-icon" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
       </div>
 
-      <!-- TAB 3: PROVIDERS -->
-      <div id="tab-providers" style="display:none;">
-        <div class="section-header">
-          <h2 class="section-title">Kayıtlı 34 Sağlayıcı Motoru</h2>
-          <span style="color:var(--text-tertiary); font-size:13px;">Anthology Akıllı Çözücü Aktif</span>
-        </div>
-        <div id="providersGrid" class="providers-grid"></div>
+      <!-- Episode bar for series & anime -->
+      <div id="modalEpisodeBar" style="padding: 12px 24px; display:flex; align-items:center; gap:12px; background-color:var(--md-sys-color-surface-container); border-bottom:1px solid var(--md-sys-color-outline-variant); flex-wrap:wrap;">
+        <span id="lblSeason" style="font-size:12.5px; font-weight:600; color:var(--md-sys-color-on-surface-variant);">Sezon:</span>
+        <input type="number" id="modalSeason" class="m3-text-field-input" style="width:70px; height:36px; padding:0 8px; text-align:center;" value="1" min="1">
+        <span id="lblEpisode" style="font-size:12.5px; font-weight:600; color:var(--md-sys-color-on-surface-variant);">Bölüm:</span>
+        <input type="number" id="modalEpisode" class="m3-text-field-input" style="width:70px; height:36px; padding:0 8px; text-align:center;" value="1" min="1">
+        <button class="m3-pill-btn primary m3-ripple-container" style="height:36px; padding:0 14px; font-size:12px;" onclick="scanSourcesForModal()">
+          <svg class="m3-icon" style="width:16px;height:16px;" viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 0 0 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
+          <span>Taramayı Yenile</span>
+        </button>
+        <button class="m3-pill-btn vlc m3-ripple-container" style="height:36px; padding:0 14px; font-size:12px;" onclick="playModalCurrentInVLC()">
+          ▶ Hemen VLC'de Aç
+        </button>
+        <button class="m3-pill-btn m3-ripple-container" style="height:36px; padding:0 12px; font-size:12px;" onclick="copyItemM3UPlaylist()" title="Tüm sezon ve bölümlerin M3U listesini kopyala">
+          📋 M3U Listesi
+        </button>
       </div>
-    </section>
+
+      <div class="m3-dialog-body" id="modalSourceList"></div>
+    </div>
+  </div>
+
+  <!-- M3 SNACKBAR (TOAST) -->
+  <div class="m3-snackbar" id="m3Snackbar">
+    <span id="snackbarIcon">✓</span>
+    <span id="snackbarMsg">İşlem tamamlandı.</span>
   </div>
 
   <script>
@@ -1854,6 +2256,8 @@ const glassmorphismHTML = `<!DOCTYPE html>
     let providerList = [];
     let searchTimeout = null;
     let activeFilter = 'all';
+    let activeSearchFilter = 'all';
+    let lastSearchResults = [];
     let activeModalItem = null;
     let serverLanInfo = null;
 
@@ -1872,12 +2276,36 @@ const glassmorphismHTML = `<!DOCTYPE html>
       return h;
     }
 
-    // Hotkey: Command+K to focus search
+    // Material 3 Ripple Effect Implementation
+    document.addEventListener('pointerdown', (e) => {
+      const target = e.target.closest('.m3-ripple-container, .m3-pill-btn, .m3-filter-chip, .m3-card-btn, .m3-rail-item, .m3-bottom-item, .m3-icon-btn, .m3-media-card');
+      if (!target) return;
+      
+      const rect = target.getBoundingClientRect();
+      const circle = document.createElement('span');
+      const diameter = Math.max(rect.width, rect.height);
+      const radius = diameter / 2;
+      
+      circle.style.width = circle.style.height = diameter + 'px';
+      circle.style.left = (e.clientX - rect.left - radius) + 'px';
+      circle.style.top = (e.clientY - rect.top - radius) + 'px';
+      circle.classList.add('m3-ripple-wave');
+      
+      const existing = target.getElementsByClassName('m3-ripple-wave')[0];
+      if (existing) existing.remove();
+      
+      target.appendChild(circle);
+      setTimeout(() => circle.remove(), 580);
+    });
+
+    // Hotkey: Command+K / Ctrl+K to focus search
     window.addEventListener('keydown', (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
         switchTab('search');
-        document.getElementById('searchInput').focus();
+        const input = document.getElementById('searchInput');
+        input.focus();
+        input.select();
       }
       if (e.key === 'Escape') {
         closeSourceModal();
@@ -1931,19 +2359,36 @@ const glassmorphismHTML = `<!DOCTYPE html>
     }
 
     function updateUserHeader() {
-      const box = document.getElementById('userHeaderBox');
-      if (!box) return;
-      if (!isMultiUser) {
-        box.innerHTML = '<div class="user-badge-btn" style="color:var(--text-secondary); cursor:default;">💻 Yerel Mod</div>';
-        return;
-      }
-      if (currentUser) {
-        box.innerHTML = '<div class="user-badge-btn">' +
-          '<span>👤 <strong>' + escapeHtml(currentUser.username) + '</strong></span>' +
-          '<button class="btn-logout" onclick="handleLogout()" title="Oturumu Kapat">Çıkış</button>' +
-        '</div>';
-      } else {
-        box.innerHTML = '<button class="btn-mini primary" onclick="openAuthModal(\'login\', false)" style="padding:7px 14px; font-size:12.5px;">🔑 Giriş Yap</button>';
+      const topBox = document.getElementById('topUserHeaderBox');
+      const railBox = document.getElementById('railUserHeaderBox');
+      
+      const userHtml = (!isMultiUser)
+        ? '<div class="m3-pill-btn" style="color:var(--md-sys-color-on-surface-variant); cursor:default; height:36px; padding:0 12px; font-size:11.5px;">Yerel Mod</div>'
+        : (currentUser
+            ? '<div style="display:flex; align-items:center; gap:8px;">' +
+                '<span class="m3-pill-btn" style="height:36px; padding:0 12px; font-size:12px; border-color:var(--md-sys-color-primary);">' +
+                  '👤 <strong>' + escapeHtml(currentUser.username) + '</strong>' +
+                '</span>' +
+                '<button class="m3-icon-btn" onclick="handleLogout()" title="Çıkış Yap">' +
+                  '<svg class="m3-icon" viewBox="0 0 24 24"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>' +
+                '</button>' +
+              '</div>'
+            : '<button class="m3-pill-btn primary m3-ripple-container" onclick="openAuthModal(\'login\', false)" style="height:36px; padding:0 14px; font-size:12.5px;">Giriş Yap</button>'
+          );
+
+      if (topBox) topBox.innerHTML = userHtml;
+      if (railBox) {
+        if (!isMultiUser) {
+          railBox.innerHTML = '';
+        } else if (currentUser) {
+          railBox.innerHTML = '<button class="m3-icon-btn m3-ripple-container" onclick="handleLogout()" title="' + escapeHtml(currentUser.username) + ' (Çıkış)">' +
+            '<svg class="m3-icon" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>' +
+          '</button>';
+        } else {
+          railBox.innerHTML = '<button class="m3-icon-btn m3-ripple-container" onclick="openAuthModal(\'login\', false)" title="Giriş Yap">' +
+            '<svg class="m3-icon" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>' +
+          '</button>';
+        }
       }
     }
 
@@ -2019,7 +2464,7 @@ const glassmorphismHTML = `<!DOCTYPE html>
       showToast('Oturum kapatıldı.', '✓');
       if (isMultiUser) {
         libraryItems = [];
-        document.getElementById('libCountBadge').textContent = '0';
+        updateLibraryBadges(0);
         renderLibrary();
         openAuthModal('login', true);
       }
@@ -2034,11 +2479,11 @@ const glassmorphismHTML = `<!DOCTYPE html>
       if (isMultiUser && currentUser) {
         if (vlcCode) {
           const hostPort = baseOrigin.replace(/^https?:\/\//i, '');
-          vlcCode.innerHTML = 'http://<strong style="color:#FF9F0A;">' + escapeHtml(currentUser.username) + ':&lt;sifreniz&gt;</strong>@' + hostPort + '/playlist.m3u';
+          vlcCode.innerHTML = 'http://<strong style="color:var(--md-sys-color-primary);">' + escapeHtml(currentUser.username) + ':&lt;sifreniz&gt;</strong>@' + hostPort + '/playlist.m3u';
         }
         if (davCode) {
-          davCode.innerHTML = baseOrigin + '/dav/<br><span style="font-size:11.5px; color:var(--text-secondary);">' +
-            'Kullanıcı: <strong style="color:#64D2FF;">' + escapeHtml(currentUser.username) + '</strong> | Şifre: <strong style="color:#64D2FF;">(hesap şifreniz)</strong></span>';
+          davCode.innerHTML = baseOrigin + '/dav/<br><span style="font-size:11.5px; color:var(--md-sys-color-on-surface-variant);">' +
+            'Kullanıcı: <strong style="color:var(--md-sys-color-primary);">' + escapeHtml(currentUser.username) + '</strong> | Şifre: <strong>(hesap şifreniz)</strong></span>';
         }
         if (vlcTokenBtn) {
           vlcTokenBtn.style.display = authToken ? 'inline-block' : 'none';
@@ -2048,7 +2493,7 @@ const glassmorphismHTML = `<!DOCTYPE html>
           vlcCode.textContent = baseOrigin + '/playlist.m3u';
         }
         if (davCode) {
-          davCode.innerHTML = baseOrigin + '/dav/<br><span style="font-size:11px; color:var(--text-secondary);">(Yerel mod: Kullanıcı adı ve şifre gerekmez)</span>';
+          davCode.innerHTML = baseOrigin + '/dav/<br><span style="font-size:11px; color:var(--md-sys-color-on-surface-variant);">(Yerel mod: Kullanıcı adı ve şifre gerekmez)</span>';
         }
         if (vlcTokenBtn) {
           vlcTokenBtn.style.display = 'none';
@@ -2158,52 +2603,54 @@ const glassmorphismHTML = `<!DOCTYPE html>
       }
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(url).then(() => {
-          showToast(activeModalItem.title + ' M3U oynatma listesi kopyalandı! VLC Akışlar kısmına yapıştırabilirsiniz.', '📋');
+          showToast(activeModalItem.title + ' M3U listesi kopyalandı! VLC Akışlar kısmına yapıştırabilirsiniz.', '📋');
         });
       } else {
         prompt('M3U Oynatma Listesi Adresi:', url);
       }
     }
 
-    document.getElementById('searchInput').addEventListener('input', (e) => {
-      clearTimeout(searchTimeout);
-      const q = e.target.value.trim();
-      if (!q) {
-        document.getElementById('searchResults').innerHTML = '';
-        document.getElementById('searchResultCount').textContent = '';
-        return;
-      }
-      searchTimeout = setTimeout(() => doSearch(q), 300);
-    });
-
     function showToast(msg, icon = '✓') {
-      const toast = document.getElementById('toast');
-      document.getElementById('toastMsg').textContent = msg;
-      document.getElementById('toastIcon').textContent = icon;
-      toast.classList.add('show');
-      setTimeout(() => toast.classList.remove('show'), 2600);
+      const snackbar = document.getElementById('m3Snackbar');
+      document.getElementById('snackbarMsg').textContent = msg;
+      document.getElementById('snackbarIcon').textContent = icon;
+      snackbar.classList.add('show');
+      setTimeout(() => snackbar.classList.remove('show'), 2800);
     }
 
     function switchTab(tab) {
       currentTab = tab;
-      document.querySelectorAll('.segment-btn').forEach((btn, idx) => {
-        btn.classList.toggle('active', 
-          (tab === 'search' && idx === 0) ||
-          (tab === 'library' && idx === 1) ||
-          (tab === 'providers' && idx === 2)
-        );
-      });
-      document.getElementById('tab-search').style.display = tab === 'search' ? 'block' : 'none';
-      document.getElementById('tab-library').style.display = tab === 'library' ? 'block' : 'none';
-      document.getElementById('tab-providers').style.display = tab === 'providers' ? 'block' : 'none';
+      
+      // Update Rail navigation items
+      document.getElementById('railTabSearch').classList.toggle('active', tab === 'search');
+      document.getElementById('railTabLibrary').classList.toggle('active', tab === 'library');
+      document.getElementById('railTabProviders').classList.toggle('active', tab === 'providers');
+
+      // Update Bottom navigation items
+      document.getElementById('bottomTabSearch').classList.toggle('active', tab === 'search');
+      document.getElementById('bottomTabLibrary').classList.toggle('active', tab === 'library');
+      document.getElementById('bottomTabProviders').classList.toggle('active', tab === 'providers');
+
+      // Update Tab panes
+      document.getElementById('tab-search').classList.toggle('active', tab === 'search');
+      document.getElementById('tab-library').classList.toggle('active', tab === 'library');
+      document.getElementById('tab-providers').classList.toggle('active', tab === 'providers');
 
       if (tab === 'library') loadLibrary();
       if (tab === 'providers') loadProviders();
     }
 
+    function updateLibraryBadges(count) {
+      const str = String(count || 0);
+      const railBadge = document.getElementById('railLibCountBadge');
+      const bottomBadge = document.getElementById('bottomLibCountBadge');
+      if (railBadge) railBadge.textContent = str;
+      if (bottomBadge) bottomBadge.textContent = str;
+    }
+
     async function loadLibrary() {
       if (isMultiUser && !currentUser) {
-        document.getElementById('libCountBadge').textContent = '0';
+        updateLibraryBadges(0);
         renderLibrary();
         return;
       }
@@ -2214,7 +2661,7 @@ const glassmorphismHTML = `<!DOCTYPE html>
           return;
         }
         libraryItems = await res.json() || [];
-        document.getElementById('libCountBadge').textContent = libraryItems.length;
+        updateLibraryBadges(libraryItems.length);
         renderLibrary();
       } catch (e) {
         console.error(e);
@@ -2223,7 +2670,7 @@ const glassmorphismHTML = `<!DOCTYPE html>
 
     function filterLibrary(type, btn) {
       activeFilter = type;
-      document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+      btn.parentElement.querySelectorAll('.m3-filter-chip').forEach(p => p.classList.remove('active'));
       btn.classList.add('active');
       renderLibrary();
     }
@@ -2236,14 +2683,18 @@ const glassmorphismHTML = `<!DOCTYPE html>
       }
 
       if (filtered.length === 0) {
-        grid.innerHTML = '<div class="empty-state" style="grid-column: 1/-1;"><div class="empty-icon">📭</div><h3>Kütüphanenizde henüz içerik yok.</h3><p style="margin-top:6px;">"Keşfet & Ara" sekmesinden izlemek istediğiniz içerikleri ekleyebilirsiniz.</p></div>';
+        grid.innerHTML = '<div class="m3-empty-state" style="grid-column: 1/-1;">' +
+          '<svg class="m3-empty-icon" viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8 12.5v-9l6 4.5-6 4.5z"/></svg>' +
+          '<h3 style="font-size:17px; color:var(--md-sys-color-on-surface);">Kütüphanenizde henüz içerik yok.</h3>' +
+          '<p style="font-size:13px;">"Keşfet" sekmesinden arama yaparak dilediğiniz film, dizi ve animeleri ekleyebilirsiniz.</p>' +
+        '</div>';
         return;
       }
 
       grid.innerHTML = filtered.map(it => {
-        const badgeClass = it.type === 'anime' ? 'badge-anime' : (it.type === 'series' ? 'badge-series' : 'badge-movie');
-        const badgeLabel = it.type === 'anime' ? '⛩️ ANIME' : (it.type === 'series' ? '📺 DIZI' : '🎬 FILM');
-        const poster = it.poster_url || 'https://via.placeholder.com/300x450/111/444?text=Poster';
+        const badgeClass = it.type === 'anime' ? 'm3-badge-anime' : (it.type === 'series' ? 'm3-badge-series' : 'm3-badge-movie');
+        const badgeLabel = it.type === 'anime' ? '⛩️ Anime' : (it.type === 'series' ? '📺 Dizi' : '🎬 Film');
+        const poster = it.poster_url || 'https://via.placeholder.com/300x450/131720/8c919d?text=Poster';
         const workingSet = new Set(it.working_providers || []);
 
         let relevantProvs = [...providerList];
@@ -2251,7 +2702,7 @@ const glassmorphismHTML = `<!DOCTYPE html>
           relevantProvs.sort((a, b) => (workingSet.has(b.id) ? 1 : 0) - (workingSet.has(a.id) ? 1 : 0));
         }
 
-        let provOptions = '<option value="auto">⚡ Otomatik (En İyi Çalışan Kaynak)</option>';
+        let provOptions = '<option value="auto">⚡ Otomatik (En Yüksek Kalite)</option>';
         relevantProvs.forEach(p => {
           const selected = (it.selected_provider === p.id) ? 'selected' : '';
           const prefix = workingSet.has(p.id) ? '✓ ' : '';
@@ -2259,30 +2710,36 @@ const glassmorphismHTML = `<!DOCTYPE html>
           provOptions += '<option value="' + p.id + '" ' + selected + '>' + prefix + (p.title || p.name) + suffix + '</option>';
         });
 
-        const workInfo = workingSet.size > 0 ? (workingSet.size + ' çalışan kaynak') : 'Yayına Hazır';
+        const workInfo = workingSet.size > 0 ? (workingSet.size + ' kaynak doğrulandı') : 'Yayına Hazır';
         const vlcBtn = (it.type === 'movie')
-          ? '<button class="btn-action btn-vlc" onclick="playMovieInVLC(\'' + it.id + '\')">▶ VLC\'de Oynat</button>'
-          : '<button class="btn-action btn-vlc" onclick="openSourceFinder(\'' + it.id + '\')">▶ Bölüm Seç & VLC\'de Oynat</button>';
+          ? '<button class="m3-card-btn vlc m3-ripple-container" onclick="playMovieInVLC(\'' + it.id + '\')"><svg class="m3-icon" style="width:16px;height:16px;" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg><span>▶ VLC\'de Oynat</span></button>'
+          : '<button class="m3-card-btn vlc m3-ripple-container" onclick="openSourceFinder(\'' + it.id + '\')"><svg class="m3-icon" style="width:16px;height:16px;" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg><span>▶ Bölüm Seç & Oynat</span></button>';
 
-        return '<div class="media-card">' +
-          '<div class="poster-box">' +
-            '<img class="poster-img" src="' + poster + '" loading="lazy" alt="' + escapeHtml(it.title) + '">' +
-            '<span class="badge-type ' + badgeClass + '">' + badgeLabel + '</span>' +
+        return '<div class="m3-media-card">' +
+          '<div class="m3-poster-box">' +
+            '<img class="m3-poster-img" src="' + poster + '" loading="lazy" alt="' + escapeHtml(it.title) + '">' +
+            '<div class="m3-poster-scrim"></div>' +
+            '<span class="m3-badge-type ' + badgeClass + '">' + badgeLabel + '</span>' +
           '</div>' +
-          '<div class="card-body">' +
-            '<div class="media-title" title="' + escapeHtml(it.title) + '">' + escapeHtml(it.title) + '</div>' +
-            '<div class="media-meta"><span>' + (it.year || 'N/A') + '</span> • <span style="color:var(--accent-green);">' + workInfo + '</span></div>' +
-            '<label style="font-size:10px; color:var(--text-tertiary);">Oynatma Kaynağı:</label>' +
-            '<select class="provider-select" onchange="changeProvider(\'' + it.id + '\', this.value)">' +
-              provOptions +
-            '</select>' +
+          '<div class="m3-card-body">' +
+            '<div>' +
+              '<div class="m3-card-title" title="' + escapeHtml(it.title) + '">' + escapeHtml(it.title) + '</div>' +
+              '<div class="m3-card-meta"><span>' + (it.year || 'N/A') + '</span> • <span style="color:#A6F5B5; font-weight:600;">' + workInfo + '</span></div>' +
+            '</div>' +
+            '<div>' +
+              '<label style="font-size:10.5px; color:var(--md-sys-color-on-surface-variant); display:block; margin-bottom:4px;">Oynatma Kaynağı:</label>' +
+              '<select class="m3-card-select" onchange="changeProvider(\'' + it.id + '\', this.value)">' +
+                provOptions +
+              '</select>' +
+            '</div>' +
             vlcBtn +
-            '<button class="btn-action btn-discover" style="margin-top:6px;" onclick="openSourceFinder(\'' + it.id + '\')">' +
-              '🔍 Çalışan Kaynakları Bul' +
+            '<button class="m3-card-btn m3-ripple-container" onclick="openSourceFinder(\'' + it.id + '\')">' +
+              '<svg class="m3-icon" style="width:16px;height:16px;" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>' +
+              '<span>Kaynakları Bul</span>' +
             '</button>' +
-            '<button class="btn-action btn-delete" onclick="removeFromLibrary(\'' + it.id + '\', \'' + it.title.replace(/'/g, "\\'") + '\')">' +
-              '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>' +
-              'Kütüphaneden Çıkar' +
+            '<button class="m3-card-btn danger m3-ripple-container" onclick="removeFromLibrary(\'' + it.id + '\', \'' + it.title.replace(/'/g, "\\'") + '\')">' +
+              '<svg class="m3-icon" style="width:16px;height:16px;" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>' +
+              '<span>Kütüphaneden Çıkar</span>' +
             '</button>' +
           '</div>' +
         '</div>';
@@ -2316,7 +2773,7 @@ const glassmorphismHTML = `<!DOCTYPE html>
       const s = parseInt(document.getElementById('modalSeason').value || '1', 10);
       const e = parseInt(document.getElementById('modalEpisode').value || '1', 10);
       const listEl = document.getElementById('modalSourceList');
-      listEl.innerHTML = '<div style="text-align:center; padding:32px; color:var(--text-secondary);">⏳ Sağlayıcılar eşzamanlı taranıyor ve doğrulanıyor...<br><span style="font-size:11.5px; color:var(--text-tertiary);">Beklemeden oynatmak için üstteki "▶ VLC\'de Oynat" butonuna basabilirsiniz.</span></div>';
+      listEl.innerHTML = '<div class="m3-empty-state"><div style="font-size:24px;">⏳</div><div>Sağlayıcılar eşzamanlı taranıyor ve doğrulanıyor...</div><div style="font-size:12px; color:var(--md-sys-color-on-surface-variant);">Beklemek istemiyorsanız üstteki "▶ Hemen VLC\'de Aç" butonuyla anında izleyebilirsiniz.</div></div>';
 
       try {
         const u = '/api/sources?type=' + encodeURIComponent(it.type) +
@@ -2331,45 +2788,45 @@ const glassmorphismHTML = `<!DOCTYPE html>
         const sources = (data && data.sources) ? data.sources : [];
 
         if (sources.length === 0) {
-          listEl.innerHTML = '<div style="text-align:center; padding:30px; color:var(--accent-pink);">Bu bölüm/içerik için şu an aktif bir yayın kaynağı bulunamadı.</div>';
+          listEl.innerHTML = '<div class="m3-empty-state"><div style="font-size:24px;">⚠️</div><div style="color:var(--md-sys-color-error);">Bu bölüm için şu an aktif bir yayın kaynağı bulunamadı.</div></div>';
           return;
         }
 
         await loadLibrary();
 
         const bestQual = sources[0].quality || '1080p';
-        let html = '<div class="source-row" style="border-color: rgba(48, 209, 88, 0.35); background: rgba(48, 209, 88, 0.08);">' +
-          '<div class="source-row-info">' +
-            '<div class="source-row-name">⚡ Otomatik (En İyi Çalışan Kaynak) <span class="status-badge">' + bestQual + '</span></div>' +
-            '<div class="source-row-sub">Doğrulanmış ' + sources.length + ' kaynak arasından en yüksek kaliteyi otomatik oynatır</div>' +
+        let html = '<div class="m3-source-row" style="border-color: rgba(48, 209, 88, 0.4); background: rgba(48, 209, 88, 0.08);">' +
+          '<div class="m3-source-row-info">' +
+            '<div class="m3-source-row-name">⚡ Otomatik (En İyi Çalışan Kaynak) <span class="m3-status-chip" style="font-size:10px; padding:2px 8px;">' + bestQual + '</span></div>' +
+            '<div class="m3-source-row-sub">Doğrulanmış ' + sources.length + ' kaynak arasından en yüksek kaliteyi otomatik oynatır</div>' +
           '</div>' +
-          '<div class="source-row-actions">' +
-            '<button class="btn-mini vlc" onclick="playModalCurrentInVLC(\'auto\')">▶ VLC\'de Aç</button>' +
-            '<button class="btn-mini primary" onclick="selectWorkingProvider(\'' + it.id + '\', \'auto\')">Varsayılan Yap</button>' +
-            '<button class="btn-mini" onclick="copyWorkingStreamURL(\'auto\', ' + s + ', ' + e + ')">Linki Kopyala</button>' +
+          '<div class="m3-source-row-actions">' +
+            '<button class="m3-pill-btn vlc m3-ripple-container" style="height:32px; padding:0 12px; font-size:11.5px;" onclick="playModalCurrentInVLC(\'auto\')">▶ VLC\'de Aç</button>' +
+            '<button class="m3-pill-btn primary m3-ripple-container" style="height:32px; padding:0 12px; font-size:11.5px;" onclick="selectWorkingProvider(\'' + it.id + '\', \'auto\')">Varsayılan Yap</button>' +
+            '<button class="m3-pill-btn m3-ripple-container" style="height:32px; padding:0 12px; font-size:11.5px;" onclick="copyWorkingStreamURL(\'auto\', ' + s + ', ' + e + ')">Linki Kopyala</button>' +
           '</div>' +
         '</div>';
 
         sources.forEach((src, idx) => {
           const isCurrent = (it.selected_provider === src.provider_id);
-          html += '<div class="source-row">' +
-            '<div class="source-row-info">' +
-              '<div class="source-row-name">' + (idx + 1) + '. ' + escapeHtml(src.provider_name) + ' <span class="status-badge">' + src.quality + ' • ' + src.format + '</span></div>' +
-              '<div class="source-row-sub">' + escapeHtml(src.title || src.provider_name) + '</div>' +
+          html += '<div class="m3-source-row">' +
+            '<div class="m3-source-row-info">' +
+              '<div class="m3-source-row-name">' + (idx + 1) + '. ' + escapeHtml(src.provider_name) + ' <span class="m3-status-chip" style="font-size:10px; padding:2px 8px;">' + src.quality + ' • ' + src.format + '</span></div>' +
+              '<div class="m3-source-row-sub">' + escapeHtml(src.title || src.provider_name) + '</div>' +
             '</div>' +
-            '<div class="source-row-actions">' +
-              '<button class="btn-mini vlc" onclick="playModalCurrentInVLC(\'' + src.provider_id + '\')">▶ VLC\'de Aç</button>' +
-              '<button class="btn-mini ' + (isCurrent ? '' : 'primary') + '" onclick="selectWorkingProvider(\'' + it.id + '\', \'' + src.provider_id + '\')">' +
+            '<div class="m3-source-row-actions">' +
+              '<button class="m3-pill-btn vlc m3-ripple-container" style="height:32px; padding:0 12px; font-size:11.5px;" onclick="playModalCurrentInVLC(\'' + src.provider_id + '\')">▶ VLC\'de Aç</button>' +
+              '<button class="m3-pill-btn ' + (isCurrent ? '' : 'primary') + ' m3-ripple-container" style="height:32px; padding:0 12px; font-size:11.5px;" onclick="selectWorkingProvider(\'' + it.id + '\', \'' + src.provider_id + '\')">' +
                 (isCurrent ? '✓ Seçili' : 'Bu Kaynağı Seç') +
               '</button>' +
-              '<button class="btn-mini" onclick="copyWorkingStreamURL(\'' + src.provider_id + '\', ' + s + ', ' + e + ')">Linki Kopyala</button>' +
+              '<button class="m3-pill-btn m3-ripple-container" style="height:32px; padding:0 12px; font-size:11.5px;" onclick="copyWorkingStreamURL(\'' + src.provider_id + '\', ' + s + ', ' + e + ')">Linki Kopyala</button>' +
             '</div>' +
           '</div>';
         });
 
         listEl.innerHTML = html;
       } catch (err) {
-        listEl.innerHTML = '<div style="text-align:center; padding:30px; color:var(--accent-pink);">Tarama sırasında hata oluştu.</div>';
+        listEl.innerHTML = '<div class="m3-empty-state"><div style="color:var(--md-sys-color-error);">Tarama sırasında hata oluştu.</div></div>';
       }
     }
 
@@ -2390,53 +2847,106 @@ const glassmorphismHTML = `<!DOCTYPE html>
         '&provider=' + encodeURIComponent(provId);
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(url).then(() => {
-          showToast('Doğrulanmış yayın linki kopyalandı! (VLC / IINA / Infuse ile açabilirsiniz)', '▶');
+          showToast('Doğrulanmış yayın linki kopyalandı! (VLC, IINA, Infuse ile açabilirsiniz)', '▶');
         });
       } else {
         prompt('Yayın Linki:', url);
       }
     }
 
+    const searchInputEl = document.getElementById('searchInput');
+    const searchClearBtn = document.getElementById('searchClearBtn');
+
+    searchInputEl.addEventListener('input', (e) => {
+      clearTimeout(searchTimeout);
+      const q = e.target.value.trim();
+      searchClearBtn.style.display = q ? 'flex' : 'none';
+      if (!q) {
+        lastSearchResults = [];
+        document.getElementById('searchResults').innerHTML = '';
+        document.getElementById('searchResultCount').textContent = '';
+        return;
+      }
+      searchTimeout = setTimeout(() => doSearch(q), 280);
+    });
+
+    function clearSearch() {
+      searchInputEl.value = '';
+      searchClearBtn.style.display = 'none';
+      lastSearchResults = [];
+      document.getElementById('searchResults').innerHTML = '';
+      document.getElementById('searchResultCount').textContent = '';
+      searchInputEl.focus();
+    }
+
+    function filterSearchResults(type, btn) {
+      activeSearchFilter = type;
+      btn.parentElement.querySelectorAll('.m3-filter-chip').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      renderSearchResults();
+    }
+
     async function doSearch(query) {
       const resultsContainer = document.getElementById('searchResults');
-      resultsContainer.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding: 40px; color: var(--text-secondary);">TMDB taranıyor...</div>';
+      resultsContainer.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding: 48px; color: var(--md-sys-color-on-surface-variant);">' +
+        '<div style="font-size:24px; margin-bottom:8px;">⏳</div><div>TMDB taranıyor...</div></div>';
       try {
         const res = await fetch('/api/search?q=' + encodeURIComponent(query));
-        const list = await res.json() || [];
-        document.getElementById('searchResultCount').textContent = list.length + ' sonuç bulundu';
-
-        if (list.length === 0) {
-          resultsContainer.innerHTML = '<div class="empty-state" style="grid-column: 1/-1;"><div class="empty-icon">🔍</div><h3>Sonuç bulunamadı</h3></div>';
-          return;
-        }
-
-        resultsContainer.innerHTML = list.map(it => {
-          const isAdded = libraryItems.some(lib => lib.tmdb_id === it.id);
-          const badgeClass = it.type === 'anime' ? 'badge-anime' : (it.type === 'series' ? 'badge-series' : 'badge-movie');
-          const badgeLabel = it.type === 'anime' ? '⛩️ ANIME' : (it.type === 'series' ? '📺 DIZI' : '🎬 FILM');
-          const poster = it.poster_url || 'https://via.placeholder.com/300x450/111/444?text=Poster';
-          const rating = it.rating ? '★ ' + it.rating.toFixed(1) : '';
-
-          const actionBtn = isAdded ?
-            '<button class="btn-action btn-added">✓ Kütüphanede</button>' :
-            '<button class="btn-action" onclick="addToLibrary(' + JSON.stringify(it).replace(/"/g, '&quot;') + ')">+ Kütüphaneme Ekle</button>';
-
-          return '<div class="media-card">' +
-            '<div class="poster-box">' +
-              '<img class="poster-img" src="' + poster + '" loading="lazy" alt="' + escapeHtml(it.title) + '">' +
-              '<span class="badge-type ' + badgeClass + '">' + badgeLabel + '</span>' +
-              (rating ? '<span class="rating-badge">' + rating + '</span>' : '') +
-            '</div>' +
-            '<div class="card-body">' +
-              '<div class="media-title" title="' + escapeHtml(it.title) + '">' + escapeHtml(it.title) + '</div>' +
-              '<div class="media-meta"><span>' + (it.year || 'N/A') + '</span></div>' +
-              actionBtn +
-            '</div>' +
-          '</div>';
-        }).join('');
+        lastSearchResults = await res.json() || [];
+        renderSearchResults();
       } catch (e) {
-        resultsContainer.innerHTML = '<div style="color:var(--accent-pink); padding:20px;">Arama sırasında hata oluştu.</div>';
+        resultsContainer.innerHTML = '<div style="color:var(--md-sys-color-error); padding:24px; text-align:center;">Arama sırasında hata oluştu.</div>';
       }
+    }
+
+    function renderSearchResults() {
+      const resultsContainer = document.getElementById('searchResults');
+      let filtered = lastSearchResults;
+      if (activeSearchFilter !== 'all') {
+        filtered = lastSearchResults.filter(it => it.type === activeSearchFilter);
+      }
+
+      document.getElementById('searchResultCount').textContent = filtered.length + ' sonuç bulundu';
+
+      if (filtered.length === 0) {
+        resultsContainer.innerHTML = '<div class="m3-empty-state" style="grid-column: 1/-1;">' +
+          '<svg class="m3-empty-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>' +
+          '<h3 style="font-size:16px; color:var(--md-sys-color-on-surface);">Sonuç bulunamadı</h3>' +
+          '<p style="font-size:12.5px;">Arama terimini değiştirerek veya filtreyi "Tümü" yaparak tekrar deneyebilirsiniz.</p>' +
+        '</div>';
+        return;
+      }
+
+      resultsContainer.innerHTML = filtered.map(it => {
+        const isAdded = libraryItems.some(lib => lib.tmdb_id === it.id);
+        const badgeClass = it.type === 'anime' ? 'm3-badge-anime' : (it.type === 'series' ? 'm3-badge-series' : 'm3-badge-movie');
+        const badgeLabel = it.type === 'anime' ? '⛩️ Anime' : (it.type === 'series' ? '📺 Dizi' : '🎬 Film');
+        const poster = it.poster_url || 'https://via.placeholder.com/300x450/131720/8c919d?text=Poster';
+        const rating = it.rating ? '★ ' + it.rating.toFixed(1) : '';
+
+        const actionBtn = isAdded
+          ? '<button class="m3-card-btn added">✓ Kütüphanede</button>'
+          : '<button class="m3-card-btn add-btn m3-ripple-container" onclick="addToLibrary(' + JSON.stringify(it).replace(/"/g, '&quot;') + ')">' +
+              '<svg class="m3-icon" style="width:16px;height:16px;" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>' +
+              '<span>Kütüphaneme Ekle</span>' +
+            '</button>';
+
+        return '<div class="m3-media-card">' +
+          '<div class="m3-poster-box">' +
+            '<img class="m3-poster-img" src="' + poster + '" loading="lazy" alt="' + escapeHtml(it.title) + '">' +
+            '<div class="m3-poster-scrim"></div>' +
+            '<span class="m3-badge-type ' + badgeClass + '">' + badgeLabel + '</span>' +
+            (rating ? '<span class="m3-rating-badge">' + rating + '</span>' : '') +
+          '</div>' +
+          '<div class="m3-card-body">' +
+            '<div>' +
+              '<div class="m3-card-title" title="' + escapeHtml(it.title) + '">' + escapeHtml(it.title) + '</div>' +
+              '<div class="m3-card-meta"><span>' + (it.year || 'N/A') + '</span></div>' +
+            '</div>' +
+            actionBtn +
+          '</div>' +
+        '</div>';
+      }).join('');
     }
 
     async function addToLibrary(it) {
@@ -2466,10 +2976,9 @@ const glassmorphismHTML = `<!DOCTYPE html>
           return;
         }
         if (res.ok) {
-          showToast(it.title + ' kütüphanenize eklendi! Medya oynatıcınızdan hemen izleyebilirsiniz.');
+          showToast(it.title + ' kütüphanenize eklendi!', '✓');
           await loadLibrary();
-          const q = document.getElementById('searchInput').value.trim();
-          if (q) doSearch(q);
+          renderSearchResults();
         }
       } catch (e) {
         showToast('Ekleme başarısız!', '✕');
@@ -2492,7 +3001,7 @@ const glassmorphismHTML = `<!DOCTYPE html>
           return;
         }
         if (res.ok) {
-          showToast(title + ' kütüphaneden çıkarıldı.');
+          showToast(title + ' kütüphaneden çıkarıldı.', '✓');
           await loadLibrary();
         }
       } catch (e) {
@@ -2515,7 +3024,7 @@ const glassmorphismHTML = `<!DOCTYPE html>
           openAuthModal('login', true);
           return;
         }
-        showToast('Varsayılan oynatma kaynağı güncellendi: ' + prov);
+        showToast('Varsayılan oynatma kaynağı güncellendi: ' + prov, '⚡');
       } catch (e) {
         console.error(e);
       }
@@ -2523,7 +3032,8 @@ const glassmorphismHTML = `<!DOCTYPE html>
 
     async function loadProviders() {
       const grid = document.getElementById('providersGrid');
-      grid.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding: 30px;">Sağlayıcılar taranıyor...</div>';
+      grid.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding: 48px; color:var(--md-sys-color-on-surface-variant);">' +
+        '<div style="font-size:24px; margin-bottom:8px;">⏳</div><div>Sağlayıcılar taranıyor...</div></div>';
       try {
         const res = await fetch('/api/providers');
         providerList = await res.json() || [];
@@ -2536,37 +3046,37 @@ const glassmorphismHTML = `<!DOCTYPE html>
 
           let logoHtml = '';
           if (hasFavicon) {
-            logoHtml = '<div class="provider-logo-box">' +
-              '<img class="provider-logo-img" src="' + faviconUrl + '" alt="' + escapeHtml(title) + '" ' +
+            logoHtml = '<div class="m3-provider-logo-box">' +
+              '<img class="m3-provider-logo-img" src="' + faviconUrl + '" alt="' + escapeHtml(title) + '" ' +
                 'onload="this.style.display=\'block\'; if(this.nextElementSibling) this.nextElementSibling.style.display=\'none\';" ' +
                 'onerror="this.style.display=\'none\'; if(this.nextElementSibling) this.nextElementSibling.style.display=\'flex\';">' +
-              '<div class="provider-fallback-icon" style="display:none;">' + icon + '</div>' +
+              '<div style="display:none; font-size:18px;">' + icon + '</div>' +
             '</div>';
           } else {
-            logoHtml = '<div class="provider-logo-box"><div class="provider-fallback-icon">' + icon + '</div></div>';
+            logoHtml = '<div class="m3-provider-logo-box"><div style="font-size:18px;">' + icon + '</div></div>';
           }
 
           const domainText = domain ? domain : p.id;
 
-          return '<div class="provider-card">' +
+          return '<div class="m3-provider-card">' +
             logoHtml +
-            '<div class="provider-info">' +
-              '<div class="provider-title" title="' + escapeHtml(title) + '">' + escapeHtml(title) + '</div>' +
-              '<div class="provider-meta">' +
-                '<span class="provider-cat-tag">' + p.category + '</span>' +
+            '<div class="m3-provider-info">' +
+              '<div class="m3-provider-name" title="' + escapeHtml(title) + '">' + escapeHtml(title) + '</div>' +
+              '<div class="m3-provider-meta">' +
+                '<span class="m3-provider-cat-tag">' + p.category + '</span>' +
                 '<span>•</span>' +
                 '<span title="' + domainText + '">' + domainText + '</span>' +
               '</div>' +
             '</div>' +
-            '<span class="status-badge provider-status">AKTİF</span>' +
+            '<span class="m3-status-chip" style="font-size:10px; padding:2px 8px;">AKTİF</span>' +
           '</div>';
         }).join('');
       } catch (e) {
-        grid.innerHTML = '<div style="color:var(--accent-pink);">Sağlayıcılar yüklenemedi.</div>';
+        grid.innerHTML = '<div style="color:var(--md-sys-color-error); padding:24px; text-align:center;">Sağlayıcılar yüklenemedi.</div>';
       }
     }
 
-    // Initial load
+    // Initial load sequence
     (async () => {
       await loadServerStatus();
       await checkAuthMe();
@@ -2579,3 +3089,5 @@ const glassmorphismHTML = `<!DOCTYPE html>
   </script>
 </body>
 </html>`
+
+const glassmorphismHTML = material3HTML
