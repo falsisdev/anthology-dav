@@ -80,11 +80,12 @@ func main() {
 		out := make([]vfs.VFSDiscoveredSource, 0, len(found))
 		for _, f := range found {
 			out = append(out, vfs.VFSDiscoveredSource{
-				ProviderID:   f.ProviderID,
-				ProviderName: f.ProviderName,
-				Quality:      f.Quality,
-				AudioType:    f.AudioType,
-				AudioLabel:   f.AudioLabel,
+				ProviderID:         f.ProviderID,
+				ProviderName:       f.ProviderName,
+				Quality:            f.Quality,
+				AudioType:          f.AudioType,
+				AudioLabel:         f.AudioLabel,
+				AvailableQualities: f.AvailableQualities,
 			})
 		}
 		return out

@@ -1,5 +1,9 @@
 package providers
 
+import (
+	"strings"
+)
+
 // MediaType represents the type of media item.
 type MediaType string
 
@@ -84,4 +88,57 @@ type StreamResult struct {
 	Primary    StreamSource   `json:"primary"`
 	Alternates []StreamSource `json:"alternates,omitempty"`
 	Subtitles  []Subtitle     `json:"subtitles,omitempty"`
+}
+
+// NormalizeQuality converts various quality representations into standard labels.
+func NormalizeQuality(quality string) string {
+	ql := strings.ToLower(strings.TrimSpace(quality))
+	switch {
+	case strings.Contains(ql, "4k") || strings.Contains(ql, "2160") || strings.Contains(ql, "uhd"):
+		return "4K UHD"
+	case strings.Contains(ql, "1440") || strings.Contains(ql, "2k") || strings.Contains(ql, "qhd"):
+		return "2K QHD"
+	case strings.Contains(ql, "1080") || strings.Contains(ql, "fhd"):
+		return "1080p"
+	case strings.Contains(ql, "720") || strings.Contains(ql, "hd"):
+		return "720p"
+	case strings.Contains(ql, "540"):
+		return "540p"
+	case strings.Contains(ql, "480") || strings.Contains(ql, "sd"):
+		return "480p"
+	case strings.Contains(ql, "360"):
+		return "360p"
+	case strings.Contains(ql, "240"):
+		return "240p"
+	default:
+		if quality != "" {
+			return quality
+		}
+		return "Auto"
+	}
+}
+
+// ParseResolutionDetails returns width, height, estimated bandwidth (bps) and normalized label.
+func ParseResolutionDetails(quality string) (width, height, bandwidth int, label string) {
+	norm := NormalizeQuality(quality)
+	switch norm {
+	case "4K UHD":
+		return 3840, 2160, 14000000, "4K UHD"
+	case "2K QHD":
+		return 2560, 1440, 8000000, "2K QHD"
+	case "1080p":
+		return 1920, 1080, 4500000, "1080p"
+	case "720p":
+		return 1280, 720, 2400000, "720p"
+	case "540p":
+		return 960, 540, 1500000, "540p"
+	case "480p":
+		return 854, 480, 1000000, "480p"
+	case "360p":
+		return 640, 360, 600000, "360p"
+	case "240p":
+		return 426, 240, 350000, "240p"
+	default:
+		return 1920, 1080, 3000000, "Auto"
+	}
 }

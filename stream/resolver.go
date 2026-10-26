@@ -18,14 +18,15 @@ import (
 
 // DiscoveredSource represents a verified working stream provider for a specific movie or episode.
 type DiscoveredSource struct {
-	ProviderID   string `json:"provider_id"`
-	ProviderName string `json:"provider_name"`
-	Quality      string `json:"quality"`
-	Format       string `json:"format"`
-	Title        string `json:"title"`
-	AudioType    string `json:"audio_type,omitempty"`
-	AudioLabel   string `json:"audio_label,omitempty"`
-	HasSubtitles bool   `json:"has_subtitles,omitempty"`
+	ProviderID         string   `json:"provider_id"`
+	ProviderName       string   `json:"provider_name"`
+	Quality            string   `json:"quality"`
+	Format             string   `json:"format"`
+	Title              string   `json:"title"`
+	AudioType          string   `json:"audio_type,omitempty"`
+	AudioLabel         string   `json:"audio_label,omitempty"`
+	HasSubtitles       bool     `json:"has_subtitles,omitempty"`
+	AvailableQualities []string `json:"available_qualities,omitempty"`
 }
 
 // MultiResolver manages dynamic multi-provider scraping and stream resolution.
@@ -79,6 +80,10 @@ func (mr *MultiResolver) HandleResolve(w http.ResponseWriter, r *http.Request) {
 	if audioPref == "" {
 		audioPref = "auto"
 	}
+	qualityPref := strings.ToLower(strings.TrimSpace(q.Get("quality")))
+	if qualityPref == "" {
+		qualityPref = "auto"
+	}
 
 	if season <= 0 {
 		season = 1
@@ -119,7 +124,7 @@ func (mr *MultiResolver) HandleResolve(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 1. Check Cache
-	cacheKey := fmt.Sprintf("resolve:%s:%d:%s:%d:%d:%s:%s", mediaType, tmdbID, title, season, episode, preferredProv, audioPref)
+	cacheKey := fmt.Sprintf("resolve:%s:%d:%s:%d:%d:%s:%s:%s", mediaType, tmdbID, title, season, episode, preferredProv, audioPref, qualityPref)
 	if val, ok := mr.proxy.cache.Get(cacheKey); ok {
 		if res, ok := val.(*providers.StreamResult); ok && res != nil && res.Primary.URL != "" {
 			if err := mr.proxy.ServeStreamResult(w, r, res); err == nil {
@@ -253,7 +258,7 @@ func (mr *MultiResolver) HandleResolve(w http.ResponseWriter, r *http.Request) {
 		return !isCloudResolver(foundResults[i].providerID) && isCloudResolver(foundResults[j].providerID)
 	})
 
-	bestResult := FilterAndSortStreamsByAudio(allSources, audioPref)
+	bestResult := FilterAndSortStreamsByAudioAndQuality(allSources, audioPref, qualityPref)
 	if bestResult == nil || bestResult.Primary.URL == "" {
 		bestResult, _ = providers.SelectBestStream(allSources)
 	}
@@ -540,9 +545,12 @@ func (mr *MultiResolver) DiscoverSources(ctx context.Context, mediaType string, 
 
 			// Group by AudioType (select best quality stream for each audio type)
 			type groupInfo struct {
-				best providers.StreamSource
+				best      providers.StreamSource
+				qualities []string
 			}
 			grouped := make(map[providers.AudioType]*groupInfo)
+			seenQualPerAudio := make(map[providers.AudioType]map[string]bool)
+
 			for _, st := range providerStreams {
 				at := st.AudioType
 				if at == providers.AudioTypeUnknown {
@@ -551,8 +559,26 @@ func (mr *MultiResolver) DiscoverSources(ctx context.Context, mediaType string, 
 				if at == providers.AudioTypeUnknown && len(st.Subtitles) > 0 {
 					at = providers.AudioTypeSub
 				}
-				if gi, exists := grouped[at]; !exists || providers.GetQualityScore(st) > providers.GetQualityScore(gi.best) {
-					grouped[at] = &groupInfo{best: st}
+
+				if seenQualPerAudio[at] == nil {
+					seenQualPerAudio[at] = make(map[string]bool)
+				}
+				normQual := providers.NormalizeQuality(st.Quality)
+				if normQual == "" {
+					normQual = "HD"
+				}
+
+				gi, exists := grouped[at]
+				if !exists {
+					gi = &groupInfo{best: st}
+					grouped[at] = gi
+				} else if providers.GetQualityScore(st) > providers.GetQualityScore(gi.best) {
+					gi.best = st
+				}
+
+				if !seenQualPerAudio[at][normQual] {
+					seenQualPerAudio[at][normQual] = true
+					gi.qualities = append(gi.qualities, normQual)
 				}
 			}
 
@@ -579,14 +605,15 @@ func (mr *MultiResolver) DiscoverSources(ctx context.Context, mediaType string, 
 				hasSubs := len(st.Subtitles) > 0
 
 				discovered = append(discovered, DiscoveredSource{
-					ProviderID:   p.ID(),
-					ProviderName: p.Name(),
-					Quality:      qual,
-					Format:       format,
-					Title:        st.Title,
-					AudioType:    audioCode,
-					AudioLabel:   audioLabel,
-					HasSubtitles: hasSubs,
+					ProviderID:         p.ID(),
+					ProviderName:       p.Name(),
+					Quality:            qual,
+					Format:             format,
+					Title:              st.Title,
+					AudioType:          audioCode,
+					AudioLabel:         audioLabel,
+					HasSubtitles:       hasSubs,
+					AvailableQualities: gi.qualities,
 				})
 			}
 			allSources = append(allSources, providerStreams...)
@@ -661,65 +688,82 @@ func (mr *MultiResolver) DiscoverSources(ctx context.Context, mediaType string, 
 	return discovered
 }
 
-// FilterAndSortStreamsByAudio selects the best stream based on the requested audio preference (sub, dub, en_dub, auto).
-func FilterAndSortStreamsByAudio(sources []providers.StreamSource, audioPref string) *providers.StreamResult {
+// FilterAndSortStreamsByAudioAndQuality selects the best stream based on audio preference and requested resolution.
+func FilterAndSortStreamsByAudioAndQuality(sources []providers.StreamSource, audioPref, qualityPref string) *providers.StreamResult {
 	if len(sources) == 0 {
 		return nil
 	}
-	pref := strings.ToLower(strings.TrimSpace(audioPref))
-	if pref == "" || pref == "auto" {
-		res, _ := providers.SelectBestStream(sources)
-		return res
-	}
+	audioP := strings.ToLower(strings.TrimSpace(audioPref))
+	qualityP := strings.ToLower(strings.TrimSpace(qualityPref))
 
-	var filtered []providers.StreamSource
-	switch pref {
+	// 1. Audio Filter
+	var audioFiltered []providers.StreamSource
+	switch audioP {
 	case "dub":
 		for _, s := range sources {
 			if s.AudioType == providers.AudioTypeDub {
-				filtered = append(filtered, s)
+				audioFiltered = append(audioFiltered, s)
 			} else {
 				low := strings.ToLower(s.Title + " " + s.Name)
 				if strings.Contains(low, "dublaj") || strings.Contains(low, "tr dub") {
-					filtered = append(filtered, s)
+					audioFiltered = append(audioFiltered, s)
 				}
 			}
 		}
 	case "sub", "original":
 		for _, s := range sources {
 			if s.AudioType == providers.AudioTypeSub || s.AudioType == providers.AudioTypeOriginal {
-				filtered = append(filtered, s)
+				audioFiltered = append(audioFiltered, s)
 			} else if len(s.Subtitles) > 0 {
-				filtered = append(filtered, s)
+				audioFiltered = append(audioFiltered, s)
 			} else {
 				low := strings.ToLower(s.Title + " " + s.Name)
 				if strings.Contains(low, "altyazı") || strings.Contains(low, "altyazi") || strings.Contains(low, "japonca") {
-					filtered = append(filtered, s)
+					audioFiltered = append(audioFiltered, s)
 				}
 			}
 		}
 	case "en_dub", "endub":
 		for _, s := range sources {
 			if s.AudioType == providers.AudioTypeEnDub {
-				filtered = append(filtered, s)
+				audioFiltered = append(audioFiltered, s)
 			} else {
 				low := strings.ToLower(s.Title + " " + s.Name)
 				if strings.Contains(low, "ingilizce dublaj") || strings.Contains(low, "en dub") || strings.Contains(low, "endub") {
-					filtered = append(filtered, s)
+					audioFiltered = append(audioFiltered, s)
 				}
 			}
 		}
 	}
 
-	if len(filtered) > 0 {
-		if res, err := providers.SelectBestStream(filtered); err == nil && res != nil && res.Primary.URL != "" {
-			return res
+	if len(audioFiltered) == 0 {
+		audioFiltered = sources
+	}
+
+	// 2. Quality Filter
+	if qualityP != "" && qualityP != "auto" {
+		normTarget := providers.NormalizeQuality(qualityP)
+		var qualMatched []providers.StreamSource
+		for _, s := range audioFiltered {
+			normS := providers.NormalizeQuality(s.Quality)
+			if strings.EqualFold(normS, normTarget) || strings.Contains(strings.ToLower(s.Quality), qualityP) {
+				qualMatched = append(qualMatched, s)
+			}
+		}
+		if len(qualMatched) > 0 {
+			if res, err := providers.SelectBestStream(qualMatched); err == nil && res != nil && res.Primary.URL != "" {
+				return res
+			}
 		}
 	}
 
-	// Fallback to all sources if requested variant wasn't found
-	res, _ := providers.SelectBestStream(sources)
+	res, _ := providers.SelectBestStream(audioFiltered)
 	return res
+}
+
+// FilterAndSortStreamsByAudio is a backward-compatible wrapper for FilterAndSortStreamsByAudioAndQuality.
+func FilterAndSortStreamsByAudio(sources []providers.StreamSource, audioPref string) *providers.StreamResult {
+	return FilterAndSortStreamsByAudioAndQuality(sources, audioPref, "auto")
 }
 
 func qualityWeight(q string) int {

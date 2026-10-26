@@ -88,6 +88,41 @@ func (h *ProxyHandler) ServeStreamResult(w http.ResponseWriter, r *http.Request,
 		return fmt.Errorf("empty stream result")
 	}
 
+	requestedQuality := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("quality")))
+
+	// If quality is auto/unspecified, check if we have multiple HLS variants with different resolutions
+	// for the primary stream's audio type. If so, build a Dynamic Master HLS Playlist for adaptive playback!
+	if requestedQuality == "" || requestedQuality == "auto" {
+		candidates := append([]providers.StreamSource{res.Primary}, res.Alternates...)
+		var hlsVariants []providers.StreamSource
+		seenNorm := make(map[string]bool)
+
+		for _, cand := range candidates {
+			isHLS := cand.IsHLS || strings.Contains(strings.ToLower(cand.URL), ".m3u8")
+			if !isHLS {
+				continue
+			}
+			// Only group streams of the same AudioType to prevent mixing audio tracks
+			if cand.AudioType != res.Primary.AudioType {
+				continue
+			}
+			norm := providers.NormalizeQuality(cand.Quality)
+			if !seenNorm[norm] {
+				seenNorm[norm] = true
+				hlsVariants = append(hlsVariants, cand)
+			}
+		}
+
+		if len(hlsVariants) >= 2 {
+			masterM3U8 := h.BuildDynamicMasterPlaylist(r, hlsVariants, res.Subtitles)
+			w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(masterM3U8))
+			return nil
+		}
+	}
+
 	candidates := append([]providers.StreamSource{res.Primary}, res.Alternates...)
 	var lastErr error
 
@@ -122,6 +157,68 @@ func (h *ProxyHandler) ServeStreamResult(w http.ResponseWriter, r *http.Request,
 		return lastErr
 	}
 	return fmt.Errorf("stream playback failed across all candidates")
+}
+
+// BuildDynamicMasterPlaylist generates an RFC 8216 compliant HLS Master Playlist
+// combining multiple resolution variants and subtitle tracks.
+func (h *ProxyHandler) BuildDynamicMasterPlaylist(r *http.Request, hlsCandidates []providers.StreamSource, subs []providers.Subtitle) string {
+	var sb strings.Builder
+	sb.WriteString("#EXTM3U\n")
+	sb.WriteString("#EXT-X-VERSION:3\n")
+	sb.WriteString("#EXT-X-INDEPENDENT-SEGMENTS\n")
+
+	baseURLPrefix := h.cfg.BaseURL
+	if r.Host != "" {
+		scheme := "http"
+		if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+			scheme = "https"
+		}
+		baseURLPrefix = fmt.Sprintf("%s://%s", scheme, r.Host)
+	}
+
+	// 1. Add Subtitle tracks if present
+	hasSubs := len(subs) > 0
+	subGroupID := "anthology_subs"
+	if hasSubs {
+		for i, sub := range subs {
+			isDefault := "NO"
+			if i == 0 {
+				isDefault = "YES"
+			}
+			label := sub.Label
+			if label == "" {
+				label = "Türkçe"
+			}
+			lang := sub.Language
+			if lang == "" {
+				lang = "tr"
+			}
+			subURL := fmt.Sprintf("%s/sub/direct?url=%s", baseURLPrefix, url.QueryEscape(sub.URL))
+			sb.WriteString(fmt.Sprintf("#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=%q,NAME=%q,DEFAULT=%s,AUTOSELECT=YES,LANGUAGE=%q,URI=%q\n",
+				subGroupID, label, isDefault, lang, subURL))
+		}
+	}
+
+	// 2. Add Video Stream Variants sorted by quality score descending
+	for _, cand := range hlsCandidates {
+		w, height, bw, normLabel := providers.ParseResolutionDetails(cand.Quality)
+		headersJSON, _ := json.Marshal(cand.Headers)
+		hB64 := base64.RawURLEncoding.EncodeToString(headersJSON)
+		uB64 := base64.RawURLEncoding.EncodeToString([]byte(cand.URL))
+
+		variantURL := fmt.Sprintf("%s/proxy/media?u=%s&h=%s", baseURLPrefix, uB64, hB64)
+
+		if hasSubs {
+			sb.WriteString(fmt.Sprintf("#EXT-X-STREAM-INF:BANDWIDTH=%d,RESOLUTION=%dx%d,NAME=%q,SUBTITLES=%q\n",
+				bw, w, height, normLabel, subGroupID))
+		} else {
+			sb.WriteString(fmt.Sprintf("#EXT-X-STREAM-INF:BANDWIDTH=%d,RESOLUTION=%dx%d,NAME=%q\n",
+				bw, w, height, normLabel))
+		}
+		sb.WriteString(variantURL + "\n")
+	}
+
+	return sb.String()
 }
 
 

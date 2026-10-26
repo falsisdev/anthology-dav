@@ -33,11 +33,12 @@ const (
 
 // VFSDiscoveredSource represents a verified working source returned by the stream resolver.
 type VFSDiscoveredSource struct {
-	ProviderID   string
-	ProviderName string
-	Quality      string
-	AudioType    string
-	AudioLabel   string
+	ProviderID         string
+	ProviderName       string
+	Quality            string
+	AudioType          string
+	AudioLabel         string
+	AvailableQualities []string
 }
 
 type contextKey string
@@ -721,8 +722,9 @@ func (v *AnthologyVFS) buildWorkingSourceFiles(ctx context.Context, item *config
 	filesMap[autoDubName] = NewVirtualFile(autoDubName, []byte(autoDubURL), v.bootTime)
 	ordered = append(ordered, autoDubName)
 
-	// 3. Each verified working provider variant
-	for i, src := range sources {
+	// 3. Each verified working provider variant (with resolution breakdown if multiple)
+	fileIdx := 3
+	for _, src := range sources {
 		lbl := src.AudioLabel
 		if lbl == "" {
 			lbl = src.AudioType
@@ -734,11 +736,24 @@ func (v *AnthologyVFS) buildWorkingSourceFiles(ctx context.Context, item *config
 		if aParam == "" {
 			aParam = "auto"
 		}
-		fName := SanitizeFileName(fmt.Sprintf("%d - %s [%s] (%s) - %s", i+3, src.ProviderName, lbl, src.Quality, suffix)) + ".strm"
-		sURL := fmt.Sprintf("%s/stream/resolve?type=%s&tmdb_id=%d&title=%s&year=%s&season=%d&episode=%d&provider=%s&audio=%s",
-			v.baseURL(ctx), mediaType, item.TMDBID, url.QueryEscape(item.Title), url.QueryEscape(item.Year), season, episode, url.QueryEscape(src.ProviderID), url.QueryEscape(aParam))
-		filesMap[fName] = NewVirtualFile(fName, []byte(sURL), v.bootTime)
-		ordered = append(ordered, fName)
+
+		if len(src.AvailableQualities) > 1 {
+			for _, q := range src.AvailableQualities {
+				fName := SanitizeFileName(fmt.Sprintf("%d - %s [%s] [%s] - %s", fileIdx, src.ProviderName, lbl, q, suffix)) + ".strm"
+				sURL := fmt.Sprintf("%s/stream/resolve?type=%s&tmdb_id=%d&title=%s&year=%s&season=%d&episode=%d&provider=%s&audio=%s&quality=%s",
+					v.baseURL(ctx), mediaType, item.TMDBID, url.QueryEscape(item.Title), url.QueryEscape(item.Year), season, episode, url.QueryEscape(src.ProviderID), url.QueryEscape(aParam), url.QueryEscape(strings.ToLower(q)))
+				filesMap[fName] = NewVirtualFile(fName, []byte(sURL), v.bootTime)
+				ordered = append(ordered, fName)
+				fileIdx++
+			}
+		} else {
+			fName := SanitizeFileName(fmt.Sprintf("%d - %s [%s] (%s) - %s", fileIdx, src.ProviderName, lbl, src.Quality, suffix)) + ".strm"
+			sURL := fmt.Sprintf("%s/stream/resolve?type=%s&tmdb_id=%d&title=%s&year=%s&season=%d&episode=%d&provider=%s&audio=%s&quality=%s",
+				v.baseURL(ctx), mediaType, item.TMDBID, url.QueryEscape(item.Title), url.QueryEscape(item.Year), season, episode, url.QueryEscape(src.ProviderID), url.QueryEscape(aParam), url.QueryEscape(strings.ToLower(src.Quality)))
+			filesMap[fName] = NewVirtualFile(fName, []byte(sURL), v.bootTime)
+			ordered = append(ordered, fName)
+			fileIdx++
+		}
 	}
 
 	return filesMap, ordered
