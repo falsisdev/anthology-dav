@@ -25,6 +25,11 @@ func TestDetectAudioType(t *testing.T) {
 			t.Errorf("DetectAudioType(%q) = %v; want %v", tt.input, got, tt.expected)
 		}
 	}
+
+	// Verify AudioTypeLabel does not specify Japanese for original audio
+	if got := AudioTypeLabel(AudioTypeOriginal); got != "🎬 Orijinal" {
+		t.Errorf("AudioTypeLabel(AudioTypeOriginal) = %q; want %q", got, "🎬 Orijinal")
+	}
 }
 
 func TestGetQualityScoreUserAudioPriority(t *testing.T) {

@@ -352,7 +352,7 @@ func AudioTypeLabel(t AudioType) string {
 	case AudioTypeDub:
 		return "🎙️ Türkçe Dublaj"
 	case AudioTypeOriginal:
-		return "🇯🇵 Japonca (Orijinal)"
+		return "🎬 Orijinal"
 	case AudioTypeEnDub:
 		return "🇬🇧 İngilizce Dublaj"
 	default:
@@ -519,7 +519,7 @@ func ExtractTauVideo(ctx context.Context, embedURL string) []StreamSource {
 		}
 		out = append(out, StreamSource{
 			Name:      "TauVideo",
-			Title:     "TauVideo • Japonca [TR Altyazı] • " + q,
+			Title:     "TauVideo • Orijinal [TR Altyazı] • " + q,
 			URL:       u.URL,
 			Quality:   q,
 			Format:    "mp4",

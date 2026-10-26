@@ -544,7 +544,7 @@ func (p *AniziumProvider) ResolveStream(ctx context.Context, streamID string) (*
 			aType = AudioTypeDub
 			aLang = "tr"
 		case "original":
-			groupTag = "Japonca [TR Altyazılı]"
+			groupTag = "Orijinal [TR Altyazılı]"
 			aType = AudioTypeOriginal
 			aLang = "ja"
 		case "endub":
@@ -563,7 +563,7 @@ func (p *AniziumProvider) ResolveStream(ctx context.Context, streamID string) (*
 					aLang = "tr"
 				}
 			} else {
-				groupTag = "Japonca [TR Altyazılı]"
+				groupTag = "Orijinal [TR Altyazılı]"
 				aType = AudioTypeOriginal
 				aLang = "ja"
 			}

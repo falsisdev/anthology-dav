@@ -65,7 +65,7 @@ const (
 	AudioTypeUnknown  AudioType = ""
 	AudioTypeSub      AudioType = "sub"      // Orijinal ses + Türkçe Altyazı
 	AudioTypeDub      AudioType = "dub"      // Türkçe Dublaj
-	AudioTypeOriginal AudioType = "original" // Orijinal Ses (Japonca vb.)
+	AudioTypeOriginal AudioType = "original" // Orijinal Ses
 	AudioTypeEnDub    AudioType = "en_dub"   // İngilizce Dublaj
 )
 
