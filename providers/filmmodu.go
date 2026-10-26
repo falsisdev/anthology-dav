@@ -158,28 +158,34 @@ func (p *FilmModuProvider) ResolveStream(ctx context.Context, streamID string) (
 	var sources []StreamSource
 	var subs []Subtitle
 
+	type altItem struct {
+		url   string
+		label string
+	}
+	var altItems []altItem
+
 	reAlt := regexp.MustCompile(`(?is)<div[^>]*class="[^"]*alternates[^"]*"[^>]*>(.*?)</div>`)
-	var altURLs []string
 	if m := reAlt.FindStringSubmatch(body); len(m) > 1 {
-		reLink := regexp.MustCompile(`href="([^"]+)"`)
+		reLink := regexp.MustCompile(`(?is)<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>`)
 		for _, lm := range reLink.FindAllStringSubmatch(m[1], 10) {
 			link := ResolveRelativeURL(lm[1], p.baseURL())
+			lbl := strings.TrimSpace(lm[2])
 			if !strings.Contains(strings.ToLower(link), "fragman") {
-				altURLs = append(altURLs, link)
+				altItems = append(altItems, altItem{url: link, label: lbl})
 			}
 		}
 	}
-	if len(altURLs) == 0 {
-		altURLs = append(altURLs, u)
+	if len(altItems) == 0 {
+		altItems = append(altItems, altItem{url: u, label: ""})
 	}
 
 	reVidID := regexp.MustCompile(`var\s+videoId\s*=\s*['"]([^'"]+)['"]`)
 	reVidType := regexp.MustCompile(`var\s+videoType\s*=\s*['"]([^'"]+)['"]`)
 
-	for _, altURL := range altURLs {
+	for _, ai := range altItems {
 		altHTML := body
-		if altURL != u {
-			altHTML, _, _ = FetchString(ctx, altURL, DefaultHeaders(u))
+		if ai.url != u {
+			altHTML, _, _ = FetchString(ctx, ai.url, DefaultHeaders(u))
 		}
 		var videoID, videoType string
 		if m := reVidID.FindStringSubmatch(altHTML); len(m) > 1 {
@@ -191,7 +197,7 @@ func (p *FilmModuProvider) ResolveStream(ctx context.Context, streamID string) (
 		if videoID != "" && videoType != "" {
 			srcEndpoint := fmt.Sprintf("%s/get-source?movie_id=%s&type=%s", p.baseURL(), url.QueryEscape(videoID), url.QueryEscape(videoType))
 			respStr, _, err := FetchString(ctx, srcEndpoint, map[string]string{
-				"Referer":          altURL,
+				"Referer":          ai.url,
 				"X-Requested-With": "XMLHttpRequest",
 			})
 			if err == nil {
@@ -203,8 +209,9 @@ func (p *FilmModuProvider) ResolveStream(ctx context.Context, streamID string) (
 					} `json:"sources"`
 				}
 				if json.Unmarshal([]byte(respStr), &parsed) == nil {
+					var itemSubs []Subtitle
 					if parsed.Subtitle != "" {
-						subs = append(subs, Subtitle{
+						itemSubs = append(itemSubs, Subtitle{
 							ID:       "filmmodu_tr",
 							Language: "tr",
 							Label:    "Türkçe",
@@ -212,17 +219,28 @@ func (p *FilmModuProvider) ResolveStream(ctx context.Context, streamID string) (
 							Format:   "vtt",
 						})
 					}
+					aType := DetectAudioType(ai.label + " " + ai.url + " " + altHTML)
+					if aType == AudioTypeUnknown && len(itemSubs) > 0 {
+						aType = AudioTypeSub
+					}
+					tag := "1080p"
+					if aType == AudioTypeDub {
+						tag = "Türkçe Dublaj"
+					} else if aType == AudioTypeSub || aType == AudioTypeOriginal {
+						tag = "Türkçe Altyazılı"
+					}
 					for _, s := range parsed.Sources {
 						if s.Src != "" {
 							sources = append(sources, StreamSource{
 								Name:      "FilmModu",
-								Title:     "FilmModu • " + s.Label,
+								Title:     fmt.Sprintf("FilmModu • %s • %s", tag, s.Label),
 								URL:       ResolveRelativeURL(s.Src, p.baseURL()),
 								Quality:   s.Label,
 								Format:    "hls",
 								IsHLS:     true,
+								AudioType: aType,
 								Headers:   map[string]string{"Referer": p.baseURL() + "/"},
-								Subtitles: subs,
+								Subtitles: itemSubs,
 							})
 						}
 					}

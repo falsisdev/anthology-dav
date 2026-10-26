@@ -187,6 +187,13 @@ func (p *WebteIzleProvider) ResolveStream(ctx context.Context, streamID string) 
 
 	if filmID != "" {
 		for _, dil := range []string{"0", "1"} {
+			curAType := AudioTypeDub
+			dubTag := "[TR Dublaj]"
+			if dil == "1" {
+				curAType = AudioTypeSub
+				dubTag = "[TR Altyazı]"
+			}
+
 			form := url.Values{}
 			form.Set("filmid", filmID)
 			form.Set("dil", dil)
@@ -211,6 +218,7 @@ func (p *WebteIzleProvider) ResolveStream(ctx context.Context, streamID string) 
 				} `json:"data"`
 			}
 			if json.Unmarshal([]byte(altStr), &altObj) == nil && altObj.Status == "success" {
+				dilSourcesCount := 0
 				for _, alt := range altObj.Data {
 					embedForm := url.Values{}
 					embedForm.Set("id", fmt.Sprintf("%d", alt.ID))
@@ -235,19 +243,26 @@ func (p *WebteIzleProvider) ResolveStream(ctx context.Context, streamID string) 
 					}
 
 					if embedURL != "" {
+						var extracted []StreamSource
 						if strings.Contains(embedURL, "vidmoly") {
-							sources = append(sources, ExtractVidMoly(ctx, embedURL, u)...)
+							extracted = ExtractVidMoly(ctx, embedURL, u)
 						} else {
-							sources = append(sources, ExtractAnyIframe(ctx, embedURL, u)...)
+							extracted = ExtractAnyIframe(ctx, embedURL, u)
+						}
+						for i := range extracted {
+							extracted[i].AudioType = curAType
+							if !strings.Contains(extracted[i].Title, dubTag) {
+								extracted[i].Title = fmt.Sprintf("Webteİzle • %s • %s", dubTag, extracted[i].Quality)
+							}
+							sources = append(sources, extracted[i])
+							dilSourcesCount++
 						}
 					}
-					if len(sources) > 0 {
+					// Collect up to 2 working players per audio language
+					if dilSourcesCount >= 2 {
 						break
 					}
 				}
-			}
-			if len(sources) > 0 {
-				break
 			}
 		}
 	}

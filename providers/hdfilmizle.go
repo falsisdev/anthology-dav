@@ -255,11 +255,11 @@ func (p *HDFilmIzleProvider) ResolveStream(ctx context.Context, streamID string)
 
 	ajaxURL := p.baseURL() + "/wp-admin/admin-ajax.php"
 	for _, postID := range postIDs {
-		if len(iframeURLs) > 0 {
+		if len(iframeURLs) >= 4 {
 			break
 		}
 		for _, plName := range players {
-			if len(iframeURLs) > 0 {
+			if len(iframeURLs) >= 4 {
 				break
 			}
 			for _, nonce := range nonces {
@@ -288,7 +288,10 @@ func (p *HDFilmIzleProvider) ResolveStream(ctx context.Context, streamID string)
 					} `json:"data"`
 				}
 				if err := json.Unmarshal(bodyBytes, &aj); err == nil && aj.Success && aj.Data.URL != "" {
-					iframeURLs = append(iframeURLs, strings.ReplaceAll(aj.Data.URL, `\/`, `/`))
+					cleanU := strings.ReplaceAll(aj.Data.URL, `\/`, `/`)
+					if !slices.Contains(iframeURLs, cleanU) {
+						iframeURLs = append(iframeURLs, cleanU)
+					}
 					break // Found working nonce for this player
 				}
 			}
@@ -304,7 +307,17 @@ func (p *HDFilmIzleProvider) ResolveStream(ctx context.Context, streamID string)
 		if err != nil {
 			continue
 		}
-		subs := ExtractVTTSubtitles(embedHTML)
+		subs := ExtractSubtitles(embedHTML, iframeURL)
+		aType := DetectAudioType(iframeURL + " " + embedHTML + " " + body)
+		if aType == AudioTypeUnknown && len(subs) > 0 {
+			aType = AudioTypeSub
+		}
+		dubTag := "1080p"
+		if aType == AudioTypeDub {
+			dubTag = "[TR Dublaj] • 1080p"
+		} else if aType == AudioTypeSub || aType == AudioTypeOriginal {
+			dubTag = "[TR Altyazı] • 1080p"
+		}
 
 		if strings.Contains(iframeURL, "vidrame") {
 			if vm := reVidrameArr.FindStringSubmatch(embedHTML); len(vm) > 2 {
@@ -316,12 +329,13 @@ func (p *HDFilmIzleProvider) ResolveStream(ctx context.Context, streamID string)
 				}
 				if decoded := DecodeVidrameXOR(nums, vm[2]); strings.HasPrefix(decoded, "http") {
 					sources = append(sources, StreamSource{
-						Name:    "HDFilmİzle Vidrame",
-						Title:   "Vidrame • 1080p",
-						URL:     decoded,
-						Quality: "1080p",
-						Format:  "hls",
-						IsHLS:   true,
+						Name:      "HDFilmİzle Vidrame",
+						Title:     "Vidrame • " + dubTag,
+						URL:       decoded,
+						Quality:   "1080p",
+						Format:    "hls",
+						IsHLS:     true,
+						AudioType: aType,
 						Headers: map[string]string{
 							"Referer":    iframeURL,
 							"User-Agent": "ExoPlayerLib/2.19.1",
@@ -334,12 +348,13 @@ func (p *HDFilmIzleProvider) ResolveStream(ctx context.Context, streamID string)
 			if em := reEE.FindStringSubmatch(embedHTML); len(em) > 1 {
 				if decoded := DecodeVidmoxy(em[1]); strings.HasPrefix(decoded, "http") {
 					sources = append(sources, StreamSource{
-						Name:    "HDFilmİzle Vidmoxy",
-						Title:   "Vidmoxy • 1080p",
-						URL:     decoded,
-						Quality: "1080p",
-						Format:  "hls",
-						IsHLS:   true,
+						Name:      "HDFilmİzle Vidmoxy",
+						Title:     "Vidmoxy • " + dubTag,
+						URL:       decoded,
+						Quality:   "1080p",
+						Format:    "hls",
+						IsHLS:     true,
+						AudioType: aType,
 						Headers: map[string]string{
 							"Referer":    iframeURL,
 							"User-Agent": "ExoPlayerLib/2.19.1",
@@ -365,18 +380,18 @@ func (p *HDFilmIzleProvider) ResolveStream(ctx context.Context, streamID string)
 				}
 				sources = append(sources, StreamSource{
 					Name:      "HDFilmİzle FastPlay",
-					Title:     "FastPlay • 1080p",
+					Title:     "FastPlay • " + dubTag,
 					URL:       manifestURL,
 					Quality:   "1080p",
 					Format:    "hls",
 					IsHLS:     true,
+					AudioType: aType,
 					Headers:   fpHeaders,
 					Subtitles: append(subs, fpSubs...),
 				})
-				break
 			}
 		}
-		if len(sources) > 0 {
+		if len(sources) >= 4 {
 			break
 		}
 	}

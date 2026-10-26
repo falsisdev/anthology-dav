@@ -181,13 +181,35 @@ func (p *DiziBoxProvider) ResolveStream(ctx context.Context, streamID string) (*
 	if err != nil {
 		return nil, err
 	}
+	pageSubs := ExtractSubtitles(htmlStr, base)
+	aType := DetectAudioType(htmlStr)
+	if aType == AudioTypeUnknown {
+		aType = AudioTypeSub
+	}
+	dubTag := "[TR Altyazı]"
+	if aType == AudioTypeDub {
+		dubTag = "[TR Dublaj]"
+	}
+
 	var sources []StreamSource
 	for _, im := range regexp.MustCompile(`(?i)<iframe[^>]+src="([^"]+)"`).FindAllStringSubmatch(htmlStr, 5) {
 		u := im[1]
 		if strings.Contains(u, "youtube.com") || strings.Contains(u, "facebook.com") {
 			continue
 		}
-		sources = append(sources, ExtractAnyIframe(ctx, u, epURL)...)
+		extracted := ExtractAnyIframe(ctx, u, epURL)
+		for i := range extracted {
+			if len(extracted[i].Subtitles) == 0 && len(pageSubs) > 0 {
+				extracted[i].Subtitles = pageSubs
+			}
+			if extracted[i].AudioType == AudioTypeUnknown {
+				extracted[i].AudioType = aType
+			}
+			if !strings.Contains(extracted[i].Title, "[TR") {
+				extracted[i].Title = fmt.Sprintf("DiziBox • %s • %s", dubTag, extracted[i].Quality)
+			}
+			sources = append(sources, extracted[i])
+		}
 	}
 	return SelectBestStream(sources)
 }

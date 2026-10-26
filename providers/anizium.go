@@ -536,22 +536,36 @@ func (p *AniziumProvider) ResolveStream(ctx context.Context, streamID string) (*
 	for _, grp := range srcResp.Groups {
 		gKey := strings.ToLower(strings.TrimSpace(grp.Group))
 		var groupTag string
+		var aType AudioType
+		var aLang string
 		switch gKey {
 		case "trdub":
 			groupTag = "Türkçe Dublaj"
+			aType = AudioTypeDub
+			aLang = "tr"
 		case "original":
 			groupTag = "Japonca [TR Altyazılı]"
+			aType = AudioTypeOriginal
+			aLang = "ja"
 		case "endub":
 			groupTag = "İngilizce Dublaj"
+			aType = AudioTypeEnDub
+			aLang = "en"
 		default:
 			if grp.Name != "" {
 				if strings.Contains(strings.ToLower(grp.Name), "dub") {
 					groupTag = grp.Name
+					aType = AudioTypeDub
+					aLang = "tr"
 				} else {
 					groupTag = grp.Name + " Dublaj"
+					aType = AudioTypeDub
+					aLang = "tr"
 				}
 			} else {
-				groupTag = "Japonca"
+				groupTag = "Japonca [TR Altyazılı]"
+				aType = AudioTypeOriginal
+				aLang = "ja"
 			}
 		}
 
@@ -595,6 +609,8 @@ func (p *AniziumProvider) ResolveStream(ctx context.Context, streamID string) (*
 				Quality:   qLabel,
 				Format:    fmtType,
 				IsHLS:     isHLS,
+				AudioType: aType,
+				AudioLang: aLang,
 				Headers:   streamHeaders,
 				Subtitles: subtitles,
 			})

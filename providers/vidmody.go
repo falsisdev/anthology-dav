@@ -194,7 +194,13 @@ func (p *VidmodyProvider) ResolveStream(ctx context.Context, streamID string) (*
 		}
 
 		// 2. Encrypted HTML block (VidmodyDecrypt)
-		subs = append(subs, ExtractVTTSubtitles(body)...)
+		subs = append(subs, ExtractSubtitles(body, targetURL)...)
+		aType := AudioTypeOriginal
+		tag := "[Orijinal Ses]"
+		if len(subs) > 0 {
+			aType = AudioTypeSub
+			tag = "[TR Altyazı]"
+		}
 		reDec := regexp.MustCompile(`(?i)(?:decrypt|\))\s*\(\s*["']([0-9a-fA-F]+)["']\s*,\s*(\d+)\s*\)`)
 		reFile := regexp.MustCompile(`file\s*:\s*["'](https?://[^"']+)["']`)
 		if dm := reDec.FindStringSubmatch(body); len(dm) > 2 {
@@ -203,11 +209,12 @@ func (p *VidmodyProvider) ResolveStream(ctx context.Context, streamID string) (*
 			if fm := reFile.FindStringSubmatch(decStr); len(fm) > 1 {
 				sources = append(sources, StreamSource{
 					Name:      "Vidmody HLS",
-					Title:     "Vidmody • 1080p",
+					Title:     "Vidmody • " + tag + " • 1080p",
 					URL:       fm[1],
 					Quality:   "1080p",
 					Format:    "hls",
 					IsHLS:     true,
+					AudioType: aType,
 					Headers:   headers,
 					Subtitles: subs,
 				})
@@ -218,11 +225,12 @@ func (p *VidmodyProvider) ResolveStream(ctx context.Context, streamID string) (*
 		if m3u8 := genericM3U8Re.FindString(body); m3u8 != "" {
 			sources = append(sources, StreamSource{
 				Name:      "Vidmody Direct",
-				Title:     "Vidmody Direct • 1080p",
+				Title:     "Vidmody Direct • " + tag + " • 1080p",
 				URL:       strings.ReplaceAll(m3u8, `\/`, `/`),
 				Quality:   "1080p",
 				Format:    "hls",
 				IsHLS:     true,
+				AudioType: aType,
 				Headers:   headers,
 				Subtitles: subs,
 			})

@@ -269,13 +269,15 @@ func (p *SonAnimeProvider) ResolveStream(ctx context.Context, streamID string) (
 				link = strings.TrimSpace(link)
 				if link != "" {
 					sources = append(sources, StreamSource{
-						Name:    "SonAnime",
-						Title:   fmt.Sprintf("SonAnime • %s Direct MP4", q),
-						URL:     link,
-						Quality: q,
-						Format:  "mp4",
-						IsHLS:   false,
-						Headers: hdrs,
+						Name:      "SonAnime",
+						Title:     fmt.Sprintf("SonAnime • Japonca [TR Altyazı] • %s Direct MP4", q),
+						URL:       link,
+						Quality:   q,
+						Format:    "mp4",
+						IsHLS:     false,
+						AudioType: AudioTypeOriginal,
+						AudioLang: "ja",
+						Headers:   hdrs,
 					})
 				}
 			}

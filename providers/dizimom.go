@@ -178,6 +178,16 @@ func (p *DiziMomProvider) ResolveStream(ctx context.Context, streamID string) (*
 	var sources []StreamSource
 	seenURLs := make(map[string]bool)
 
+	pageSubs := ExtractSubtitles(htmlStr, base)
+	aType := DetectAudioType(htmlStr)
+	if aType == AudioTypeUnknown {
+		aType = AudioTypeSub
+	}
+	dubTag := "[TR Altyazı]"
+	if aType == AudioTypeDub {
+		dubTag = "[TR Dublaj]"
+	}
+
 	// Collect candidate embeds from data-src, src, embedUrl, and iframes
 	embedPatterns := []*regexp.Regexp{
 		regexp.MustCompile(`(?i)(?:data-src|src)=["'](https?://[^"']*(?:hdplayersystem|hdmomplayer|vidmoly|ok\.ru)[^"']*)["']`),
@@ -192,7 +202,19 @@ func (p *DiziMomProvider) ResolveStream(ctx context.Context, streamID string) (*
 				continue
 			}
 			seenURLs[u] = true
-			sources = append(sources, ExtractAnyIframe(ctx, u, epURL)...)
+			extracted := ExtractAnyIframe(ctx, u, epURL)
+			for i := range extracted {
+				if len(extracted[i].Subtitles) == 0 && len(pageSubs) > 0 {
+					extracted[i].Subtitles = pageSubs
+				}
+				if extracted[i].AudioType == AudioTypeUnknown {
+					extracted[i].AudioType = aType
+				}
+				if !strings.Contains(extracted[i].Title, "[TR") {
+					extracted[i].Title = fmt.Sprintf("DiziMom • %s • %s", dubTag, extracted[i].Quality)
+				}
+				sources = append(sources, extracted[i])
+			}
 		}
 	}
 

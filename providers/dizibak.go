@@ -225,6 +225,13 @@ func (p *DiziBakProvider) ResolveStream(ctx context.Context, streamID string) (*
 	nm := diziBakNonceRe.FindStringSubmatch(htmlStr)
 	if len(pm) > 1 && len(nm) > 1 {
 		for _, sourceType := range []string{"altyazi", "dublaj"} {
+			curAType := AudioTypeSub
+			dubTag := "[TR Altyazı]"
+			if sourceType == "dublaj" {
+				curAType = AudioTypeDub
+				dubTag = "[TR Dublaj]"
+			}
+
 			form := url.Values{}
 			form.Set("action", "load_player_content")
 			form.Set("post_id", pm[1])
@@ -243,7 +250,14 @@ func (p *DiziBakProvider) ResolveStream(ctx context.Context, streamID string) (*
 					if strings.HasPrefix(embedURL, "//") {
 						embedURL = "https:" + embedURL
 					}
-					sources = append(sources, ExtractAnyIframe(ctx, embedURL, epURL)...)
+					extracted := ExtractAnyIframe(ctx, embedURL, epURL)
+					for i := range extracted {
+						extracted[i].AudioType = curAType
+						if !strings.Contains(extracted[i].Title, dubTag) {
+							extracted[i].Title = fmt.Sprintf("DiziBak • %s • %s", dubTag, extracted[i].Quality)
+						}
+						sources = append(sources, extracted[i])
+					}
 				}
 			}
 		}

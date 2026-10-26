@@ -239,6 +239,14 @@ func (p *HDFilmDelisiProvider) ResolveStream(ctx context.Context, streamID strin
 			VideoURL string `json:"videoUrl"`
 		}
 		if json.Unmarshal([]byte(body), &filmDet) == nil {
+			aType := DetectAudioType(filmDet.Baslik + " " + slug)
+			dubTag := "1080p HLS"
+			if aType == AudioTypeDub {
+				dubTag = "[TR Dublaj] • 1080p HLS"
+			} else if aType == AudioTypeSub || aType == AudioTypeOriginal {
+				dubTag = "[TR Altyazı] • 1080p HLS"
+			}
+
 			vixHeaders := map[string]string{
 				"User-Agent": config.DefaultUserAgent,
 				"Referer":    "https://pl.vixolity.com/",
@@ -250,13 +258,14 @@ func (p *HDFilmDelisiProvider) ResolveStream(ctx context.Context, streamID strin
 			if filmDet.IMDbID != "" && strings.HasPrefix(filmDet.IMDbID, "tt") {
 				directURL := fmt.Sprintf("https://ha.vixolity.com/vs/%s", filmDet.IMDbID)
 				sources = append(sources, StreamSource{
-					Name:    "HDFilmDelisi (Vixolity)",
-					Title:   "HDFilmDelisi • 1080p HLS",
-					URL:     directURL,
-					Quality: "1080p",
-					Format:  "hls",
-					IsHLS:   true,
-					Headers: vixHeaders,
+					Name:      "HDFilmDelisi (Vixolity)",
+					Title:     "HDFilmDelisi • " + dubTag,
+					URL:       directURL,
+					Quality:   "1080p",
+					Format:    "hls",
+					IsHLS:     true,
+					AudioType: aType,
+					Headers:   vixHeaders,
 				})
 			}
 
@@ -267,6 +276,11 @@ func (p *HDFilmDelisiProvider) ResolveStream(ctx context.Context, streamID strin
 					"Referer":    p.baseURL() + "/",
 				})
 				if pErr == nil && pCode == 200 {
+					subs := ExtractSubtitles(pBody, "https://pl.vixolity.com/")
+					if aType == AudioTypeUnknown && len(subs) > 0 {
+						aType = AudioTypeSub
+						dubTag = "[TR Altyazı] • 1080p HLS"
+					}
 					reDec := regexp.MustCompile(`(?i)(?:decrypt|\))\s*\(\s*["']([0-9a-fA-F]{50,})["']\s*,\s*(\d+)\)`)
 					reHex := regexp.MustCompile(`['"]([0-9a-fA-F]{100,})['"],\s*(\d+)\)`)
 					reFile := regexp.MustCompile(`file:\s*['"](https?://[^'"]+)['"]`)
@@ -284,13 +298,15 @@ func (p *HDFilmDelisiProvider) ResolveStream(ctx context.Context, streamID strin
 					for _, block := range decBlocks {
 						if fm := reFile.FindStringSubmatch(block); len(fm) > 1 {
 							sources = append(sources, StreamSource{
-								Name:    "HDFilmDelisi Player",
-								Title:   "HDFilmDelisi • 1080p",
-								URL:     fm[1],
-								Quality: "1080p",
-								Format:  "hls",
-								IsHLS:   true,
-								Headers: vixHeaders,
+								Name:      "HDFilmDelisi Player",
+								Title:     "HDFilmDelisi • " + dubTag,
+								URL:       fm[1],
+								Quality:   "1080p",
+								Format:    "hls",
+								IsHLS:     true,
+								AudioType: aType,
+								Headers:   vixHeaders,
+								Subtitles: subs,
 							})
 							break
 						}

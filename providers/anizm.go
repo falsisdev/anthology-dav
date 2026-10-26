@@ -386,18 +386,22 @@ func (p *AnizmProvider) ResolveStream(ctx context.Context, streamID string) (*St
 				"Origin":           p.playerAPI(),
 			}
 
+			subs := ExtractSubtitles(combined, base)
 			if err := FetchJSONWithBody(ctx, "POST", postURL, postHdrs, []byte(postBody), &apiResp); err == nil && apiResp.SecuredLink != "" {
 				sources = append(sources, StreamSource{
-					Name:    "Anizm",
-					Title:   fmt.Sprintf("Anizm (%s) • 1080p HLS", v.Name),
-					URL:     apiResp.SecuredLink,
-					Quality: "1080p",
-					Format:  "hls",
-					IsHLS:   true,
+					Name:      "Anizm",
+					Title:     fmt.Sprintf("Anizm (%s) • [TR Altyazı] • 1080p HLS", v.Name),
+					URL:       apiResp.SecuredLink,
+					Quality:   "1080p",
+					Format:    "hls",
+					IsHLS:     true,
+					AudioType: AudioTypeOriginal,
+					AudioLang: "ja",
 					Headers: map[string]string{
 						"User-Agent": hdrs["User-Agent"],
 						"Referer":    p.playerAPI() + "/",
 					},
+					Subtitles: subs,
 				})
 			}
 		}

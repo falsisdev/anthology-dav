@@ -249,7 +249,17 @@ func (p *LiderFilmIzleProvider) ResolveStream(ctx context.Context, streamID stri
 						}
 					}
 
-					subs := ExtractVTTSubtitles(targetBody)
+					subs := ExtractSubtitles(targetBody, targetURL)
+					aType := DetectAudioType(item.ID + " " + item.URL + " " + targetBody)
+					if aType == AudioTypeUnknown && len(subs) > 0 {
+						aType = AudioTypeSub
+					}
+					tag := "1080p"
+					if aType == AudioTypeDub {
+						tag = "[TR Dublaj] • 1080p"
+					} else if aType == AudioTypeSub || aType == AudioTypeOriginal {
+						tag = "[TR Altyazı] • 1080p"
+					}
 					if subM := regexp.MustCompile(`"subtitle"\s*:\s*"([^"]+)"`).FindStringSubmatch(targetBody); len(subM) > 1 {
 						subVal := subM[1]
 						if idx := strings.Index(subVal, "]"); idx != -1 {
@@ -266,11 +276,12 @@ func (p *LiderFilmIzleProvider) ResolveStream(ctx context.Context, streamID stri
 					if fm := reFile.FindStringSubmatch(targetBody); len(fm) > 1 {
 						sources = append(sources, StreamSource{
 							Name:      "LiderFilm VOD",
-							Title:     "LiderFilm VOD • 1080p",
+							Title:     "LiderFilm VOD • " + tag,
 							URL:       ResolveRelativeURL(fm[1], targetURL),
 							Quality:   "1080p",
 							Format:    "hls",
 							IsHLS:     true,
+							AudioType: aType,
 							Headers:   map[string]string{"Referer": targetURL},
 							Subtitles: subs,
 						})
@@ -294,11 +305,12 @@ func (p *LiderFilmIzleProvider) ResolveStream(ctx context.Context, streamID stri
 							if json.Unmarshal([]byte(dlResp), &dlObj) == nil && dlObj.URL != "" {
 								sources = append(sources, StreamSource{
 									Name:      "LiderFilm Embed",
-									Title:     "LiderFilm Embed • 1080p",
+									Title:     "LiderFilm Embed • " + tag,
 									URL:       dlObj.URL,
 									Quality:   "1080p",
 									Format:    "hls",
 									IsHLS:     true,
+									AudioType: aType,
 									Headers: map[string]string{
 										"Referer":    origin + "/",
 										"User-Agent": config.DefaultUserAgent,

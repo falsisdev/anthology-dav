@@ -155,14 +155,22 @@ func (p *VidLinkProvider) ResolveStream(ctx context.Context, streamID string) (*
 		"Referer": "https://vidlink.pro/",
 		"Origin":  "https://vidlink.pro",
 	}
+	aType := AudioTypeOriginal
+	tag := "[Orijinal Ses]"
+	if len(subs) > 0 {
+		aType = AudioTypeSub
+		tag = "[TR Altyazı]"
+	}
+
 	if parsed.Stream.Playlist != "" {
 		sources = append(sources, StreamSource{
 			Name:      "VidLink Auto HLS",
-			Title:     "VidLink • 1080p HLS",
+			Title:     "VidLink • " + tag + " • 1080p HLS",
 			URL:       parsed.Stream.Playlist,
 			Quality:   "1080p",
 			Format:    "hls",
 			IsHLS:     true,
+			AudioType: aType,
 			Headers:   headers,
 			Subtitles: subs,
 		})
@@ -171,11 +179,12 @@ func (p *VidLinkProvider) ResolveStream(ctx context.Context, streamID string) (*
 		if qObj.URL != "" {
 			sources = append(sources, StreamSource{
 				Name:      "VidLink " + q,
-				Title:     "VidLink • " + q,
+				Title:     "VidLink • " + tag + " • " + q,
 				URL:       qObj.URL,
 				Quality:   q,
 				Format:    "mp4",
 				IsHLS:     false,
+				AudioType: aType,
 				Headers:   headers,
 				Subtitles: subs,
 			})

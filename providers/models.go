@@ -54,6 +54,17 @@ type Subtitle struct {
 	Headers  map[string]string `json:"headers,omitempty"`
 }
 
+// AudioType represents whether the audio is Dubbed, Subtitled (Original), English Dubbed, etc.
+type AudioType string
+
+const (
+	AudioTypeUnknown  AudioType = ""
+	AudioTypeSub      AudioType = "sub"      // Orijinal ses + Türkçe Altyazı
+	AudioTypeDub      AudioType = "dub"      // Türkçe Dublaj
+	AudioTypeOriginal AudioType = "original" // Orijinal Ses (Japonca vb.)
+	AudioTypeEnDub    AudioType = "en_dub"   // İngilizce Dublaj
+)
+
 // StreamSource represents a resolved video stream candidate.
 type StreamSource struct {
 	Name      string            `json:"name"`
@@ -62,6 +73,8 @@ type StreamSource struct {
 	Quality   string            `json:"quality"` // e.g. "2160p", "1080p", "720p", "480p", "Auto"
 	Format    string            `json:"format"`  // "hls", "mp4", "mkv"
 	IsHLS     bool              `json:"is_hls"`
+	AudioType AudioType         `json:"audio_type,omitempty"`
+	AudioLang string            `json:"audio_lang,omitempty"` // e.g., "tr", "ja", "en"
 	Headers   map[string]string `json:"headers,omitempty"`
 	Subtitles []Subtitle        `json:"subtitles,omitempty"`
 }

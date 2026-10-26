@@ -585,6 +585,10 @@ func (h *Handler) HandlePlaylistM3U(w http.ResponseWriter, r *http.Request) {
 	filterSeason, _ := strconv.Atoi(strings.TrimSpace(q.Get("season")))
 	filterEpisode, _ := strconv.Atoi(strings.TrimSpace(q.Get("episode")))
 	overrideProv := strings.TrimSpace(q.Get("provider"))
+	overrideAudio := strings.TrimSpace(q.Get("audio"))
+	if overrideAudio == "" {
+		overrideAudio = "auto"
+	}
 
 	var items []config.LibraryItem
 	if h.cfg.MultiUser {
@@ -632,8 +636,8 @@ func (h *Handler) HandlePlaylistM3U(w http.ResponseWriter, r *http.Request) {
 		if it.Type == "movie" {
 			subURL := fmt.Sprintf("%s/sub/resolve?type=movie&tmdb_id=%d&title=%s&year=%s&lang=tr&format=vtt",
 				baseURL, it.TMDBID, url.QueryEscape(it.Title), url.QueryEscape(it.Year))
-			streamURL := fmt.Sprintf("%s/stream/resolve?type=movie&tmdb_id=%d&title=%s&year=%s&provider=%s",
-				baseURL, it.TMDBID, url.QueryEscape(it.Title), url.QueryEscape(it.Year), url.QueryEscape(prov))
+			streamURL := fmt.Sprintf("%s/stream/resolve?type=movie&tmdb_id=%d&title=%s&year=%s&provider=%s&audio=%s",
+				baseURL, it.TMDBID, url.QueryEscape(it.Title), url.QueryEscape(it.Year), url.QueryEscape(prov), url.QueryEscape(overrideAudio))
 			sb.WriteString(fmt.Sprintf("#EXTINF:-1 tvg-id=\"%d\" tvg-logo=\"%s\" group-title=\"Filmler\",%s\n#EXTVLCOPT:sub-file=%s\n%s\n",
 				it.TMDBID, logo, cleanTitle, subURL, streamURL))
 			continue
@@ -674,8 +678,8 @@ func (h *Handler) HandlePlaylistM3U(w http.ResponseWriter, r *http.Request) {
 				epLabel := fmt.Sprintf("%s - S%02dE%02d", cleanTitle, s.SeasonNumber, ep)
 				subURL := fmt.Sprintf("%s/sub/resolve?type=%s&tmdb_id=%d&title=%s&year=%s&season=%d&episode=%d&lang=tr&format=vtt",
 					baseURL, it.Type, it.TMDBID, url.QueryEscape(it.Title), url.QueryEscape(it.Year), s.SeasonNumber, ep)
-				streamURL := fmt.Sprintf("%s/stream/resolve?type=%s&tmdb_id=%d&title=%s&year=%s&season=%d&episode=%d&provider=%s",
-					baseURL, it.Type, it.TMDBID, url.QueryEscape(it.Title), url.QueryEscape(it.Year), s.SeasonNumber, ep, url.QueryEscape(prov))
+				streamURL := fmt.Sprintf("%s/stream/resolve?type=%s&tmdb_id=%d&title=%s&year=%s&season=%d&episode=%d&provider=%s&audio=%s",
+					baseURL, it.Type, it.TMDBID, url.QueryEscape(it.Title), url.QueryEscape(it.Year), s.SeasonNumber, ep, url.QueryEscape(prov), url.QueryEscape(overrideAudio))
 				sb.WriteString(fmt.Sprintf("#EXTINF:-1 tvg-id=\"%d_S%02dE%02d\" tvg-logo=\"%s\" group-title=\"%s\",%s\n#EXTVLCOPT:sub-file=%s\n%s\n",
 					it.TMDBID, s.SeasonNumber, ep, logo, groupTitle, epLabel, subURL, streamURL))
 			}
@@ -2577,15 +2581,17 @@ const material3HTML = `<!DOCTYPE html>
       openInVLC(playUrl, it.title + (it.year ? ' (' + it.year + ')' : ''));
     }
 
-    function playModalCurrentInVLC(provOverride) {
+    function playModalCurrentInVLC(provOverride, audioOverride) {
       if (!activeModalItem) return;
       const it = activeModalItem;
       const s = parseInt(document.getElementById('modalSeason').value || '1', 10);
       const e = parseInt(document.getElementById('modalEpisode').value || '1', 10);
       const prov = provOverride || it.selected_provider || 'auto';
+      const audio = audioOverride || 'auto';
       let playUrl = getReachableBaseOrigin() + '/playlist.m3u?id=' + encodeURIComponent(it.id) +
         '&season=' + s + '&episode=' + e +
-        '&provider=' + encodeURIComponent(prov);
+        '&provider=' + encodeURIComponent(prov) +
+        '&audio=' + encodeURIComponent(audio);
       if (isMultiUser && authToken) {
         playUrl += '&token=' + encodeURIComponent(authToken);
       }
@@ -2797,29 +2803,57 @@ const material3HTML = `<!DOCTYPE html>
         const bestQual = sources[0].quality || '1080p';
         let html = '<div class="m3-source-row" style="border-color: rgba(48, 209, 88, 0.4); background: rgba(48, 209, 88, 0.08);">' +
           '<div class="m3-source-row-info">' +
-            '<div class="m3-source-row-name">⚡ Otomatik (En İyi Çalışan Kaynak) <span class="m3-status-chip" style="font-size:10px; padding:2px 8px;">' + bestQual + '</span></div>' +
-            '<div class="m3-source-row-sub">Doğrulanmış ' + sources.length + ' kaynak arasından en yüksek kaliteyi otomatik oynatır</div>' +
+            '<div class="m3-source-row-name">⚡ Otomatik En İyi (Akıllı Öncelik) <span class="m3-status-chip" style="font-size:10px; padding:2px 8px;">' + bestQual + '</span></div>' +
+            '<div class="m3-source-row-sub">Orijinal ses ve Türkçe altyazı öncelikli olarak tüm kaynaklar arasından otomatik seçer</div>' +
           '</div>' +
-          '<div class="m3-source-row-actions">' +
-            '<button class="m3-pill-btn vlc m3-ripple-container" style="height:32px; padding:0 12px; font-size:11.5px;" onclick="playModalCurrentInVLC(\'auto\')">▶ VLC\'de Aç</button>' +
+          '<div class="m3-source-row-actions" style="display:flex; flex-wrap:wrap; gap:8px;">' +
+            '<button class="m3-pill-btn vlc m3-ripple-container" style="height:32px; padding:0 12px; font-size:11.5px;" onclick="playModalCurrentInVLC(\'auto\', \'sub\')">▶ Altyazılı Aç</button>' +
+            '<button class="m3-pill-btn vlc m3-ripple-container" style="height:32px; padding:0 12px; font-size:11.5px;" onclick="playModalCurrentInVLC(\'auto\', \'dub\')">▶ Dublaj Aç</button>' +
             '<button class="m3-pill-btn primary m3-ripple-container" style="height:32px; padding:0 12px; font-size:11.5px;" onclick="selectWorkingProvider(\'' + it.id + '\', \'auto\')">Varsayılan Yap</button>' +
-            '<button class="m3-pill-btn m3-ripple-container" style="height:32px; padding:0 12px; font-size:11.5px;" onclick="copyWorkingStreamURL(\'auto\', ' + s + ', ' + e + ')">Linki Kopyala</button>' +
           '</div>' +
         '</div>';
 
-        sources.forEach((src, idx) => {
-          const isCurrent = (it.selected_provider === src.provider_id);
-          html += '<div class="m3-source-row">' +
-            '<div class="m3-source-row-info">' +
-              '<div class="m3-source-row-name">' + (idx + 1) + '. ' + escapeHtml(src.provider_name) + ' <span class="m3-status-chip" style="font-size:10px; padding:2px 8px;">' + src.quality + ' • ' + src.format + '</span></div>' +
-              '<div class="m3-source-row-sub">' + escapeHtml(src.title || src.provider_name) + '</div>' +
+        const grouped = [];
+        const groupMap = {};
+        sources.forEach(src => {
+          if (!groupMap[src.provider_id]) {
+            groupMap[src.provider_id] = {
+              provider_id: src.provider_id,
+              provider_name: src.provider_name,
+              variants: []
+            };
+            grouped.push(groupMap[src.provider_id]);
+          }
+          groupMap[src.provider_id].variants.push(src);
+        });
+
+        grouped.forEach((grp, idx) => {
+          const isCurrent = (it.selected_provider === grp.provider_id);
+          html += '<div class="m3-source-row" style="flex-direction:column; align-items:stretch; gap:10px;">' +
+            '<div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">' +
+              '<div class="m3-source-row-info">' +
+                '<div class="m3-source-row-name">' + (idx + 1) + '. ' + escapeHtml(grp.provider_name) + '</div>' +
+              '</div>' +
+              '<div style="display:flex; align-items:center; gap:8px;">' +
+                '<button class="m3-pill-btn ' + (isCurrent ? '' : 'primary') + ' m3-ripple-container" style="height:30px; padding:0 12px; font-size:11px;" onclick="selectWorkingProvider(\'' + it.id + '\', \'' + grp.provider_id + '\')">' +
+                  (isCurrent ? '✓ Seçili Sağlayıcı' : 'Sağlayıcıyı Seç') +
+                '</button>' +
+              '</div>' +
             '</div>' +
-            '<div class="m3-source-row-actions">' +
-              '<button class="m3-pill-btn vlc m3-ripple-container" style="height:32px; padding:0 12px; font-size:11.5px;" onclick="playModalCurrentInVLC(\'' + src.provider_id + '\')">▶ VLC\'de Aç</button>' +
-              '<button class="m3-pill-btn ' + (isCurrent ? '' : 'primary') + ' m3-ripple-container" style="height:32px; padding:0 12px; font-size:11.5px;" onclick="selectWorkingProvider(\'' + it.id + '\', \'' + src.provider_id + '\')">' +
-                (isCurrent ? '✓ Seçili' : 'Bu Kaynağı Seç') +
-              '</button>' +
-              '<button class="m3-pill-btn m3-ripple-container" style="height:32px; padding:0 12px; font-size:11.5px;" onclick="copyWorkingStreamURL(\'' + src.provider_id + '\', ' + s + ', ' + e + ')">Linki Kopyala</button>' +
+            '<div style="display:flex; flex-direction:column; gap:6px; padding-left:12px; border-left:2px solid var(--md-sys-color-outline-variant);">' +
+              grp.variants.map(v => {
+                const aLbl = v.audio_label || (v.audio_type === 'dub' ? '🎙️ Türkçe Dublaj' : '💬 Türkçe Altyazı');
+                return '<div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px; background:rgba(255,255,255,0.03); padding:6px 10px; border-radius:8px;">' +
+                  '<div style="display:flex; align-items:center; gap:8px;">' +
+                    '<span style="font-size:12.5px; font-weight:600; color:var(--md-sys-color-on-surface);">' + escapeHtml(aLbl) + '</span>' +
+                    '<span class="m3-status-chip" style="font-size:10px; padding:2px 8px;">' + escapeHtml(v.quality) + ' • ' + escapeHtml(v.format) + '</span>' +
+                  '</div>' +
+                  '<div style="display:flex; align-items:center; gap:6px;">' +
+                    '<button class="m3-pill-btn vlc m3-ripple-container" style="height:28px; padding:0 10px; font-size:11px;" onclick="playModalCurrentInVLC(\'' + grp.provider_id + '\', \'' + v.audio_type + '\')">▶ VLC\'de Aç</button>' +
+                    '<button class="m3-pill-btn m3-ripple-container" style="height:28px; padding:0 10px; font-size:11px;" onclick="copyWorkingStreamURL(\'' + grp.provider_id + '\', ' + s + ', ' + e + ', \'' + v.audio_type + '\')">Linki Kopyala</button>' +
+                  '</div>' +
+                '</div>';
+              }).join('') +
             '</div>' +
           '</div>';
         });
@@ -2836,15 +2870,17 @@ const material3HTML = `<!DOCTYPE html>
       closeSourceModal();
     }
 
-    function copyWorkingStreamURL(provId, s, e) {
+    function copyWorkingStreamURL(provId, s, e, audioType) {
       if (!activeModalItem) return;
       const it = activeModalItem;
+      const audio = audioType || 'auto';
       const url = getReachableBaseOrigin() + '/stream/resolve?type=' + encodeURIComponent(it.type) +
         '&tmdb_id=' + encodeURIComponent(it.tmdb_id) +
         '&title=' + encodeURIComponent(it.title) +
         '&year=' + encodeURIComponent(it.year || '') +
         '&season=' + s + '&episode=' + e +
-        '&provider=' + encodeURIComponent(provId);
+        '&provider=' + encodeURIComponent(provId) +
+        '&audio=' + encodeURIComponent(audio);
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(url).then(() => {
           showToast('Doğrulanmış yayın linki kopyalandı! (VLC, IINA, Infuse ile açabilirsiniz)', '▶');

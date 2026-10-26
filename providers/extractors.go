@@ -325,6 +325,41 @@ var (
 	q240Re  = regexp.MustCompile(`(?i)\b(240p?)\b`)
 )
 
+// DetectAudioType inspects titles, player labels, and HTML context to determine audio type.
+func DetectAudioType(text string) AudioType {
+	low := strings.ToLower(text)
+	switch {
+	case strings.Contains(low, "ingilizce dublaj") || strings.Contains(low, "en dublaj") || strings.Contains(low, "endub") || strings.Contains(low, "en dub") ||
+		strings.Contains(low, "english dub") || strings.Contains(low, "english dubbed") || strings.Contains(low, "eng dub") || strings.Contains(low, "eng dubbed") ||
+		(strings.Contains(low, "english") && strings.Contains(low, "dub")):
+		return AudioTypeEnDub
+	case strings.Contains(low, "türkçe dublaj") || strings.Contains(low, "turkce dublaj") || strings.Contains(low, "tr dublaj") || strings.Contains(low, "tr dub") || strings.Contains(low, "dublaj") || strings.Contains(low, "trdub") || strings.Contains(low, "dubbed"):
+		return AudioTypeDub
+	case strings.Contains(low, "japonca") || strings.Contains(low, "japanese") || strings.Contains(low, "original") || strings.Contains(low, "orijinal") || strings.Contains(low, "orig"):
+		return AudioTypeOriginal
+	case strings.Contains(low, "altyazı") || strings.Contains(low, "altyazi") || strings.Contains(low, "tr altyazi") || strings.Contains(low, "sub") || strings.Contains(low, "subbed") || strings.Contains(low, "softsub"):
+		return AudioTypeSub
+	default:
+		return AudioTypeUnknown
+	}
+}
+
+// AudioTypeLabel returns a human-readable Turkish badge for the AudioType.
+func AudioTypeLabel(t AudioType) string {
+	switch t {
+	case AudioTypeSub:
+		return "💬 Türkçe Altyazı"
+	case AudioTypeDub:
+		return "🎙️ Türkçe Dublaj"
+	case AudioTypeOriginal:
+		return "🇯🇵 Japonca (Orijinal)"
+	case AudioTypeEnDub:
+		return "🇬🇧 İngilizce Dublaj"
+	default:
+		return "📺 Standart"
+	}
+}
+
 // GetQualityScore computes the numeric quality score for a StreamSource.
 func GetQualityScore(s StreamSource) int {
 	q := strings.ToLower(s.Quality + " " + s.Title + " " + s.Name + " " + s.URL)
@@ -355,13 +390,24 @@ func GetQualityScore(s StreamSource) int {
 		score++
 	}
 
-	// Turkish language priority within same resolution:
-	// Turkish Dubbed (+20) > Turkish Subtitled / Japanese (+15) > English / Other (0)
-	lowTitle := strings.ToLower(s.Title)
-	if strings.Contains(lowTitle, "türkçe dublaj") || strings.Contains(lowTitle, "tr dublaj") || strings.Contains(lowTitle, "tr dub") {
-		score += 20
-	} else if strings.Contains(lowTitle, "altyazı") || strings.Contains(lowTitle, "altyazi") || strings.Contains(lowTitle, "japonca") {
+	// Audio language priority within same resolution:
+	// User preference: Original Audio / Turkish Subtitled / Japanese (+25) > Turkish Dubbed (+15) > English Dubbed / Other (+5)
+	switch s.AudioType {
+	case AudioTypeSub, AudioTypeOriginal:
+		score += 25
+	case AudioTypeDub:
 		score += 15
+	case AudioTypeEnDub:
+		score += 5
+	default:
+		lowTitle := strings.ToLower(s.Title + " " + s.Name)
+		if strings.Contains(lowTitle, "altyazı") || strings.Contains(lowTitle, "altyazi") || strings.Contains(lowTitle, "japonca") {
+			score += 25
+		} else if strings.Contains(lowTitle, "türkçe dublaj") || strings.Contains(lowTitle, "tr dublaj") || strings.Contains(lowTitle, "tr dub") || strings.Contains(lowTitle, "dublaj") {
+			score += 15
+		} else if strings.Contains(lowTitle, "ingilizce dublaj") || strings.Contains(lowTitle, "en dub") {
+			score += 5
+		}
 	}
 
 	return score
@@ -472,12 +518,14 @@ func ExtractTauVideo(ctx context.Context, embedURL string) []StreamSource {
 			q = "1080p"
 		}
 		out = append(out, StreamSource{
-			Name:    "TauVideo",
-			Title:   "TauVideo • " + q,
-			URL:     u.URL,
-			Quality: q,
-			Format:  "mp4",
-			IsHLS:   false,
+			Name:      "TauVideo",
+			Title:     "TauVideo • Japonca [TR Altyazı] • " + q,
+			URL:       u.URL,
+			Quality:   q,
+			Format:    "mp4",
+			IsHLS:     false,
+			AudioType: AudioTypeOriginal,
+			AudioLang: "ja",
 			Headers: map[string]string{
 				"Referer":    "https://tau-video.xyz/",
 				"User-Agent": config.DefaultUserAgent,
@@ -639,15 +687,26 @@ func ExtractVidMoly(ctx context.Context, embedURL, referer string) []StreamSourc
 	if len(m) < 2 {
 		return nil
 	}
-	subs := ExtractVTTSubtitles(htmlStr)
+	subs := ExtractSubtitles(htmlStr, "https://vidmoly.biz/")
+	aType := DetectAudioType(embedURL + " " + referer + " " + htmlStr)
+	title := "VidMoly • 1080p HLS"
+	if aType == AudioTypeDub {
+		title = "VidMoly • [TR Dublaj] • 1080p HLS"
+	} else if aType == AudioTypeSub || len(subs) > 0 {
+		title = "VidMoly • [TR Altyazı] • 1080p HLS"
+		if aType == AudioTypeUnknown {
+			aType = AudioTypeSub
+		}
+	}
 	return []StreamSource{
 		{
-			Name:    "VidMoly",
-			Title:   "VidMoly • 1080p HLS",
-			URL:     m[1],
-			Quality: "1080p",
-			Format:  "hls",
-			IsHLS:   true,
+			Name:      "VidMoly",
+			Title:     title,
+			URL:       m[1],
+			Quality:   "1080p",
+			Format:    "hls",
+			IsHLS:     true,
+			AudioType: aType,
 			Headers: map[string]string{
 				"Referer":    "https://vidmoly.biz/",
 				"User-Agent": config.DefaultUserAgent,
@@ -722,6 +781,9 @@ func ExtractHDPlayerSystem(ctx context.Context, embedURL, referer string) []Stre
 	if err != nil {
 		return nil
 	}
+	if len(respText) > 0 {
+		subs = append(subs, ExtractSubtitles(respText, origin)...)
+	}
 	m := securedLinkRe.FindStringSubmatch(respText)
 	if len(m) < 2 {
 		return nil
@@ -729,12 +791,13 @@ func ExtractHDPlayerSystem(ctx context.Context, embedURL, referer string) []Stre
 	streamURL := strings.ReplaceAll(m[1], `\/`, `/`)
 	return []StreamSource{
 		{
-			Name:    "HDPlayerSystem",
-			Title:   "HDPlayerSystem • 1080p HLS",
-			URL:     streamURL,
-			Quality: "1080p",
-			Format:  "hls",
-			IsHLS:   true,
+			Name:      "HDPlayerSystem",
+			Title:     "HDPlayerSystem • 1080p HLS",
+			URL:       streamURL,
+			Quality:   "1080p",
+			Format:    "hls",
+			IsHLS:     true,
+			AudioType: DetectAudioType(embedURL + " " + respText),
 			Headers: map[string]string{
 				"Referer":    origin + "/",
 				"User-Agent": config.DefaultUserAgent,
@@ -936,35 +999,114 @@ func ExtractDailymotion(ctx context.Context, videoIDOrURL string) []StreamSource
 	return nil
 }
 
-var vttURLRe = regexp.MustCompile(`(?i)https?://[^\s"'\\<>]+\.vtt`)
+var (
+	subFullURLRe     = regexp.MustCompile(`(?i)(?:https?:)?//[a-zA-Z0-9.-]+/[^\s"'\\<>]+\.(?:vtt|srt)(?:\?[^\s"'\\<>]*)?`)
+	subRelURLRe      = regexp.MustCompile(`(?i)["'](/[^"'\s<>]+\.(?:vtt|srt)(?:\?[^"'\s<>]*)?)["']`)
+	subTrackTagRe    = regexp.MustCompile(`(?i)<track[^>]+src=["']([^"']+)["'](?:[^>]*label=["']([^"']*)["'])?`)
+	subTrackJSONRe   = regexp.MustCompile(`(?i)(?:file|src|url)\s*:\s*["']([^"']+\.(?:vtt|srt)[^"']*)["']`)
+)
 
-// ExtractVTTSubtitles extracts all .vtt subtitle URLs from HTML or JS text.
-func ExtractVTTSubtitles(content string) []Subtitle {
-	matches := vttURLRe.FindAllString(content, -1)
+// ExtractSubtitles extracts all .vtt and .srt subtitle tracks from HTML, JSON, or player scripts.
+func ExtractSubtitles(content, baseOrigin string) []Subtitle {
+	if content == "" {
+		return nil
+	}
+	clean := strings.ReplaceAll(content, `\/`, `/`)
 	seen := make(map[string]bool)
 	var subs []Subtitle
-	for i, u := range matches {
-		u = strings.ReplaceAll(u, `\/`, `/`)
+
+	addCandidate := func(rawURL, rawLabel string) {
+		u := strings.TrimSpace(rawURL)
+		if u == "" {
+			return
+		}
+		if strings.HasPrefix(u, "//") {
+			u = "https:" + u
+		} else if strings.HasPrefix(u, "/") && baseOrigin != "" {
+			u = ResolveRelativeURL(u, baseOrigin)
+		}
+		if !strings.HasPrefix(u, "http") {
+			return
+		}
+
 		lower := strings.ToLower(u)
 		if seen[u] || strings.Contains(lower, "thumb") || strings.Contains(lower, "sprite") || strings.Contains(lower, "preview") {
-			continue
+			return
 		}
 		seen[u] = true
+
+		format := "vtt"
+		if strings.Contains(lower, ".srt") {
+			format = "srt"
+		}
+
 		lang := "tr"
 		label := "Türkçe"
-		if strings.Contains(lower, "eng") || strings.Contains(lower, "_en.") || strings.Contains(lower, "/en.") {
+		combinedMeta := strings.ToLower(rawLabel + " " + u)
+		switch {
+		case strings.Contains(combinedMeta, "eng") || strings.Contains(combinedMeta, "english") || strings.Contains(combinedMeta, "_en.") || strings.Contains(combinedMeta, "/en."):
 			lang = "en"
 			label = "English"
+		case strings.Contains(combinedMeta, "jap") || strings.Contains(combinedMeta, "japanese") || strings.Contains(combinedMeta, "_ja.") || strings.Contains(combinedMeta, "/ja."):
+			lang = "ja"
+			label = "Japonca"
+		case strings.Contains(combinedMeta, "ger") || strings.Contains(combinedMeta, "almanca") || strings.Contains(combinedMeta, "deu"):
+			lang = "de"
+			label = "Almanca"
+		case strings.Contains(combinedMeta, "fra") || strings.Contains(combinedMeta, "fransızca") || strings.Contains(combinedMeta, "fre"):
+			lang = "fr"
+			label = "Fransızca"
+		default:
+			if rawLabel != "" {
+				label = rawLabel
+			}
 		}
+
 		subs = append(subs, Subtitle{
-			ID:       fmt.Sprintf("sub_%d", i),
+			ID:       fmt.Sprintf("sub_%d_%s", len(subs)+1, lang),
 			Language: lang,
 			Label:    label,
-			Format:   "vtt",
+			Format:   format,
 			URL:      u,
 		})
 	}
+
+	// 1. Full absolute URLs (.vtt and .srt)
+	for _, m := range subFullURLRe.FindAllString(clean, -1) {
+		addCandidate(m, "")
+	}
+
+	// 2. Relative URLs
+	for _, m := range subRelURLRe.FindAllStringSubmatch(clean, -1) {
+		if len(m) > 1 {
+			addCandidate(m[1], "")
+		}
+	}
+
+	// 3. HTML <track> tags
+	for _, m := range subTrackTagRe.FindAllStringSubmatch(clean, -1) {
+		if len(m) > 1 {
+			lbl := ""
+			if len(m) > 2 {
+				lbl = m[2]
+			}
+			addCandidate(m[1], lbl)
+		}
+	}
+
+	// 4. Player track JSON
+	for _, m := range subTrackJSONRe.FindAllStringSubmatch(clean, -1) {
+		if len(m) > 1 {
+			addCandidate(m[1], "")
+		}
+	}
+
 	return subs
+}
+
+// ExtractVTTSubtitles extracts all subtitle URLs from HTML or JS text (backward compatible wrapper).
+func ExtractVTTSubtitles(content string) []Subtitle {
+	return ExtractSubtitles(content, "")
 }
 
 var (
@@ -1147,13 +1289,14 @@ func ExtractAnyIframe(ctx context.Context, iframeURL, referer string) []StreamSo
 	}
 	unpacked := UnpackJS(htmlStr)
 	combined := strings.ReplaceAll(htmlStr+"\n"+unpacked, `\/`, `/`)
-	subs := ExtractVTTSubtitles(combined)
 
 	parsed, _ := url.Parse(iframeURL)
 	iframeOrigin := referer
 	if parsed != nil && parsed.Host != "" {
 		iframeOrigin = parsed.Scheme + "://" + parsed.Host + "/"
 	}
+	subs := ExtractSubtitles(combined, iframeOrigin)
+	aType := DetectAudioType(iframeURL + " " + referer + " " + combined)
 
 	var out []StreamSource
 	seen := make(map[string]bool)
@@ -1163,13 +1306,24 @@ func ExtractAnyIframe(ctx context.Context, iframeURL, referer string) []StreamSo
 			continue
 		}
 		seen[u] = true
+		title := "HLS • 1080p"
+		curAType := aType
+		if curAType == AudioTypeDub {
+			title = "HLS • [TR Dublaj] • 1080p"
+		} else if curAType == AudioTypeSub || len(subs) > 0 {
+			title = "HLS • [TR Altyazı] • 1080p"
+			if curAType == AudioTypeUnknown {
+				curAType = AudioTypeSub
+			}
+		}
 		out = append(out, StreamSource{
-			Name:    "HLS Player",
-			Title:   "HLS • 1080p",
-			URL:     u,
-			Quality: "1080p",
-			Format:  "hls",
-			IsHLS:   true,
+			Name:      "HLS Player",
+			Title:     title,
+			URL:       u,
+			Quality:   "1080p",
+			Format:    "hls",
+			IsHLS:     true,
+			AudioType: curAType,
 			Headers: map[string]string{
 				"Referer":    iframeOrigin,
 				"User-Agent": config.DefaultUserAgent,
@@ -1182,13 +1336,24 @@ func ExtractAnyIframe(ctx context.Context, iframeURL, referer string) []StreamSo
 			u := strings.ReplaceAll(m[1], `\/`, `/`)
 			if !seen[u] {
 				seen[u] = true
+				title := "MP4 • 1080p"
+				curAType := aType
+				if curAType == AudioTypeDub {
+					title = "MP4 • [TR Dublaj] • 1080p"
+				} else if curAType == AudioTypeSub || len(subs) > 0 {
+					title = "MP4 • [TR Altyazı] • 1080p"
+					if curAType == AudioTypeUnknown {
+						curAType = AudioTypeSub
+					}
+				}
 				out = append(out, StreamSource{
-					Name:    "MP4 Player",
-					Title:   "MP4 • 1080p",
-					URL:     u,
-					Quality: "1080p",
-					Format:  "mp4",
-					IsHLS:   false,
+					Name:      "MP4 Player",
+					Title:     title,
+					URL:       u,
+					Quality:   "1080p",
+					Format:    "mp4",
+					IsHLS:     false,
+					AudioType: curAType,
 					Headers: map[string]string{
 						"Referer":    iframeOrigin,
 						"User-Agent": config.DefaultUserAgent,

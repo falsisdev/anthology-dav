@@ -187,9 +187,31 @@ func (p *DiziWatchProvider) ResolveStream(ctx context.Context, streamID string) 
 		return nil, err
 	}
 
+	pageSubs := ExtractSubtitles(htmlStr, base)
+	aType := DetectAudioType(htmlStr)
+	if aType == AudioTypeUnknown {
+		aType = AudioTypeSub
+	}
+	dubTag := "[TR Altyazı]"
+	if aType == AudioTypeDub {
+		dubTag = "[TR Dublaj]"
+	}
+
 	var sources []StreamSource
-	for _, im := range regexp.MustCompile(`(?i)<iframe[^>]+src="([^"]+)"`).FindAllStringSubmatch(htmlStr, 4) {
-		sources = append(sources, ExtractAnyIframe(ctx, im[1], base+"/")...)
+	for _, im := range regexp.MustCompile(`(?i)<iframe[^>]+src="([^"]+)"`).FindAllStringSubmatch(htmlStr, 6) {
+		extracted := ExtractAnyIframe(ctx, im[1], base+"/")
+		for i := range extracted {
+			if len(extracted[i].Subtitles) == 0 && len(pageSubs) > 0 {
+				extracted[i].Subtitles = pageSubs
+			}
+			if extracted[i].AudioType == AudioTypeUnknown {
+				extracted[i].AudioType = aType
+			}
+			if !strings.Contains(extracted[i].Title, "[TR") {
+				extracted[i].Title = fmt.Sprintf("DiziWatch • %s • %s", dubTag, extracted[i].Quality)
+			}
+			sources = append(sources, extracted[i])
+		}
 	}
 	return SelectBestStream(sources)
 }

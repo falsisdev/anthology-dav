@@ -185,7 +185,18 @@ func (p *HDFilmCehennemiProvider) ResolveStream(ctx context.Context, streamID st
 			continue
 		}
 
-		subs := ExtractVTTSubtitles(embedHTML)
+		subs := ExtractSubtitles(embedHTML, embedURL)
+		aType := DetectAudioType(m[1] + " " + embedHTML + " " + body)
+		if aType == AudioTypeUnknown && len(subs) > 0 {
+			aType = AudioTypeSub
+		}
+		dubTag := "1080p"
+		if aType == AudioTypeDub {
+			dubTag = "[TR Dublaj] • 1080p"
+		} else if aType == AudioTypeSub || aType == AudioTypeOriginal {
+			dubTag = "[TR Altyazı] • 1080p"
+		}
+
 		unpacked := UnpackJS(embedHTML)
 		combined := embedHTML + "\n" + unpacked
 		reB64Parts := regexp.MustCompile(`\[((?:"[A-Za-z0-9+/=]+"(?:\s*,\s*)?)+)\]`)
@@ -201,11 +212,12 @@ func (p *HDFilmCehennemiProvider) ResolveStream(ctx context.Context, streamID st
 				if strings.HasPrefix(decStr, "http") {
 					sources = append(sources, StreamSource{
 						Name:      "HDFilmCehennemi CloseLoad",
-						Title:     "CloseLoad • 1080p",
+						Title:     "CloseLoad • " + dubTag,
 						URL:       decStr,
 						Quality:   "1080p",
 						Format:    "hls",
 						IsHLS:     true,
+						AudioType: aType,
 						Headers:   map[string]string{"Referer": "https://hdfilmcehennemi.mobi/"},
 						Subtitles: subs,
 					})
@@ -217,11 +229,12 @@ func (p *HDFilmCehennemiProvider) ResolveStream(ctx context.Context, streamID st
 		if mm := reM3U8.FindStringSubmatch(combined); len(mm) > 1 {
 			sources = append(sources, StreamSource{
 				Name:      "HDFilmCehennemi Direct",
-				Title:     "Direct • 1080p",
+				Title:     "Direct • " + dubTag,
 				URL:       strings.ReplaceAll(mm[1], `\/`, `/`),
 				Quality:   "1080p",
 				Format:    "hls",
 				IsHLS:     true,
+				AudioType: aType,
 				Headers:   map[string]string{"Referer": embedURL},
 				Subtitles: subs,
 			})

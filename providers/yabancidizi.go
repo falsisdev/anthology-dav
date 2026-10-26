@@ -193,12 +193,43 @@ func (p *YabanciDiziProvider) ResolveStream(ctx context.Context, streamID string
 		return nil, err
 	}
 
+	pageSubs := ExtractSubtitles(htmlStr, base)
+	aType := DetectAudioType(htmlStr)
+	if aType == AudioTypeUnknown {
+		aType = AudioTypeSub
+	}
+	dubTag := "[TR Altyazı]"
+	if aType == AudioTypeDub {
+		dubTag = "[TR Dublaj]"
+	}
+
 	var sources []StreamSource
 	for _, vm := range regexp.MustCompile(`vidmoly\.[a-z]+/(?:dl/|embed-)([a-zA-Z0-9]+)`).FindAllStringSubmatch(htmlStr, -1) {
-		sources = append(sources, ExtractVidMoly(ctx, "https://vidmoly.biz/embed-"+vm[1]+".html", epURL)...)
+		extracted := ExtractVidMoly(ctx, "https://vidmoly.biz/embed-"+vm[1]+".html", epURL)
+		for i := range extracted {
+			if len(extracted[i].Subtitles) == 0 && len(pageSubs) > 0 {
+				extracted[i].Subtitles = pageSubs
+			}
+			if extracted[i].AudioType == AudioTypeUnknown {
+				extracted[i].AudioType = aType
+			}
+			sources = append(sources, extracted[i])
+		}
 	}
 	for _, im := range regexp.MustCompile(`(?i)<iframe[^>]+src="([^"]+)"`).FindAllStringSubmatch(htmlStr, 4) {
-		sources = append(sources, ExtractAnyIframe(ctx, im[1], epURL)...)
+		extracted := ExtractAnyIframe(ctx, im[1], epURL)
+		for i := range extracted {
+			if len(extracted[i].Subtitles) == 0 && len(pageSubs) > 0 {
+				extracted[i].Subtitles = pageSubs
+			}
+			if extracted[i].AudioType == AudioTypeUnknown {
+				extracted[i].AudioType = aType
+			}
+			if !strings.Contains(extracted[i].Title, "[TR") {
+				extracted[i].Title = fmt.Sprintf("YabancıDizi • %s • %s", dubTag, extracted[i].Quality)
+			}
+			sources = append(sources, extracted[i])
+		}
 	}
 	return SelectBestStream(sources)
 }

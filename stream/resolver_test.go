@@ -100,3 +100,57 @@ func TestRevivedProvidersViaMultiResolver(t *testing.T) {
 		t.Logf("SUCCESS Vidmody via MultiResolver: URL=%s", resVM.Primary.URL)
 	}
 }
+
+func TestFilterAndSortStreamsByAudio(t *testing.T) {
+	sourceSub := providers.StreamSource{
+		URL:       "https://example.com/sub_1080p.m3u8",
+		Quality:   "1080p",
+		AudioType: providers.AudioTypeSub,
+		Title:     "Film • [TR Altyazı] • 1080p",
+	}
+	sourceDub := providers.StreamSource{
+		URL:       "https://example.com/dub_1080p.m3u8",
+		Quality:   "1080p",
+		AudioType: providers.AudioTypeDub,
+		Title:     "Film • [TR Dublaj] • 1080p",
+	}
+	sourceEnDub := providers.StreamSource{
+		URL:       "https://example.com/endub_1080p.m3u8",
+		Quality:   "1080p",
+		AudioType: providers.AudioTypeEnDub,
+		Title:     "Anime • İngilizce Dublaj • 1080p",
+	}
+
+	allSources := []providers.StreamSource{sourceEnDub, sourceDub, sourceSub}
+
+	// 1. "sub" preference
+	resSub := FilterAndSortStreamsByAudio(allSources, "sub")
+	if resSub == nil || resSub.Primary.AudioType != providers.AudioTypeSub {
+		t.Fatalf("Expected AudioTypeSub when audio=sub, got %+v", resSub)
+	}
+
+	// 2. "dub" preference
+	resDub := FilterAndSortStreamsByAudio(allSources, "dub")
+	if resDub == nil || resDub.Primary.AudioType != providers.AudioTypeDub {
+		t.Fatalf("Expected AudioTypeDub when audio=dub, got %+v", resDub)
+	}
+
+	// 3. "en_dub" preference
+	resEnDub := FilterAndSortStreamsByAudio(allSources, "en_dub")
+	if resEnDub == nil || resEnDub.Primary.AudioType != providers.AudioTypeEnDub {
+		t.Fatalf("Expected AudioTypeEnDub when audio=en_dub, got %+v", resEnDub)
+	}
+
+	// 4. "auto" or empty preference (should prioritize Sub / Original over Dub per user rules)
+	resAuto := FilterAndSortStreamsByAudio(allSources, "auto")
+	if resAuto == nil || resAuto.Primary.AudioType != providers.AudioTypeSub {
+		t.Fatalf("Expected AudioTypeSub to be prioritized on 'auto', got %+v", resAuto)
+	}
+
+	// 5. Fallback test: Requesting "en_dub" when only Dub & Sub exist
+	dubAndSubOnly := []providers.StreamSource{sourceDub, sourceSub}
+	resFallback := FilterAndSortStreamsByAudio(dubAndSubOnly, "en_dub")
+	if resFallback == nil || resFallback.Primary.URL == "" {
+		t.Fatalf("Expected fallback stream when requested audio is missing, got %+v", resFallback)
+	}
+}

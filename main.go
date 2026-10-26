@@ -83,6 +83,8 @@ func main() {
 				ProviderID:   f.ProviderID,
 				ProviderName: f.ProviderName,
 				Quality:      f.Quality,
+				AudioType:    f.AudioType,
+				AudioLabel:   f.AudioLabel,
 			})
 		}
 		return out

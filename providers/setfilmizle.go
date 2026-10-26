@@ -207,14 +207,24 @@ func (p *SetFilmIzleProvider) ResolveStream(ctx context.Context, streamID string
 
 	reSPG := regexp.MustCompile(`SPG\.cerceve\(\s*(?:["'][^"']*["']\s*,\s*)?["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*\)`)
 
+	seenBtnTypes := make(map[AudioType]bool)
 	for _, postID := range postIDs {
-		if len(sources) > 0 {
+		if len(sources) >= 4 {
 			break
 		}
 		for _, btn := range buttons {
-			if len(sources) > 0 {
-				break
+			btnAType := DetectAudioType(btn.name)
+			if seenBtnTypes[btnAType] && btnAType != AudioTypeUnknown {
+				continue
 			}
+
+			dubTag := "1080p"
+			if btnAType == AudioTypeDub {
+				dubTag = "[TR Dublaj] • 1080p"
+			} else if btnAType == AudioTypeSub || btnAType == AudioTypeOriginal {
+				dubTag = "[TR Altyazı] • 1080p"
+			}
+
 			for _, nonce := range nonces {
 				form := url.Values{}
 				form.Set("action", "get_video_url")
@@ -259,16 +269,24 @@ func (p *SetFilmIzleProvider) ResolveStream(ctx context.Context, streamID string
 							if fpHeaders == nil {
 								fpHeaders = map[string]string{"Referer": finalRef}
 							}
+							curAType := btnAType
+							if curAType == AudioTypeUnknown && len(fpSubs) > 0 {
+								curAType = AudioTypeSub
+							}
 							sources = append(sources, StreamSource{
-								Name:      "SetFilmİzle FastPlay",
-								Title:     "FastPlay • 1080p",
+								Name:      "SetFilmİzle " + btn.name,
+								Title:     fmt.Sprintf("SetFilmİzle • %s • %s", btn.name, dubTag),
 								URL:       manifestURL,
 								Quality:   "1080p",
 								Format:    "hls",
 								IsHLS:     true,
+								AudioType: curAType,
 								Headers:   fpHeaders,
 								Subtitles: fpSubs,
 							})
+							if curAType != AudioTypeUnknown {
+								seenBtnTypes[curAType] = true
+							}
 							break // Found working stream for this player
 						}
 					}

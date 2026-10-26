@@ -36,6 +36,8 @@ type VFSDiscoveredSource struct {
 	ProviderID   string
 	ProviderName string
 	Quality      string
+	AudioType    string
+	AudioLabel   string
 }
 
 type contextKey string
@@ -291,15 +293,31 @@ func (v *AnthologyVFS) handleLibraryMovies(ctx context.Context, rest []string) (
 	}
 
 	baseName := formatItemFolderName(matchedMovie.Title, matchedMovie.Year)
+
+	// 1. Default (Auto: Original audio + Turkish subtitle priority)
 	strmName := baseName + ".strm"
-	strmContent := fmt.Sprintf("%s/stream/resolve?type=movie&tmdb_id=%d&title=%s&year=%s",
+	strmContent := fmt.Sprintf("%s/stream/resolve?type=movie&tmdb_id=%d&title=%s&year=%s&audio=auto",
 		v.baseURL(ctx), matchedMovie.TMDBID, url.QueryEscape(matchedMovie.Title), url.QueryEscape(matchedMovie.Year))
 	strmFile := NewVirtualFile(strmName, []byte(strmContent), v.bootTime)
 
+	// 2. Explicit Subtitled Version ([TR Altyazi])
+	subbedStrmName := baseName + " [TR Altyazi].strm"
+	subbedContent := fmt.Sprintf("%s/stream/resolve?type=movie&tmdb_id=%d&title=%s&year=%s&audio=sub",
+		v.baseURL(ctx), matchedMovie.TMDBID, url.QueryEscape(matchedMovie.Title), url.QueryEscape(matchedMovie.Year))
+	subbedFile := NewVirtualFile(subbedStrmName, []byte(subbedContent), v.bootTime)
+
+	// 3. Explicit Dubbed Version ([TR Dublaj])
+	dubbedStrmName := baseName + " [TR Dublaj].strm"
+	dubbedContent := fmt.Sprintf("%s/stream/resolve?type=movie&tmdb_id=%d&title=%s&year=%s&audio=dub",
+		v.baseURL(ctx), matchedMovie.TMDBID, url.QueryEscape(matchedMovie.Title), url.QueryEscape(matchedMovie.Year))
+	dubbedFile := NewVirtualFile(dubbedStrmName, []byte(dubbedContent), v.bootTime)
+
 	filesMap := map[string]*VirtualFile{
-		strmName: strmFile,
+		strmName:       strmFile,
+		subbedStrmName: subbedFile,
+		dubbedStrmName: dubbedFile,
 	}
-	orderedNames := []string{strmName}
+	orderedNames := []string{strmName, subbedStrmName, dubbedStrmName}
 
 	subVariants := []struct {
 		suffix string
@@ -312,21 +330,24 @@ func (v *AnthologyVFS) handleLibraryMovies(ctx context.Context, rest []string) (
 		{suffix: ".srt", lang: "tr", format: "srt"},
 	}
 
-	for _, sv := range subVariants {
-		subName := baseName + sv.suffix
-		lang := sv.lang
-		format := sv.format
-		subFile := NewLazyVirtualFile(subName, 24576, v.bootTime, func() ([]byte, error) {
-			if v.subResolver != nil {
-				return v.subResolver(context.Background(), "movie", matchedMovie.TMDBID, matchedMovie.Title, matchedMovie.OriginalTitle, matchedMovie.Year, 1, 1, lang, format)
-			}
-			if format == "srt" {
-				return []byte("\n"), nil
-			}
-			return []byte("WEBVTT\n\n"), nil
-		})
-		filesMap[subName] = subFile
-		orderedNames = append(orderedNames, subName)
+	basesForSubs := []string{baseName, baseName + " [TR Altyazi]"}
+	for _, bName := range basesForSubs {
+		for _, sv := range subVariants {
+			subName := bName + sv.suffix
+			lang := sv.lang
+			format := sv.format
+			subFile := NewLazyVirtualFile(subName, 24576, v.bootTime, func() ([]byte, error) {
+				if v.subResolver != nil {
+					return v.subResolver(context.Background(), "movie", matchedMovie.TMDBID, matchedMovie.Title, matchedMovie.OriginalTitle, matchedMovie.Year, 1, 1, lang, format)
+				}
+				if format == "srt" {
+					return []byte("\n"), nil
+				}
+				return []byte("WEBVTT\n\n"), nil
+			})
+			filesMap[subName] = subFile
+			orderedNames = append(orderedNames, subName)
+		}
 	}
 
 	if len(rest) == 1 {
@@ -445,31 +466,57 @@ func (v *AnthologyVFS) handleLibrarySeriesOrAnime(ctx context.Context, mediaType
 	}
 
 	for epNum := 1; epNum <= epCount; epNum++ {
-		strmContent := fmt.Sprintf("%s/stream/resolve?type=%s&tmdb_id=%d&title=%s&year=%s&season=%d&episode=%d",
-			v.baseURL(ctx), mediaType, matchedItem.TMDBID, url.QueryEscape(matchedItem.Title), url.QueryEscape(matchedItem.Year), seasonNum, epNum)
-
 		epBase := SanitizeFileName(fmt.Sprintf("%s - S%02dE%02d", folderTitle, seasonNum, epNum))
+
+		// 1. Default (Auto: Original audio + Turkish subtitle priority)
 		primaryName := epBase + ".strm"
-		vf := NewVirtualFile(primaryName, []byte(strmContent), v.bootTime)
-		filesMap[primaryName] = vf
+		strmContent := fmt.Sprintf("%s/stream/resolve?type=%s&tmdb_id=%d&title=%s&year=%s&season=%d&episode=%d&audio=auto",
+			v.baseURL(ctx), mediaType, matchedItem.TMDBID, url.QueryEscape(matchedItem.Title), url.QueryEscape(matchedItem.Year), seasonNum, epNum)
+		filesMap[primaryName] = NewVirtualFile(primaryName, []byte(strmContent), v.bootTime)
 		orderedNames = append(orderedNames, primaryName)
 
+		// 2. Explicit Subtitled Version ([TR Altyazi])
+		subbedName := epBase + " [TR Altyazi].strm"
+		subbedContent := fmt.Sprintf("%s/stream/resolve?type=%s&tmdb_id=%d&title=%s&year=%s&season=%d&episode=%d&audio=sub",
+			v.baseURL(ctx), mediaType, matchedItem.TMDBID, url.QueryEscape(matchedItem.Title), url.QueryEscape(matchedItem.Year), seasonNum, epNum)
+		filesMap[subbedName] = NewVirtualFile(subbedName, []byte(subbedContent), v.bootTime)
+		orderedNames = append(orderedNames, subbedName)
+
+		// 3. Explicit Dubbed Version ([TR Dublaj])
+		dubbedName := epBase + " [TR Dublaj].strm"
+		dubbedContent := fmt.Sprintf("%s/stream/resolve?type=%s&tmdb_id=%d&title=%s&year=%s&season=%d&episode=%d&audio=dub",
+			v.baseURL(ctx), mediaType, matchedItem.TMDBID, url.QueryEscape(matchedItem.Title), url.QueryEscape(matchedItem.Year), seasonNum, epNum)
+		filesMap[dubbedName] = NewVirtualFile(dubbedName, []byte(dubbedContent), v.bootTime)
+		orderedNames = append(orderedNames, dubbedName)
+
+		// 4. English Dubbed Version for Anime ([EN Dublaj])
+		if mediaType == "anime" {
+			enDubName := epBase + " [EN Dublaj].strm"
+			enDubContent := fmt.Sprintf("%s/stream/resolve?type=%s&tmdb_id=%d&title=%s&year=%s&season=%d&episode=%d&audio=en_dub",
+				v.baseURL(ctx), mediaType, matchedItem.TMDBID, url.QueryEscape(matchedItem.Title), url.QueryEscape(matchedItem.Year), seasonNum, epNum)
+			filesMap[enDubName] = NewVirtualFile(enDubName, []byte(enDubContent), v.bootTime)
+			orderedNames = append(orderedNames, enDubName)
+		}
+
 		currEp := epNum
-		for _, sv := range subVariants {
-			subName := epBase + sv.suffix
-			lang := sv.lang
-			format := sv.format
-			subFile := NewLazyVirtualFile(subName, 24576, v.bootTime, func() ([]byte, error) {
-				if v.subResolver != nil {
-					return v.subResolver(context.Background(), mediaType, matchedItem.TMDBID, matchedItem.Title, matchedItem.OriginalTitle, matchedItem.Year, seasonNum, currEp, lang, format)
-				}
-				if format == "srt" {
-					return []byte("\n"), nil
-				}
-				return []byte("WEBVTT\n\n"), nil
-			})
-			filesMap[subName] = subFile
-			orderedNames = append(orderedNames, subName)
+		basesForSubs := []string{epBase, epBase + " [TR Altyazi]"}
+		for _, bName := range basesForSubs {
+			for _, sv := range subVariants {
+				subName := bName + sv.suffix
+				lang := sv.lang
+				format := sv.format
+				subFile := NewLazyVirtualFile(subName, 24576, v.bootTime, func() ([]byte, error) {
+					if v.subResolver != nil {
+						return v.subResolver(context.Background(), mediaType, matchedItem.TMDBID, matchedItem.Title, matchedItem.OriginalTitle, matchedItem.Year, seasonNum, currEp, lang, format)
+					}
+					if format == "srt" {
+						return []byte("\n"), nil
+					}
+					return []byte("WEBVTT\n\n"), nil
+				})
+				filesMap[subName] = subFile
+				orderedNames = append(orderedNames, subName)
+			}
 		}
 
 		legacyBase := SanitizeFileName(fmt.Sprintf("%s - S%02dE%02d", plainTitle, seasonNum, epNum))
@@ -655,22 +702,41 @@ func (v *AnthologyVFS) buildWorkingSourceFiles(ctx context.Context, item *config
 		suffix = fmt.Sprintf("%s - S%02dE%02d", folderTitle, season, episode)
 	}
 
-	// 1. Auto Best option (if at least one working source exists)
 	bestQual := "HD"
 	if len(sources) > 0 && sources[0].Quality != "" {
 		bestQual = sources[0].Quality
 	}
-	autoName := SanitizeFileName(fmt.Sprintf("1 - Otomatik En Iyi (%s) - %s", bestQual, suffix)) + ".strm"
-	autoURL := fmt.Sprintf("%s/stream/resolve?type=%s&tmdb_id=%d&title=%s&year=%s&season=%d&episode=%d&provider=auto",
-		v.baseURL(ctx), mediaType, item.TMDBID, url.QueryEscape(item.Title), url.QueryEscape(item.Year), season, episode)
-	filesMap[autoName] = NewVirtualFile(autoName, []byte(autoURL), v.bootTime)
-	ordered = append(ordered, autoName)
 
-	// 2. Each verified working provider
+	// 1. Auto Best Subtitled option
+	autoSubName := SanitizeFileName(fmt.Sprintf("1 - Otomatik (En Iyi Altyazili) (%s) - %s", bestQual, suffix)) + ".strm"
+	autoSubURL := fmt.Sprintf("%s/stream/resolve?type=%s&tmdb_id=%d&title=%s&year=%s&season=%d&episode=%d&provider=auto&audio=sub",
+		v.baseURL(ctx), mediaType, item.TMDBID, url.QueryEscape(item.Title), url.QueryEscape(item.Year), season, episode)
+	filesMap[autoSubName] = NewVirtualFile(autoSubName, []byte(autoSubURL), v.bootTime)
+	ordered = append(ordered, autoSubName)
+
+	// 2. Auto Best Dubbed option
+	autoDubName := SanitizeFileName(fmt.Sprintf("2 - Otomatik (En Iyi Dublaj) (%s) - %s", bestQual, suffix)) + ".strm"
+	autoDubURL := fmt.Sprintf("%s/stream/resolve?type=%s&tmdb_id=%d&title=%s&year=%s&season=%d&episode=%d&provider=auto&audio=dub",
+		v.baseURL(ctx), mediaType, item.TMDBID, url.QueryEscape(item.Title), url.QueryEscape(item.Year), season, episode)
+	filesMap[autoDubName] = NewVirtualFile(autoDubName, []byte(autoDubURL), v.bootTime)
+	ordered = append(ordered, autoDubName)
+
+	// 3. Each verified working provider variant
 	for i, src := range sources {
-		fName := SanitizeFileName(fmt.Sprintf("%d - %s (%s) - %s", i+2, src.ProviderName, src.Quality, suffix)) + ".strm"
-		sURL := fmt.Sprintf("%s/stream/resolve?type=%s&tmdb_id=%d&title=%s&year=%s&season=%d&episode=%d&provider=%s",
-			v.baseURL(ctx), mediaType, item.TMDBID, url.QueryEscape(item.Title), url.QueryEscape(item.Year), season, episode, url.QueryEscape(src.ProviderID))
+		lbl := src.AudioLabel
+		if lbl == "" {
+			lbl = src.AudioType
+		}
+		if lbl == "" {
+			lbl = "Standart"
+		}
+		aParam := src.AudioType
+		if aParam == "" {
+			aParam = "auto"
+		}
+		fName := SanitizeFileName(fmt.Sprintf("%d - %s [%s] (%s) - %s", i+3, src.ProviderName, lbl, src.Quality, suffix)) + ".strm"
+		sURL := fmt.Sprintf("%s/stream/resolve?type=%s&tmdb_id=%d&title=%s&year=%s&season=%d&episode=%d&provider=%s&audio=%s",
+			v.baseURL(ctx), mediaType, item.TMDBID, url.QueryEscape(item.Title), url.QueryEscape(item.Year), season, episode, url.QueryEscape(src.ProviderID), url.QueryEscape(aParam))
 		filesMap[fName] = NewVirtualFile(fName, []byte(sURL), v.bootTime)
 		ordered = append(ordered, fName)
 	}
