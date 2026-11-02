@@ -5,7 +5,7 @@
 
   <p>
     <img src="https://img.shields.io/badge/Go-1.24+-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go 1.24+" />
-    <img src="https://img.shields.io/badge/Sağlayıcı-34_Aktif_Motor-0A84FF?style=for-the-badge" alt="34 Aktif Sağlayıcı" />
+    <img src="https://img.shields.io/badge/Sağlayıcı-27_Aktif_Motor-0A84FF?style=for-the-badge" alt="27 Aktif Sağlayıcı" />
     <img src="https://img.shields.io/badge/Depolama-Sıfır_Disk_(In--Memory_VFS)-30D158?style=for-the-badge" alt="Sıfır Disk" />
     <img src="https://img.shields.io/badge/Protokol-WebDAV_%26_HLS/Range_Proxy-BF5AF2?style=for-the-badge" alt="WebDAV & Proxy" />
   </p>
@@ -179,15 +179,15 @@ Sunucu yerelde çalışmaya başladığında şu adreslerden erişilebilir:
 
 ---
 
-### 7. Kayıtlı 34 VOD Sağlayıcı Motoru
+### 7. Kayıtlı 27 VOD Sağlayıcı Motoru
 
 Anthology-DAV içerisinde derlenmiş tüm yerleşik motorlar:
 
 | Kategori | Adet | Sağlayıcılar |
 |---|:---:|---|
-| **⛩️ Anime** | **8** | `AnimeciX`, `Anizium`, `SonAnime`, `AniMom`, `Anizm`, `SeiCode`, `AsyaAnimeleri`, `AnimePrax` |
-| **📺 Dizi** | **12** | `DiziWatch`, `DiziBox`, `DiziYou`, `DiziMom`, `DiziPod`, `DiziBak`, `Yabancı Dizi`, `DDizi`, `PuhuTV`, `TrDiziİzle`, `TvDiziler`, `Anthology Dizi Arşivi` |
-| **🎬 Film** | **14** | `FilmModu`, `HDFilmCehennemi`, `HDFilmİzle`, `HDFilmDelisi`, `Kült Filmler`, `LiderFilmİzle`, `SetFilmİzle`, `SinemaCX`, `SineWix`, `VidLink Cloud`, `Vidmody`, `Webteİzle`, `YouTube Dizi & Film`, `Anthology M3U Arşivi` |
+| **⛩️ Anime** | **6** | `AnimeciX`, `Anizium`, `SonAnime`, `AniMom`, `SeiCode`, `AsyaAnimeleri` |
+| **📺 Dizi** | **10** | `DiziBox`, `DiziYou`, `DiziMom`, `DiziPod`, `DiziBak`, `Yabancı Dizi`, `PuhuTV`, `TrDiziİzle`, `TvDiziler`, `Anthology Dizi Arşivi` |
+| **🎬 Film** | **11** | `FilmModu`, `HDFilmİzle`, `HDFilmDelisi`, `Kült Filmler`, `LiderFilmİzle`, `SetFilmİzle`, `VidLink Cloud`, `Vidmody`, `Webteİzle`, `YouTube Dizi & Film`, `Anthology M3U Arşivi` |
 
 ---
 

@@ -181,40 +181,6 @@ func TestDiziBakLive(t *testing.T) {
 	t.Logf("✅ DiziBak Stream RESOLVED: Title='%s' Quality=%s URL=%s Format=%s", res.Primary.Title, res.Primary.Quality, res.Primary.URL, res.Primary.Format)
 }
 
-func TestDDiziLive(t *testing.T) {
-	p := &DDiziProvider{}
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-
-	items, err := p.Search(ctx, "Kızılcık Şerbeti")
-	if err != nil {
-		t.Fatalf("DDizi Search failed: %v", err)
-	}
-	if len(items) == 0 {
-		t.Fatalf("DDizi Search returned 0 items")
-	}
-	t.Logf("DDizi found %d items. First: ID=%s Title='%s'", len(items), items[0].ID, items[0].Title)
-
-	det, err := p.GetDetails(ctx, items[0].ID)
-	if err != nil {
-		t.Fatalf("DDizi GetDetails failed: %v", err)
-	}
-	t.Logf("DDizi Details: Title='%s' Seasons=%d", det.Title, len(det.Seasons))
-	if len(det.Seasons) == 0 || len(det.Seasons[0].Episodes) == 0 {
-		t.Fatalf("DDizi Details has no episodes")
-	}
-
-	streamID := det.Seasons[0].Episodes[0].StreamID
-	t.Logf("DDizi resolving stream for: %s", streamID)
-	res, err := p.ResolveStream(ctx, streamID)
-	if err != nil {
-		t.Fatalf("DDizi ResolveStream failed: %v", err)
-	}
-	if res == nil || res.Primary.URL == "" {
-		t.Fatalf("DDizi ResolveStream returned empty stream")
-	}
-	t.Logf("✅ DDizi Stream RESOLVED: Title='%s' Quality=%s URL=%s Format=%s", res.Primary.Title, res.Primary.Quality, res.Primary.URL, res.Primary.Format)
-}
 
 func TestPuhuTVLive(t *testing.T) {
 	p := &PuhuTVProvider{}
@@ -285,6 +251,42 @@ func TestTvDizilerLive(t *testing.T) {
 	}
 	t.Logf("✅ TvDiziler Stream RESOLVED: Title='%s' Quality=%s URL=%s Format=%s", res.Primary.Title, res.Primary.Quality, res.Primary.URL, res.Primary.Format)
 }
+
+func TestYabanciDiziLive(t *testing.T) {
+	p := &YabanciDiziProvider{}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	cat, err := p.GetCatalog(ctx, 1)
+	if err != nil {
+		t.Fatalf("YabanciDizi GetCatalog failed: %v", err)
+	}
+	if len(cat) == 0 {
+		t.Fatalf("YabanciDizi GetCatalog returned 0 items")
+	}
+	t.Logf("YabanciDizi Catalog found %d items. First: ID=%s Title='%s'", len(cat), cat[0].ID, cat[0].Title)
+
+	det, err := p.GetDetails(ctx, cat[0].ID)
+	if err != nil {
+		t.Fatalf("YabanciDizi GetDetails failed: %v", err)
+	}
+	t.Logf("YabanciDizi Details: Title='%s' Seasons=%d", det.Title, len(det.Seasons))
+	if len(det.Seasons) == 0 || len(det.Seasons[0].Episodes) == 0 {
+		t.Fatalf("YabanciDizi Details has no episodes")
+	}
+
+	streamID := det.Seasons[0].Episodes[0].StreamID
+	t.Logf("YabanciDizi resolving stream for: %s", streamID)
+	res, err := p.ResolveStream(ctx, streamID)
+	if err != nil {
+		t.Fatalf("YabanciDizi ResolveStream failed: %v", err)
+	}
+	if res == nil || res.Primary.URL == "" {
+		t.Fatalf("YabanciDizi ResolveStream returned empty stream")
+	}
+	t.Logf("✅ YabanciDizi Stream RESOLVED: Title='%s' Quality=%s URL=%s Format=%s", res.Primary.Title, res.Primary.Quality, res.Primary.URL, res.Primary.Format)
+}
+
 
 
 

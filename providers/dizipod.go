@@ -28,7 +28,7 @@ func (p *DiziPodProvider) baseURL() string {
 var (
 	diziPodCardRe   = regexp.MustCompile(`(?is)<a[^>]+href="(https?://[^"]*dizipod\.com/(?:diziler|film)/([^"/?#]+)/?)"[^>]*>(.*?)</a>`)
 	diziPodEpLinkRe = regexp.MustCompile(`(?i)href="(https?://[^"]*dizipod\.com/([a-z0-9-]+-(\d+)-sezon-(\d+)-bolum)/?)"`)
-	diziPodPostIDRe = regexp.MustCompile(`(?i)data-post-id="(\d+)"`)
+	diziPodPostIDRe = regexp.MustCompile(`(?i)(?:data-post-id|post_id)["']?\s*[:=]\s*["']?(\d+)`)
 )
 
 func (p *DiziPodProvider) parseCards(htmlStr string) []MediaItem {

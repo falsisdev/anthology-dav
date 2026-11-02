@@ -102,29 +102,6 @@ func TestLiderFilmIzleLive(t *testing.T) {
 	t.Logf("LiderFilmIzle SUCCESS: StreamURL=%s Quality=%s Headers=%v Subs=%d", res.Primary.URL, res.Primary.Quality, res.Primary.Headers, len(res.Subtitles))
 }
 
-func TestSinemaCXLive(t *testing.T) {
-	p := &SinemaCXProvider{}
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-
-	items, err := p.Search(ctx, "Inception")
-	if err != nil {
-		t.Fatalf("SinemaCX Search failed: %v", err)
-	}
-	if len(items) == 0 {
-		t.Fatalf("SinemaCX Search returned 0 items")
-	}
-	t.Logf("SinemaCX found %d items. First: ID=%s Title='%s'", len(items), items[0].ID, items[0].Title)
-
-	res, err := p.ResolveStream(ctx, items[0].ID)
-	if err != nil {
-		t.Fatalf("SinemaCX ResolveStream failed: %v", err)
-	}
-	if res == nil || res.Primary.URL == "" {
-		t.Fatalf("SinemaCX returned empty stream")
-	}
-	t.Logf("SinemaCX SUCCESS: StreamURL=%s Quality=%s Headers=%v Subs=%d", res.Primary.URL, res.Primary.Quality, res.Primary.Headers, len(res.Subtitles))
-}
 
 func TestWebteIzleLive(t *testing.T) {
 	p := &WebteIzleProvider{}
@@ -173,3 +150,5 @@ func TestYouTubeDiziFilmLive(t *testing.T) {
 	}
 	t.Logf("YouTubeDiziFilm SUCCESS: StreamURL=%s Quality=%s Headers=%v Subs=%d", res.Primary.URL, res.Primary.Quality, res.Primary.Headers, len(res.Subtitles))
 }
+
+

@@ -191,5 +191,12 @@ func (p *VidLinkProvider) ResolveStream(ctx context.Context, streamID string) (*
 		}
 	}
 
+	if res, err := SelectBestStream(sources); err == nil && res != nil {
+		return res, nil
+	}
+	// Fallback to Vidmody if VidLink upstream (bcdn.hakunaymatata.com) is rate-limited (HTTP 428/429)
+	if vm, ok := GetByID("vidmody"); ok && vm != nil {
+		return vm.ResolveStream(ctx, streamID)
+	}
 	return SelectBestStream(sources)
 }

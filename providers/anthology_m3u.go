@@ -153,7 +153,7 @@ func (p *AnthologyM3UProvider) ResolveStream(ctx context.Context, streamID strin
 	if !strings.HasPrefix(u, "http") {
 		return nil, fmt.Errorf("anthology_m3u: invalid stream URL %s", streamID)
 	}
-	isHLS := strings.Contains(u, ".m3u8")
+	isHLS := strings.Contains(u, ".m3u8") || strings.Contains(u, "/vs/")
 	format := "mp4"
 	if isHLS {
 		format = "hls"

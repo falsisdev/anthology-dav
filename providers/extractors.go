@@ -385,8 +385,7 @@ func GetQualityScore(s StreamSource) int {
 		score = 500
 	}
 
-	isDirectMP4 := s.Format == "mp4" || (!s.IsHLS && (strings.HasSuffix(strings.ToLower(s.URL), ".mp4") || strings.Contains(strings.ToLower(s.URL), ".mp4?")))
-	if isDirectMP4 && score > 0 {
+	if s.IsHLS && score > 0 {
 		score++
 	}
 
@@ -1269,7 +1268,7 @@ func ExtractAnyIframe(ctx context.Context, iframeURL, referer string) []StreamSo
 	case strings.Contains(lower, "player.dizipod.com") || strings.Contains(lower, "dizipod.com/embed") ||
 		strings.Contains(lower, "player.dizibak.net") || strings.Contains(lower, "dizibak.net/embed"):
 		return ExtractDiziPodPlayer(ctx, iframeURL, referer)
-	case strings.Contains(lower, "git.php?id=") || strings.Contains(lower, "streambox1"):
+	case strings.Contains(lower, "git.php?id=") || strings.Contains(lower, "streambox1") || strings.Contains(lower, "telif/index.php") || strings.Contains(lower, "/vid/kapat/"):
 		if ym := regexp.MustCompile(`(?:git\.php\?id=|v=|youtu\.be/|/embed/)([a-zA-Z0-9_-]{11})`).FindStringSubmatch(iframeURL); len(ym) > 1 {
 			if s := ExtractYouTubeInnertube(ctx, ym[1]); s != nil {
 				return []StreamSource{*s}
@@ -1331,10 +1330,12 @@ func ExtractAnyIframe(ctx context.Context, iframeURL, referer string) []StreamSo
 			Subtitles: subs,
 		})
 	}
-	for _, m := range genericMP4Re.FindAllStringSubmatch(combined, -1) {
+	jwFileRe := regexp.MustCompile(`(?i)sources\s*:\s*\[\s*\{[^}]*file\s*:\s*["'](https?://[^"'\s<>]+)["']`)
+	mp4Matches := append(genericMP4Re.FindAllStringSubmatch(combined, -1), jwFileRe.FindAllStringSubmatch(combined, -1)...)
+	for _, m := range mp4Matches {
 		if len(m) > 1 {
 			u := strings.ReplaceAll(m[1], `\/`, `/`)
-			if !seen[u] {
+			if !seen[u] && !strings.Contains(strings.ToLower(u), ".m3u8") {
 				seen[u] = true
 				title := "MP4 • 1080p"
 				curAType := aType
@@ -1907,9 +1908,10 @@ func TMDBSearchCatalog(ctx context.Context, query string, includeMovies, include
 			} `json:"results"`
 		}
 		if err := FetchJSON(ctx, u, nil, &res); err == nil {
+			qClean := UltraClean(query)
 			for _, r := range res.Results {
 				title := r.Title
-				if title == "" {
+				if title == "" || (qClean != "" && UltraClean(r.OrigTitle) == qClean) {
 					title = r.OrigTitle
 				}
 				items = append(items, MediaItem{
@@ -2091,10 +2093,88 @@ func ResolveFastPlay(ctx context.Context, fastplayURL, referer string) (string, 
 		sptVal, _ := strconv.ParseInt(sptM[1], 10, 64)
 		if sptVal > 0 {
 			headers["X-Sp"] = BuildFastPlayXSp(spM[1], sptVal)
+			headers["X-Fastplay-Sp"] = spM[1]
+			headers["X-Fastplay-Spt"] = sptM[1]
 		}
 	}
 
 	return manifestURL, subs, finalURL, headers
+}
+
+// ProbeStreamSource performs a fast lightweight HTTP check on a candidate StreamSource
+// to verify that its upstream URL is reachable, not rate-limited (429/403/404), and returns
+// a valid HLS playlist (#EXTM3U) or binary media stream rather than an HTML error page.
+// If an unmarked URL returns an #EXTM3U playlist, it also upgrades src.IsHLS and src.Format.
+func ProbeStreamSource(ctx context.Context, src *StreamSource) bool {
+	if src == nil || strings.TrimSpace(src.URL) == "" {
+		return false
+	}
+	pctx, cancel := context.WithTimeout(ctx, 4500*time.Millisecond)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(pctx, http.MethodGet, src.URL, nil)
+	if err != nil {
+		return false
+	}
+	req.Header.Set("User-Agent", config.DefaultUserAgent)
+	for k, v := range src.Headers {
+		if strings.EqualFold(k, "X-Fastplay-Sp") || strings.EqualFold(k, "X-Fastplay-Spt") {
+			continue
+		}
+		if v != "" {
+			req.Header.Set(k, v)
+		}
+	}
+	if sp := src.Headers["X-Fastplay-Sp"]; sp != "" {
+		spt, _ := strconv.ParseInt(src.Headers["X-Fastplay-Spt"], 10, 64)
+		if spt <= 0 {
+			spt = time.Now().Unix()
+		}
+		req.Header.Set("X-Sp", BuildFastPlayXSp(sp, spt))
+	}
+
+	isLikelyHLS := src.IsHLS || strings.Contains(strings.ToLower(src.URL), ".m3u8")
+	if !isLikelyHLS {
+		req.Header.Set("Range", "bytes=0-2047")
+	}
+
+	resp, err := sharedHTTPClient.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 400 {
+		return false
+	}
+
+	buf := make([]byte, 1024)
+	n, _ := io.ReadAtLeast(resp.Body, buf, 1)
+	if n == 0 {
+		return false
+	}
+
+	sample := strings.TrimSpace(string(buf[:n]))
+	// Strip UTF-8 BOM if present
+	sample = strings.TrimPrefix(sample, "\xef\xbb\xbf")
+
+	if strings.HasPrefix(sample, "#EXTM3U") || strings.Contains(sample, "#EXT-X-") {
+		src.IsHLS = true
+		src.Format = "hls"
+		return true
+	}
+
+	if isLikelyHLS {
+		return false
+	}
+
+	ct := strings.ToLower(resp.Header.Get("Content-Type"))
+	lowSample := strings.ToLower(sample)
+	if strings.Contains(ct, "text/html") || strings.HasPrefix(lowSample, "<!doctype") || strings.HasPrefix(lowSample, "<html") {
+		return false
+	}
+
+	return true
 }
 
 // BuildAniziumCfControl generates the XOR hex Cf-Control header required by api.anizium.co.

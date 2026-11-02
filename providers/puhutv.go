@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -21,10 +22,24 @@ func (p *PuhuTVProvider) ID() string   { return "puhutv" }
 func (p *PuhuTVProvider) Name() string { return "PuhuTV" }
 
 func (p *PuhuTVProvider) baseURL() string {
-	return config.RemoteString("urls.series_local.puhutv.base", "https://puhutv.com")
+	return config.RemoteString("urls.series.puhutv.base", config.RemoteString("urls.series_local.puhutv.base", "https://puhutv.com"))
 }
 
 var puhuNextDataRe = regexp.MustCompile(`(?is)<script[^>]+id="__NEXT_DATA__"[^>]*>(.*?)</script>`)
+
+func isIgnoredPuhuSlug(slug string) bool {
+	s := strings.ToLower(strings.Trim(slug, "/"))
+	if s == "" || strings.Contains(s, "/") || strings.Contains(s, "kategori") || strings.Contains(s, "spotlight") {
+		return true
+	}
+	genres := map[string]bool{
+		"yerli-diziler": true, "filmler": true, "yabanci-diziler": true, "cocuk": true, "yasam": true,
+		"suc-polisiye": true, "komedi": true, "dram": true, "aksiyon": true, "romantik": true,
+		"romantik-komedi": true, "aile": true, "macera": true, "gerilim": true, "bilim-kurgu": true,
+		"korku": true, "belgesel": true, "animasyon": true, "tarih": true, "fantastik": true,
+	}
+	return genres[s]
+}
 
 func (p *PuhuTVProvider) parseNextCatalog(htmlStr string) []MediaItem {
 	m := puhuNextDataRe.FindStringSubmatch(htmlStr)
@@ -55,11 +70,9 @@ func (p *PuhuTVProvider) parseNextCatalog(htmlStr string) []MediaItem {
 			if slug == "" {
 				slug, _ = v["to_watch_asset_slug"].(string)
 			}
-			if slug == "" {
-				slug, _ = v["slug"].(string)
-			}
-			cleanSlug := strings.TrimSuffix(slug, "-detay")
-			if cleanSlug != "" && name != "" && !seen[cleanSlug] {
+			hasDetaySuffix := strings.HasSuffix(slug, "-detay") || strings.HasSuffix(slug, "-izle")
+			cleanSlug := strings.TrimSuffix(strings.TrimSuffix(slug, "-detay"), "-izle")
+			if hasDetaySuffix && !isIgnoredPuhuSlug(cleanSlug) && name != "" && !seen[cleanSlug] {
 				seen[cleanSlug] = true
 				mType := MediaTypeSeries
 				if mt, _ := v["type"].(string); strings.Contains(strings.ToLower(mt), "movie") {
@@ -111,12 +124,10 @@ func (p *PuhuTVProvider) Search(ctx context.Context, query string) ([]MediaItem,
 	}
 	if len(matched) == 0 {
 		slug := Slugify(query)
-		if slug != "" {
-			matched = append(matched, MediaItem{
-				ID:    slug,
-				Title: query,
-				Type:  MediaTypeSeries,
-			})
+		if slug != "" && !isIgnoredPuhuSlug(slug) {
+			if det, err := p.GetDetails(ctx, slug); err == nil && det != nil && (len(det.Seasons) > 0 || det.StreamID != "") {
+				matched = append(matched, det.MediaItem)
+			}
 		}
 	}
 	return matched, nil
@@ -275,6 +286,7 @@ func (p *PuhuTVProvider) GetDetails(ctx context.Context, mediaID string) (*Media
 			Episodes: eps,
 		})
 	}
+	sort.Slice(seasons, func(i, j int) bool { return seasons[i].Number < seasons[j].Number })
 
 	return &MediaDetail{
 		MediaItem: MediaItem{

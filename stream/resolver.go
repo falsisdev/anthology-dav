@@ -45,20 +45,21 @@ func CandidateProvidersForType(mediaType string) []string {
 	switch strings.ToLower(strings.TrimSpace(mediaType)) {
 	case "anime":
 		return []string{
-			"animecix", "anizium", "sonanime", "animom",
-			"seicode", "anizm", "asyaanimeleri", "animeprax", "vidlink",
+			"animecix", "anizium", "sonanime", "animom", "seicode",
+			"asyaanimeleri", "vidlink",
 		}
 	case "series", "tv":
 		return []string{
-			"diziwatch", "diziboxizle", "diziyou", "dizimom",
-			"dizipod", "dizibak", "yabancidizi", "vidlink", "vidmody",
-			"ddizi", "puhutv", "trdiziizle", "tvdiziler", "anthology_diziler",
+			"diziyou", "dizimom", "dizipod", "dizibak",
+			"anthology_diziler", "trdiziizle", "tvdiziler",
+			"vidlink", "vidmody", "diziboxizle", "yabancidizi",
+			"puhutv",
 		}
 	default: // "movie"
 		return []string{
-			"filmmodu", "hdfilmcehennemi", "hdfilmizle", "hdfilmdelisi",
-			"vidlink", "vidmody", "webteizle", "setfilmizle",
-			"kultfilmler", "liderfilmizle", "sinemacx", "sinewix",
+			"filmmodu", "hdfilmdelisi", "hdfilmizle", "setfilmizle",
+			"kultfilmler", "liderfilmizle", "webteizle", "anthology_m3u",
+			"youtube_dizifilm", "vidlink", "vidmody",
 		}
 	}
 }

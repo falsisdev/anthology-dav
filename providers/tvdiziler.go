@@ -22,13 +22,14 @@ func (p *TvDizilerProvider) ID() string   { return "tvdiziler" }
 func (p *TvDizilerProvider) Name() string { return "TvDiziler" }
 
 func (p *TvDizilerProvider) baseURL() string {
-	return config.RemoteString("urls.series_local.tvdiziler.base", "https://tvdiziler.tv")
+	return config.RemoteString("urls.series.tvdiziler.base", config.RemoteString("urls.series_local.tvdiziler.base", "https://tvdiziler.tv"))
 }
 
 var (
-	tvDizilerSeriesRe = regexp.MustCompile(`(?is)<a[^>]+href=["'](?:https?://[^"'/]+)?/?dizi/([^"'/?#]+)["'][^>]*>(.*?)</a>`)
-	tvDizilerEpRe     = regexp.MustCompile(`(?is)<a[^>]+href=["'](?:https?://[^"'/]+)?/?([a-z0-9-]+-(\d+)-bolum[^"'/?#]*)["'][^>]*>(.*?)</a>`)
-	tvDizilerHhsRe    = regexp.MustCompile(`(?i)data-hhs=["']([^"']+)["']`)
+	tvDizilerSeriesRe  = regexp.MustCompile(`(?is)<a[^>]+href=["'](?:https?://[^"'/]+)?/?dizi/([^"'/?#]+)["'][^>]*>(.*?)</a>`)
+	tvDizilerNavigoRe  = regexp.MustCompile(`(?is)<a[^>]+data-navigo[^>]+href=["'](?:https?://[^"'/]+)?/?([^"'/?#]+)["'][^>]*>Bölüm\s*<data[^>]*>(\d+)</data></a>`)
+	tvDizilerEpRe      = regexp.MustCompile(`(?is)<a[^>]+href=["'](?:https?://[^"'/]+)?/?([a-z0-9-]+-(\d+)-bolum[^"'/?#]*)["'][^>]*>(.*?)</a>`)
+	tvDizilerHhsRe     = regexp.MustCompile(`(?i)data-hhs=["']([^"']+)["']`)
 )
 
 func (p *TvDizilerProvider) parseSeries(htmlStr string) []MediaItem {
@@ -107,6 +108,24 @@ func (p *TvDizilerProvider) GetDetails(ctx context.Context, mediaID string) (*Me
 
 	var eps []Episode
 	seen := make(map[string]bool)
+	for _, m := range tvDizilerNavigoRe.FindAllStringSubmatch(htmlStr, -1) {
+		epSlug := strings.Trim(m[1], "/")
+		if epSlug == "" || seen[epSlug] {
+			continue
+		}
+		seen[epSlug] = true
+		eNum, _ := strconv.Atoi(m[2])
+		if eNum <= 0 {
+			eNum = len(eps) + 1
+		}
+		eps = append(eps, Episode{
+			ID:       epSlug,
+			StreamID: epSlug,
+			Title:    fmt.Sprintf("Bölüm %d", eNum),
+			Season:   1,
+			Number:   eNum,
+		})
+	}
 	for _, m := range tvDizilerEpRe.FindAllStringSubmatch(htmlStr, -1) {
 		epSlug := strings.Trim(m[1], "/")
 		if seen[epSlug] {
@@ -183,6 +202,27 @@ func (p *TvDizilerProvider) ResolveStream(ctx context.Context, streamID string) 
 	}
 	for _, im := range regexp.MustCompile(`(?i)<iframe[^>]+src="([^"]+)"`).FindAllStringSubmatch(htmlStr, 4) {
 		sources = append(sources, ExtractAnyIframe(ctx, ResolveRelativeURL(im[1], base), epURL)...)
+	}
+	if res, err := SelectBestStream(sources); err == nil && res != nil {
+		return res, nil
+	}
+	// Official YouTube full-episode fallback (mirrors tvdiziler.js resolveOfficialYouTubeFallback)
+	q := ""
+	if m := regexp.MustCompile(`(?is)<h1[^>]*>(.*?)</h1>`).FindStringSubmatch(htmlStr); len(m) > 1 {
+		q = CleanMediaTitle(m[1])
+	}
+	if q == "" {
+		q = strings.ReplaceAll(strings.TrimSuffix(epSlug, "-izle"), "-", " ")
+	}
+	if q != "" {
+		for _, h := range SearchYouTubeInnertube(ctx, q) {
+			if h.DurationSec >= 900 {
+				if yt := ExtractYouTubeInnertube(ctx, h.VideoID); yt != nil {
+					sources = append(sources, *yt)
+					break
+				}
+			}
+		}
 	}
 	return SelectBestStream(sources)
 }

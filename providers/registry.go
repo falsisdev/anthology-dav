@@ -120,6 +120,26 @@ func SelectBestStream(sources []StreamSource) (*StreamResult, error) {
 
 	SortStreamsByQuality(valid)
 
+	// Probe candidate sources in quality order; stop as soon as the highest-quality playable source is verified.
+	// Probing sequentially avoids triggering per-IP concurrent connection rate limits (HTTP 429) on strict CDNs
+	// such as VidLink (bcdn.hakunaymatata.com), MNCDN (PuhuTV), and Ok.ru when multiple qualities share one host.
+	primaryIdx := -1
+	for i := range valid {
+		if ProbeStreamSource(context.Background(), &valid[i]) {
+			primaryIdx = i
+			break
+		}
+	}
+	if primaryIdx == -1 {
+		return nil, fmt.Errorf("no playable stream sources found (upstream probe failed)")
+	}
+	playable := make([]StreamSource, 0, len(valid)-primaryIdx)
+	playable = append(playable, valid[primaryIdx])
+	for i := primaryIdx + 1; i < len(valid); i++ {
+		playable = append(playable, valid[i])
+	}
+	valid = playable
+
 	// Merge all unique subtitles across sources
 	var allSubs []Subtitle
 	seenSub := make(map[string]bool)

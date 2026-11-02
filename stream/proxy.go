@@ -2,6 +2,7 @@ package stream
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/base64"
@@ -11,6 +12,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -90,46 +92,33 @@ func (h *ProxyHandler) ServeStreamResult(w http.ResponseWriter, r *http.Request,
 
 	requestedQuality := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("quality")))
 
-	// If quality is auto/unspecified, check if we have multiple HLS variants with different resolutions
-	// for the primary stream's audio type. If so, build a Dynamic Master HLS Playlist for adaptive playback!
-	if requestedQuality == "" || requestedQuality == "auto" {
-		candidates := append([]providers.StreamSource{res.Primary}, res.Alternates...)
-		var hlsVariants []providers.StreamSource
-		seenNorm := make(map[string]bool)
-
-		for _, cand := range candidates {
-			isHLS := cand.IsHLS || strings.Contains(strings.ToLower(cand.URL), ".m3u8")
-			if !isHLS {
-				continue
-			}
-			// Only group streams of the same AudioType to prevent mixing audio tracks
-			if cand.AudioType != res.Primary.AudioType {
-				continue
-			}
-			norm := providers.NormalizeQuality(cand.Quality)
-			if !seenNorm[norm] {
-				seenNorm[norm] = true
-				hlsVariants = append(hlsVariants, cand)
+	allCandidates := append([]providers.StreamSource{res.Primary}, res.Alternates...)
+	var candidates []providers.StreamSource
+	if requestedQuality != "" && requestedQuality != "auto" {
+		var matched, rest []providers.StreamSource
+		for _, c := range allCandidates {
+			norm := strings.ToLower(providers.NormalizeQuality(c.Quality))
+			if norm == requestedQuality || strings.Contains(strings.ToLower(c.Quality), requestedQuality) {
+				matched = append(matched, c)
+			} else {
+				rest = append(rest, c)
 			}
 		}
-
-		if len(hlsVariants) >= 2 {
-			masterM3U8 := h.BuildDynamicMasterPlaylist(r, hlsVariants, res.Subtitles)
-			w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
-			w.Header().Set("Access-Control-Allow-Origin", "*")
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(masterM3U8))
-			return nil
-		}
+		candidates = append(matched, rest...)
+	} else {
+		candidates = allCandidates
 	}
 
-	candidates := append([]providers.StreamSource{res.Primary}, res.Alternates...)
 	var lastErr error
 
 	for i, candidate := range candidates {
+		subs := candidate.Subtitles
+		if len(subs) == 0 {
+			subs = res.Subtitles
+		}
 		isHLS := candidate.IsHLS || strings.Contains(strings.ToLower(candidate.URL), ".m3u8")
 		if isHLS {
-			err := h.serveHLSManifest(w, r, candidate.URL, candidate.Headers)
+			err := h.serveHLSManifestWithSubs(w, r, candidate.URL, candidate.Headers, subs)
 			if err == nil {
 				return nil
 			}
@@ -147,6 +136,24 @@ func (h *ProxyHandler) ServeStreamResult(w http.ResponseWriter, r *http.Request,
 			lastErr = err
 			log.Printf("[STREAM] Range proxy candidate %d failed (%s): %v", i, candidate.Quality, err)
 			continue
+		}
+
+		// Peek at initial bytes in case an unmarked stream URL is actually an HLS playlist (#EXTM3U)
+		if r.Method == http.MethodGet && r.Header.Get("Range") == "" {
+			br := bufio.NewReaderSize(resp.Body, 64*1024)
+			peek, _ := br.Peek(128)
+			trimmedPeek := bytes.TrimSpace(bytes.TrimPrefix(peek, []byte("\xef\xbb\xbf")))
+			if bytes.HasPrefix(trimmedPeek, []byte("#EXTM3U")) {
+				err := h.rewriteAndWriteHLS(w, r, br, resp, candidate.URL, candidate.Headers, subs)
+				resp.Body.Close()
+				if err == nil {
+					return nil
+				}
+				lastErr = err
+				continue
+			}
+			h.writeUpstreamReader(w, r, resp, br, peek)
+			return nil
 		}
 
 		h.writeUpstream(w, r, resp)
@@ -328,7 +335,46 @@ func (h *ProxyHandler) serveRangeStream(w http.ResponseWriter, r *http.Request, 
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}
+	if resp.StatusCode < 400 && r.Method == http.MethodGet {
+		br := bufio.NewReaderSize(resp.Body, 64*1024)
+		peek, _ := br.Peek(128)
+		trimmedPeek := bytes.TrimSpace(bytes.TrimPrefix(peek, []byte("\xef\xbb\xbf")))
+		if bytes.HasPrefix(trimmedPeek, []byte("#EXTM3U")) {
+			defer resp.Body.Close()
+			if err := h.rewriteAndWriteHLS(w, r, br, resp, targetURL, customHeaders, nil); err != nil {
+				http.Error(w, err.Error(), http.StatusBadGateway)
+			}
+			return
+		}
+		h.writeUpstreamReader(w, r, resp, br, peek)
+		return
+	}
 	h.writeUpstream(w, r, resp)
+}
+
+func (h *ProxyHandler) applyUpstreamHeaders(req *http.Request, customHeaders map[string]string) {
+	req.Header.Set("User-Agent", h.cfg.UserAgent)
+	isFastplay := strings.Contains(strings.ToLower(req.URL.Host), "fastplay") || strings.Contains(strings.ToLower(req.URL.Path), "/manifests/")
+	for k, v := range customHeaders {
+		if strings.EqualFold(k, "X-Fastplay-Sp") || strings.EqualFold(k, "X-Fastplay-Spt") {
+			continue
+		}
+		if strings.EqualFold(k, "X-Sp") && !isFastplay {
+			continue
+		}
+		if v != "" {
+			req.Header.Set(k, v)
+		}
+	}
+	if isFastplay {
+		if sp := customHeaders["X-Fastplay-Sp"]; sp != "" {
+			spt, _ := strconv.ParseInt(customHeaders["X-Fastplay-Spt"], 10, 64)
+			if spt <= 0 {
+				spt = time.Now().Unix()
+			}
+			req.Header.Set("X-Sp", providers.BuildFastPlayXSp(sp, spt))
+		}
+	}
 }
 
 // openUpstream issues the (ranged) upstream request without writing anything to the client.
@@ -343,12 +389,7 @@ func (h *ProxyHandler) openUpstream(r *http.Request, targetURL string, customHea
 		return nil, err
 	}
 
-	req.Header.Set("User-Agent", h.cfg.UserAgent)
-	for k, v := range customHeaders {
-		if v != "" {
-			req.Header.Set(k, v)
-		}
-	}
+	h.applyUpstreamHeaders(req, customHeaders)
 	if rangeHdr := r.Header.Get("Range"); rangeHdr != "" {
 		req.Header.Set("Range", rangeHdr)
 	}
@@ -361,6 +402,10 @@ func (h *ProxyHandler) openUpstream(r *http.Request, targetURL string, customHea
 
 // writeUpstream streams an upstream response (headers + body) to the client and closes it.
 func (h *ProxyHandler) writeUpstream(w http.ResponseWriter, r *http.Request, resp *http.Response) {
+	h.writeUpstreamReader(w, r, resp, resp.Body, nil)
+}
+
+func (h *ProxyHandler) writeUpstreamReader(w http.ResponseWriter, r *http.Request, resp *http.Response, bodyReader io.Reader, peek []byte) {
 	defer resp.Body.Close()
 
 	passthroughHeaders := []string{
@@ -377,6 +422,13 @@ func (h *ProxyHandler) writeUpstream(w http.ResponseWriter, r *http.Request, res
 			w.Header().Set(hdr, val)
 		}
 	}
+	// If upstream disguises an MPEG-TS segment (sync byte 0x47) as .jpg/.png/.html, normalize Content-Type for strict players.
+	if len(peek) >= 4 && peek[0] == 0x47 {
+		ct := strings.ToLower(w.Header().Get("Content-Type"))
+		if strings.Contains(ct, "image/") || strings.Contains(ct, "text/html") || strings.Contains(ct, "text/plain") {
+			w.Header().Set("Content-Type", "video/mp2t")
+		}
+	}
 	if w.Header().Get("Accept-Ranges") == "" {
 		w.Header().Set("Accept-Ranges", "bytes")
 	}
@@ -387,20 +439,19 @@ func (h *ProxyHandler) writeUpstream(w http.ResponseWriter, r *http.Request, res
 		return
 	}
 	buf := make([]byte, 64*1024)
-	_, _ = io.CopyBuffer(w, resp.Body, buf)
+	_, _ = io.CopyBuffer(w, bodyReader, buf)
 }
 
 func (h *ProxyHandler) serveHLSManifest(w http.ResponseWriter, r *http.Request, manifestURL string, customHeaders map[string]string) error {
+	return h.serveHLSManifestWithSubs(w, r, manifestURL, customHeaders, nil)
+}
+
+func (h *ProxyHandler) serveHLSManifestWithSubs(w http.ResponseWriter, r *http.Request, manifestURL string, customHeaders map[string]string, subs []providers.Subtitle) error {
 	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, manifestURL, nil)
 	if err != nil {
 		return err
 	}
-	req.Header.Set("User-Agent", h.cfg.UserAgent)
-	for k, v := range customHeaders {
-		if v != "" {
-			req.Header.Set(k, v)
-		}
-	}
+	h.applyUpstreamHeaders(req, customHeaders)
 
 	resp, err := h.httpClient.Do(req)
 	if err != nil {
@@ -412,8 +463,12 @@ func (h *ProxyHandler) serveHLSManifest(w http.ResponseWriter, r *http.Request, 
 		return fmt.Errorf("upstream HLS returned %d", resp.StatusCode)
 	}
 
+	return h.rewriteAndWriteHLS(w, r, resp.Body, resp, manifestURL, customHeaders, subs)
+}
+
+func (h *ProxyHandler) rewriteAndWriteHLS(w http.ResponseWriter, r *http.Request, bodyReader io.Reader, resp *http.Response, manifestURL string, customHeaders map[string]string, subs []providers.Subtitle) error {
 	targetManifestURL := manifestURL
-	if resp.Request != nil && resp.Request.URL != nil {
+	if resp != nil && resp.Request != nil && resp.Request.URL != nil {
 		targetManifestURL = resp.Request.URL.String()
 	}
 
@@ -448,8 +503,23 @@ func (h *ProxyHandler) serveHLSManifest(w http.ResponseWriter, r *http.Request, 
 		return fmt.Sprintf("%s/proxy/media?u=%s&h=%s", baseURLPrefix, uB64, hB64)
 	}
 
+	rawBytes, err := io.ReadAll(bodyReader)
+	if err != nil {
+		return err
+	}
+	rawManifest := strings.TrimSpace(strings.TrimPrefix(string(rawBytes), "\xef\xbb\xbf"))
+	if !strings.HasPrefix(rawManifest, "#EXTM3U") && !strings.Contains(rawManifest, "#EXT-X-") {
+		return fmt.Errorf("upstream response is not a valid HLS manifest")
+	}
+
+	isMaster := strings.Contains(rawManifest, "#EXT-X-STREAM-INF")
+	hasExistingSubs := strings.Contains(rawManifest, "TYPE=SUBTITLES")
+	injectSubs := isMaster && !hasExistingSubs && len(subs) > 0
+	subGroupID := "anthology_subs"
+
 	var out strings.Builder
-	scanner := bufio.NewScanner(resp.Body)
+	subsInjected := false
+	scanner := bufio.NewScanner(strings.NewReader(rawManifest))
 	scanner.Buffer(make([]byte, 1024*1024), 4*1024*1024)
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -459,6 +529,32 @@ func (h *ProxyHandler) serveHLSManifest(w http.ResponseWriter, r *http.Request, 
 			continue
 		}
 		if strings.HasPrefix(trimmed, "#") {
+			if strings.HasPrefix(trimmed, "#EXTM3U") && injectSubs && !subsInjected {
+				out.WriteString(line + "\n")
+				subsInjected = true
+				for i, sub := range subs {
+					isDefault := "NO"
+					if i == 0 {
+						isDefault = "YES"
+					}
+					label := sub.Label
+					if label == "" {
+						label = "Türkçe"
+					}
+					lang := sub.Language
+					if lang == "" {
+						lang = "tr"
+					}
+					subURL := fmt.Sprintf("%s/sub/direct?url=%s", baseURLPrefix, url.QueryEscape(sub.URL))
+					out.WriteString(fmt.Sprintf("#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=%q,NAME=%q,DEFAULT=%s,AUTOSELECT=YES,LANGUAGE=%q,URI=%q\n",
+						subGroupID, label, isDefault, lang, subURL))
+				}
+				continue
+			}
+			if strings.HasPrefix(trimmed, "#EXT-X-STREAM-INF:") && injectSubs && !strings.Contains(trimmed, "SUBTITLES=") {
+				line = fmt.Sprintf(`%s,SUBTITLES="%s"`, trimmed, subGroupID)
+				trimmed = line
+			}
 			if strings.Contains(trimmed, `URI="`) {
 				line = rewriteTagURI(trimmed, rewriteURL)
 			}
@@ -483,16 +579,24 @@ func (h *ProxyHandler) serveHLSManifest(w http.ResponseWriter, r *http.Request, 
 }
 
 func rewriteTagURI(tagLine string, rewriteFn func(string) string) string {
-	idx := strings.Index(tagLine, `URI="`)
-	if idx == -1 {
-		return tagLine
+	var out strings.Builder
+	rem := tagLine
+	for {
+		idx := strings.Index(rem, `URI="`)
+		if idx == -1 {
+			out.WriteString(rem)
+			break
+		}
+		start := idx + len(`URI="`)
+		end := strings.Index(rem[start:], `"`)
+		if end == -1 {
+			out.WriteString(rem)
+			break
+		}
+		out.WriteString(rem[:start])
+		origURI := rem[start : start+end]
+		out.WriteString(rewriteFn(origURI))
+		rem = rem[start+end:]
 	}
-	start := idx + len(`URI="`)
-	end := strings.Index(tagLine[start:], `"`)
-	if end == -1 {
-		return tagLine
-	}
-	origURI := tagLine[start : start+end]
-	newURI := rewriteFn(origURI)
-	return tagLine[:start] + newURI + tagLine[start+end:]
+	return out.String()
 }

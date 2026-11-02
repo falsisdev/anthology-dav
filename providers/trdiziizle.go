@@ -21,18 +21,57 @@ func (p *TrDiziIzleProvider) ID() string   { return "trdiziizle" }
 func (p *TrDiziIzleProvider) Name() string { return "TrDiziIzle" }
 
 func (p *TrDiziIzleProvider) baseURL() string {
-	return config.RemoteString("urls.series_local.trdiziizle.base", "https://www.trdiziizle.tv/tr2")
+	return config.RemoteString("urls.series.trdiziizle.base", config.RemoteString("urls.series_local.trdiziizle.base", "https://www.trdiziizle.tv/tr2"))
 }
 
-var trDiziLinkRe = regexp.MustCompile(`(?is)<a[^>]+href="(https?://[^"]*trdiziizle\.[^"]+/([^"/?#]+)/?)"[^>]*>(.*?)</a>`)
+var (
+	trDiziSeriesLinkRe = regexp.MustCompile(`(?is)<a[^>]+href="(https?://[^"]*trdiziizle\.[^"]+/diziler/([^"/?#]+)/?)"[^>]*>(.*?)</a>`)
+	trDiziArticleRe    = regexp.MustCompile(`(?is)<h\d[^>]+class="[^"]*entry-title[^"]*"[^>]*>\s*<a[^>]+href="(https?://[^"]*trdiziizle\.[^"]+/([^"/?#]+)/?)"[^>]*>(.*?)</a>`)
+	trDiziLinkRe       = regexp.MustCompile(`(?is)<a[^>]+href="(https?://[^"]*trdiziizle\.[^"]+/([^"/?#]+)/?)"[^>]*>(.*?)</a>`)
+)
+
+func isIgnoredTrDiziSlug(slug string) bool {
+	s := strings.ToLower(strings.Trim(slug, "/"))
+	if s == "" || s == "tr2" || s == "diziler" || s == "tum-bolumler" {
+		return true
+	}
+	ignored := []string{"uye-ol", "giris", "iletisim", "kategori", "gizlilik", "hakkimizda", "yorum", "feed", "wp-", "kayit", "dmca", "etiket", "author", "page"}
+	for _, ig := range ignored {
+		if strings.Contains(s, ig) {
+			return true
+		}
+	}
+	return false
+}
 
 func (p *TrDiziIzleProvider) parseLinks(htmlStr string) []MediaItem {
 	var items []MediaItem
 	seen := make(map[string]bool)
-	for _, m := range trDiziLinkRe.FindAllStringSubmatch(htmlStr, -1) {
+
+	// 1. Prefer /diziler/{slug}/ links
+	for _, m := range trDiziSeriesLinkRe.FindAllStringSubmatch(htmlStr, -1) {
 		fullURL := m[1]
 		slug := m[2]
-		if slug == "" || seen[slug] || slug == "tr2" || strings.Contains(slug, "iletisim") || strings.Contains(slug, "kategori") {
+		if isIgnoredTrDiziSlug(slug) || seen[slug] {
+			continue
+		}
+		title := CleanMediaTitle(m[3])
+		if len(title) < 2 {
+			continue
+		}
+		seen[slug] = true
+		items = append(items, MediaItem{
+			ID:    fullURL,
+			Title: title,
+			Type:  MediaTypeSeries,
+		})
+	}
+
+	// 2. Also include search <article> entry-title links
+	for _, m := range trDiziArticleRe.FindAllStringSubmatch(htmlStr, -1) {
+		fullURL := m[1]
+		slug := m[2]
+		if isIgnoredTrDiziSlug(slug) || seen[slug] {
 			continue
 		}
 		title := CleanMediaTitle(m[3])
@@ -84,16 +123,40 @@ func (p *TrDiziIzleProvider) GetDetails(ctx context.Context, mediaID string) (*M
 
 	var eps []Episode
 	seen := make(map[string]bool)
+	if strings.Contains(strings.ToLower(pageURL), "bolum") && !strings.Contains(strings.ToLower(pageURL), "/tum-bolumler") {
+		seen[pageURL] = true
+		eNum := 1
+		if em := regexp.MustCompile(`-(\d+)-bolum`).FindStringSubmatch(strings.ToLower(pageURL)); len(em) > 1 {
+			eNum, _ = strconv.Atoi(em[1])
+		}
+		eps = append(eps, Episode{
+			ID:       pageURL,
+			StreamID: pageURL,
+			Title:    fmt.Sprintf("Bölüm %d", eNum),
+			Season:   1,
+			Number:   eNum,
+		})
+	}
 	for _, m := range trDiziLinkRe.FindAllStringSubmatch(htmlStr, -1) {
 		href := m[1]
+		slug := m[2]
 		txt := CleanHTMLText(m[3])
-		if seen[href] || !strings.Contains(strings.ToLower(txt), "bölüm") && !strings.Contains(strings.ToLower(href), "bolum") {
+		hrefLower := strings.ToLower(href)
+		if seen[href] || isIgnoredTrDiziSlug(slug) || strings.Contains(hrefLower, "/tum-bolumler") || strings.Contains(hrefLower, "/diziler/") {
+			continue
+		}
+		if !strings.Contains(strings.ToLower(txt), "bölüm") && !strings.Contains(hrefLower, "bolum") {
 			continue
 		}
 		seen[href] = true
-		eNum := len(eps) + 1
+		eNum := 0
 		if em := regexp.MustCompile(`(\d+)\.\s*B[öo]l[üu]m`).FindStringSubmatch(txt); len(em) > 1 {
 			eNum, _ = strconv.Atoi(em[1])
+		} else if em := regexp.MustCompile(`-(\d+)-bolum`).FindStringSubmatch(hrefLower); len(em) > 1 {
+			eNum, _ = strconv.Atoi(em[1])
+		}
+		if eNum <= 0 {
+			eNum = len(eps) + 1
 		}
 		eps = append(eps, Episode{
 			ID:       href,
@@ -147,8 +210,29 @@ func (p *TrDiziIzleProvider) ResolveStream(ctx context.Context, streamID string)
 		return nil, err
 	}
 	var sources []StreamSource
-	for _, im := range regexp.MustCompile(`(?i)<iframe[^>]+src="([^"]+)"`).FindAllStringSubmatch(htmlStr, 5) {
-		sources = append(sources, ExtractAnyIframe(ctx, ResolveRelativeURL(im[1], base), epURL)...)
+	for _, im := range regexp.MustCompile(`(?i)<iframe[^>]+(?:data-src|src)="([^"]+)"`).FindAllStringSubmatch(htmlStr, 8) {
+		u := strings.TrimSpace(im[1])
+		if u == "" || u == "about:blank" {
+			continue
+		}
+		sources = append(sources, ExtractAnyIframe(ctx, ResolveRelativeURL(u, base), epURL)...)
+	}
+	if res, err := SelectBestStream(sources); err == nil && res != nil {
+		return res, nil
+	}
+	// Official YouTube full-episode fallback if embedded YouTube video was removed
+	if m := regexp.MustCompile(`(?is)<h1[^>]*>(.*?)</h1>`).FindStringSubmatch(htmlStr); len(m) > 1 {
+		q := CleanMediaTitle(m[1])
+		if q != "" {
+			for _, h := range SearchYouTubeInnertube(ctx, q) {
+				if h.DurationSec >= 900 {
+					if yt := ExtractYouTubeInnertube(ctx, h.VideoID); yt != nil {
+						sources = append(sources, *yt)
+						break
+					}
+				}
+			}
+		}
 	}
 	return SelectBestStream(sources)
 }

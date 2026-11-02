@@ -21,20 +21,34 @@ func (p *DiziBoxProvider) ID() string   { return "diziboxizle" }
 func (p *DiziBoxProvider) Name() string { return "DiziBox" }
 
 func (p *DiziBoxProvider) baseURL() string {
-	return config.RemoteString("urls.series_foreign.diziboxizle.base", "https://diziboxizle.com")
+	return config.RemoteString("urls.series.diziboxizle.base", config.RemoteString("urls.series_foreign.diziboxizle.base", "https://diziboxizle.com"))
 }
 
 var (
-	diziBoxCardRe = regexp.MustCompile(`(?is)<a[^>]+href="(https?://[^"]*diziboxizle\.com/([^"/?#]+)/?)"[^>]*title="([^"]+)"`)
-	diziBoxEpRe   = regexp.MustCompile(`(?i)href="(https?://[^"]*diziboxizle\.com/([a-z0-9-]+-(\d+)-sezon-(\d+)-bolum[^"/?#]*)/?)"`)
+	diziBoxCardRe    = regexp.MustCompile(`(?is)<a[^>]+href="(https?://[^"]*diziboxizle\.com/([^"/?#]+)/?)"[^>]*title="([^"]+)"`)
+	diziBoxCatLinkRe = regexp.MustCompile(`(?is)<div\s+class="categorytitle"[^>]*>\s*<a\s+href="https?://[^"]*diziboxizle\.com/([a-z0-9-]+)/?"[^>]*>([^<]+)</a>`)
+	diziBoxEpRe      = regexp.MustCompile(`(?i)href="(https?://[^"]*diziboxizle\.com/([a-z0-9-]+-(?:(\d+)-sezon-(\d+)-bolum|(\d+)-bolum)[^"/?#]*)/?)"`)
 )
 
 func (p *DiziBoxProvider) parseCards(htmlStr string) []MediaItem {
 	var items []MediaItem
 	seen := make(map[string]bool)
+	for _, m := range diziBoxCatLinkRe.FindAllStringSubmatch(htmlStr, -1) {
+		slug := m[1]
+		if slug == "" || seen[slug] || strings.Contains(slug, "-sezon-") || strings.Contains(slug, "-bolum") || slug == "dizi-arsivi" || slug == "iletisim" {
+			continue
+		}
+		seen[slug] = true
+		items = append(items, MediaItem{
+			ID:    slug,
+			Title: CleanMediaTitle(m[2]),
+			Year:  ExtractYear(m[2]),
+			Type:  MediaTypeSeries,
+		})
+	}
 	for _, m := range diziBoxCardRe.FindAllStringSubmatch(htmlStr, -1) {
 		slug := m[2]
-		if slug == "" || seen[slug] || strings.Contains(slug, "-sezon-") || slug == "dizi-arsivi" || slug == "iletisim" {
+		if slug == "" || seen[slug] || strings.Contains(slug, "-sezon-") || strings.Contains(slug, "-bolum") || slug == "dizi-arsivi" || slug == "iletisim" {
 			continue
 		}
 		seen[slug] = true
@@ -53,13 +67,14 @@ func (p *DiziBoxProvider) GetCatalog(ctx context.Context, page int) ([]MediaItem
 		page = 1
 	}
 	base := p.baseURL()
-	htmlStr, _, err := FetchString(ctx, fmt.Sprintf("%s/dizi-arsivi/page/%d/", base, page), DefaultHeaders(base+"/"))
-	if err == nil {
-		if items := p.parseCards(htmlStr); len(items) > 0 {
-			return items, nil
+	if page == 1 {
+		if htmlStr, _, err := FetchString(ctx, base+"/", DefaultHeaders(base+"/")); err == nil {
+			if items := p.parseCards(htmlStr); len(items) > 0 {
+				return items, nil
+			}
 		}
 	}
-	htmlStr, _, err = FetchString(ctx, base+"/", DefaultHeaders(base+"/"))
+	htmlStr, _, err := FetchString(ctx, fmt.Sprintf("%s/dizi-arsivi/page/%d/", base, page), DefaultHeaders(base+"/"))
 	if err != nil {
 		return nil, err
 	}
@@ -68,29 +83,48 @@ func (p *DiziBoxProvider) GetCatalog(ctx context.Context, page int) ([]MediaItem
 
 func (p *DiziBoxProvider) Search(ctx context.Context, query string) ([]MediaItem, error) {
 	base := p.baseURL()
-	u := fmt.Sprintf("%s/wp-json/wp/v2/categories?search=%s&per_page=20", base, url.QueryEscape(strings.TrimSpace(query)))
-	var cats []struct {
-		Slug string `json:"slug"`
-		Name string `json:"name"`
-	}
-	if err := FetchJSON(ctx, u, DefaultHeaders(base+"/"), &cats); err == nil && len(cats) > 0 {
-		var items []MediaItem
-		for _, c := range cats {
-			if c.Slug != "" && c.Name != "" {
+	var items []MediaItem
+	seen := make(map[string]bool)
+
+	if htmlStr, _, err := FetchString(ctx, fmt.Sprintf("%s/?s=%s", base, url.QueryEscape(strings.TrimSpace(query))), DefaultHeaders(base+"/")); err == nil {
+		for _, m := range diziBoxCatLinkRe.FindAllStringSubmatch(htmlStr, -1) {
+			slug := m[1]
+			if slug == "" || seen[slug] || strings.Contains(slug, "-sezon-") || strings.Contains(slug, "-bolum") {
+				continue
+			}
+			if det, err := p.GetDetails(ctx, slug); err == nil && det != nil && len(det.Seasons) > 0 {
+				seen[slug] = true
 				items = append(items, MediaItem{
-					ID:    c.Slug,
-					Title: CleanMediaTitle(c.Name),
+					ID:    slug,
+					Title: CleanMediaTitle(m[2]),
+					Year:  ExtractYear(m[2]),
 					Type:  MediaTypeSeries,
 				})
 			}
 		}
-		return items, nil
 	}
-	htmlStr, _, err := FetchString(ctx, fmt.Sprintf("%s/?s=%s", base, url.QueryEscape(query)), DefaultHeaders(base+"/"))
-	if err != nil {
-		return nil, err
+
+	u := fmt.Sprintf("%s/wp-json/wp/v2/categories?search=%s&per_page=10", base, url.QueryEscape(strings.TrimSpace(query)))
+	var cats []struct {
+		Slug  string `json:"slug"`
+		Name  string `json:"name"`
+		Count int    `json:"count"`
 	}
-	return p.parseCards(htmlStr), nil
+	if err := FetchJSON(ctx, u, DefaultHeaders(base+"/"), &cats); err == nil && len(cats) > 0 {
+		for _, c := range cats {
+			if c.Slug != "" && c.Name != "" && c.Count > 0 && !seen[c.Slug] {
+				if det, err := p.GetDetails(ctx, c.Slug); err == nil && det != nil && len(det.Seasons) > 0 {
+					seen[c.Slug] = true
+					items = append(items, MediaItem{
+						ID:    c.Slug,
+						Title: CleanMediaTitle(c.Name),
+						Type:  MediaTypeSeries,
+					})
+				}
+			}
+		}
+	}
+	return items, nil
 }
 
 func (p *DiziBoxProvider) GetDetails(ctx context.Context, mediaID string) (*MediaDetail, error) {
@@ -110,8 +144,14 @@ func (p *DiziBoxProvider) GetDetails(ctx context.Context, mediaID string) (*Medi
 	seen := make(map[string]bool)
 	for _, m := range diziBoxEpRe.FindAllStringSubmatch(htmlStr, -1) {
 		epURL := m[1]
-		sNum, _ := strconv.Atoi(m[3])
-		eNum, _ := strconv.Atoi(m[4])
+		sNum := 1
+		eNum := 0
+		if m[3] != "" && m[4] != "" {
+			sNum, _ = strconv.Atoi(m[3])
+			eNum, _ = strconv.Atoi(m[4])
+		} else if m[5] != "" {
+			eNum, _ = strconv.Atoi(m[5])
+		}
 		if sNum <= 0 {
 			sNum = 1
 		}
@@ -132,14 +172,18 @@ func (p *DiziBoxProvider) GetDetails(ctx context.Context, mediaID string) (*Medi
 		})
 	}
 	if len(seasonMap) == 0 {
-		seasonMap[1] = []Episode{
-			{
-				ID:       fmt.Sprintf("%s/%s-1-sezon-1-bolum-izle/", base, slug),
-				StreamID: fmt.Sprintf("%s/%s-1-sezon-1-bolum-izle/", base, slug),
-				Title:    "1. Sezon 1. Bölüm",
-				Season:   1,
-				Number:   1,
-			},
+		if strings.Contains(slug, "-bolum") {
+			seasonMap[1] = []Episode{
+				{
+					ID:       fmt.Sprintf("%s/%s/", base, slug),
+					StreamID: fmt.Sprintf("%s/%s/", base, slug),
+					Title:    "1. Sezon 1. Bölüm",
+					Season:   1,
+					Number:   1,
+				},
+			}
+		} else {
+			return nil, fmt.Errorf("diziboxizle: no episodes found for %s", slug)
 		}
 	}
 
@@ -192,24 +236,44 @@ func (p *DiziBoxProvider) ResolveStream(ctx context.Context, streamID string) (*
 	}
 
 	var sources []StreamSource
-	for _, im := range regexp.MustCompile(`(?i)<iframe[^>]+src="([^"]+)"`).FindAllStringSubmatch(htmlStr, 5) {
-		u := im[1]
-		if strings.Contains(u, "youtube.com") || strings.Contains(u, "facebook.com") {
-			continue
-		}
-		extracted := ExtractAnyIframe(ctx, u, epURL)
-		for i := range extracted {
-			if len(extracted[i].Subtitles) == 0 && len(pageSubs) > 0 {
-				extracted[i].Subtitles = pageSubs
+	seenIframes := make(map[string]bool)
+	extractFromHTML := func(pageHTML, refURL string) {
+		for _, im := range regexp.MustCompile(`(?i)<iframe[^>]+src="([^"]+)"`).FindAllStringSubmatch(pageHTML, 5) {
+			u := strings.TrimSpace(im[1])
+			if u == "" || seenIframes[u] || strings.Contains(u, "youtube.com") || strings.Contains(u, "facebook.com") {
+				continue
 			}
-			if extracted[i].AudioType == AudioTypeUnknown {
-				extracted[i].AudioType = aType
+			seenIframes[u] = true
+			extracted := ExtractAnyIframe(ctx, u, refURL)
+			for i := range extracted {
+				if len(extracted[i].Subtitles) == 0 && len(pageSubs) > 0 {
+					extracted[i].Subtitles = pageSubs
+				}
+				if extracted[i].AudioType == AudioTypeUnknown {
+					extracted[i].AudioType = aType
+				}
+				if !strings.Contains(extracted[i].Title, "[TR") {
+					extracted[i].Title = fmt.Sprintf("DiziBox • %s • %s", dubTag, extracted[i].Quality)
+				}
+				sources = append(sources, extracted[i])
 			}
-			if !strings.Contains(extracted[i].Title, "[TR") {
-				extracted[i].Title = fmt.Sprintf("DiziBox • %s • %s", dubTag, extracted[i].Quality)
-			}
-			sources = append(sources, extracted[i])
 		}
 	}
+
+	extractFromHTML(htmlStr, epURL)
+
+	// Also follow alternate player part links (e.g., /2/, /3/ with class="post-page-numbers")
+	seenParts := map[string]bool{epURL: true}
+	for _, pm := range regexp.MustCompile(`(?i)<a[^>]+href="(https?://[^"]*diziboxizle\.com/[^"]+/\d+/)"[^>]*class="[^"]*post-page-numbers[^"]*"`).FindAllStringSubmatch(htmlStr, 4) {
+		partURL := pm[1]
+		if seenParts[partURL] {
+			continue
+		}
+		seenParts[partURL] = true
+		if partHTML, _, err := FetchString(ctx, partURL, DefaultHeaders(epURL)); err == nil && partHTML != "" {
+			extractFromHTML(partHTML, partURL)
+		}
+	}
+
 	return SelectBestStream(sources)
 }

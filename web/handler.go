@@ -438,18 +438,12 @@ func (h *Handler) handleProviders(w http.ResponseWriter, r *http.Request) {
 			cat, cleanTitle, icon, domain = "Anime", "SonAnime", "⛩️", "sonanime.com"
 		case "animom":
 			cat, cleanTitle, icon, domain = "Anime", "AniMom", "⛩️", "animom.org"
-		case "anizm":
-			cat, cleanTitle, icon, domain = "Anime", "Anizm", "⛩️", "anizm.net"
 		case "seicode":
 			cat, cleanTitle, icon, domain = "Anime", "SeiCode", "⛩️", "seicode.net"
 		case "asyaanimeleri":
 			cat, cleanTitle, icon, domain = "Anime", "AsyaAnimeleri", "⛩️", "asyaanimeleri.top"
-		case "animeprax":
-			cat, cleanTitle, icon, domain = "Anime", "AnimePrax", "⛩️", "animeprax.com"
 
 		// Diziler
-		case "diziwatch":
-			cat, cleanTitle, icon, domain = "Dizi", "DiziWatch", "📺", "diziwatch.ac"
 		case "diziboxizle":
 			cat, cleanTitle, icon, domain = "Dizi", "DiziBox", "📺", "diziboxizle.com"
 		case "diziyou":
@@ -462,8 +456,6 @@ func (h *Handler) handleProviders(w http.ResponseWriter, r *http.Request) {
 			cat, cleanTitle, icon, domain = "Dizi", "DiziBak", "📺", "dizibak.net"
 		case "yabancidizi":
 			cat, cleanTitle, icon, domain = "Dizi", "Yabancı Dizi", "📺", "yabancidizi.news"
-		case "ddizi":
-			cat, cleanTitle, icon, domain = "Dizi", "DDizi", "📺", "ddizi.im"
 		case "puhutv":
 			cat, cleanTitle, icon, domain = "Dizi", "PuhuTV", "📺", "puhutv.com"
 		case "trdiziizle":
@@ -476,8 +468,6 @@ func (h *Handler) handleProviders(w http.ResponseWriter, r *http.Request) {
 		// Filmler
 		case "filmmodu":
 			cat, cleanTitle, icon, domain = "Film", "FilmModu", "🎬", "filmmodu.one"
-		case "hdfilmcehennemi":
-			cat, cleanTitle, icon, domain = "Film", "HDFilmCehennemi", "🎬", "hdfilmcehennemi.nl"
 		case "hdfilmizle":
 			cat, cleanTitle, icon, domain = "Film", "HDFilmİzle", "🎬", "hdfilmizle.vip"
 		case "hdfilmdelisi":
@@ -488,10 +478,6 @@ func (h *Handler) handleProviders(w http.ResponseWriter, r *http.Request) {
 			cat, cleanTitle, icon, domain = "Film", "LiderFilmİzle", "🎬", "liderfilmizle.vip"
 		case "setfilmizle":
 			cat, cleanTitle, icon, domain = "Film", "SetFilmİzle", "🎬", "setfilmizle.ltd"
-		case "sinemacx":
-			cat, cleanTitle, icon, domain = "Film", "SinemaCX", "🎬", "sinema.gg"
-		case "sinewix":
-			cat, cleanTitle, icon, domain = "Film", "SineWix", "🎬", "sinewix.app"
 		case "vidlink":
 			cat, cleanTitle, icon, domain = "Film", "VidLink Cloud", "☁️", "vidlink.pro"
 		case "vidmody":

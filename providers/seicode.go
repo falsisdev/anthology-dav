@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"anthology-dav/config"
 )
@@ -207,6 +210,7 @@ func (p *SeicodeProvider) GetDetails(ctx context.Context, mediaID string) (*Medi
 			})
 		}
 		if len(eps) > 0 {
+			sort.Slice(eps, func(i, j int) bool { return eps[i].Number < eps[j].Number })
 			seasons = append(seasons, Season{
 				Number:   sNum,
 				Name:     fmt.Sprintf("Season %02d", sNum),
@@ -214,6 +218,7 @@ func (p *SeicodeProvider) GetDetails(ctx context.Context, mediaID string) (*Medi
 			})
 		}
 	}
+	sort.Slice(seasons, func(i, j int) bool { return seasons[i].Number < seasons[j].Number })
 	if len(seasons) == 0 {
 		seasons = append(seasons, Season{
 			Number: 1,
@@ -290,6 +295,49 @@ func (p *SeicodeProvider) ResolveStream(ctx context.Context, streamID string) (*
 	var sources []StreamSource
 	ref := "https://seicode.net/"
 
+	extractFromEpisode := func(videoLinks map[string]string) {
+		var mu sync.Mutex
+		var wg sync.WaitGroup
+		for hostKey, link := range videoLinks {
+			link = strings.TrimSpace(link)
+			if link == "" {
+				continue
+			}
+			if strings.HasPrefix(link, "//") {
+				link = "https:" + link
+			}
+			wg.Add(1)
+			go func(hk, lnk string) {
+				defer wg.Done()
+				lctx, cancel := context.WithTimeout(ctx, 6*time.Second)
+				defer cancel()
+				lowerKey := strings.ToLower(hk)
+				lowerLink := strings.ToLower(lnk)
+				var extracted []StreamSource
+				switch {
+				case strings.Contains(lowerKey, "tau-video") || strings.Contains(lowerLink, "tau-video.xyz"):
+					extracted = ExtractTauVideo(lctx, lnk)
+				case strings.Contains(lowerKey, "okru") || strings.Contains(lowerLink, "ok.ru"):
+					extracted = ExtractOkRu(lctx, lnk)
+				case strings.Contains(lowerKey, "sibnet") || strings.Contains(lowerLink, "sibnet.ru"):
+					extracted = ExtractSibnet(lctx, lnk, ref)
+				case strings.Contains(lowerKey, "vidmoly") || strings.Contains(lowerLink, "vidmoly"):
+					extracted = ExtractVidMoly(lctx, lnk, ref)
+				case strings.Contains(lowerKey, "mp4upload") || strings.Contains(lowerLink, "mp4upload"):
+					extracted = ExtractMP4Upload(lctx, lnk)
+				default:
+					extracted = ExtractAnyIframe(lctx, lnk, ref)
+				}
+				if len(extracted) > 0 {
+					mu.Lock()
+					sources = append(sources, extracted...)
+					mu.Unlock()
+				}
+			}(hostKey, link)
+		}
+		wg.Wait()
+	}
+
 	for _, s := range data.Seasons {
 		sNum := s.SeasonNumber
 		if sNum <= 0 {
@@ -300,32 +348,24 @@ func (p *SeicodeProvider) ResolveStream(ctx context.Context, streamID string) (*
 		}
 		for _, ep := range s.Episodes {
 			if ep.EpisodeNumber == episode || (len(s.Episodes) == 1 && episode == 1) {
-				for hostKey, link := range ep.VideoLinks {
-					link = strings.TrimSpace(link)
-					if link == "" {
-						continue
-					}
-					if strings.HasPrefix(link, "//") {
-						link = "https:" + link
-					}
-					lowerKey := strings.ToLower(hostKey)
-					lowerLink := strings.ToLower(link)
+				extractFromEpisode(ep.VideoLinks)
+			}
+		}
+	}
 
-					switch {
-					case strings.Contains(lowerKey, "tau-video") || strings.Contains(lowerLink, "tau-video.xyz"):
-						sources = append(sources, ExtractTauVideo(ctx, link)...)
-					case strings.Contains(lowerKey, "okru") || strings.Contains(lowerLink, "ok.ru"):
-						sources = append(sources, ExtractOkRu(ctx, link)...)
-					case strings.Contains(lowerKey, "sibnet") || strings.Contains(lowerLink, "sibnet.ru"):
-						sources = append(sources, ExtractSibnet(ctx, link, ref)...)
-					case strings.Contains(lowerKey, "vidmoly") || strings.Contains(lowerLink, "vidmoly"):
-						sources = append(sources, ExtractVidMoly(ctx, link, ref)...)
-					case strings.Contains(lowerKey, "mp4upload") || strings.Contains(lowerLink, "mp4upload"):
-						sources = append(sources, ExtractMP4Upload(ctx, link)...)
-					default:
-						sources = append(sources, ExtractAnyIframe(ctx, link, ref)...)
+	// Fallback if season number didn't match or had no links yet (e.g. upcoming season listed first)
+	if len(sources) == 0 {
+		for _, s := range data.Seasons {
+			for _, ep := range s.Episodes {
+				if ep.EpisodeNumber == episode && len(ep.VideoLinks) > 0 {
+					extractFromEpisode(ep.VideoLinks)
+					if len(sources) > 0 {
+						break
 					}
 				}
+			}
+			if len(sources) > 0 {
+				break
 			}
 		}
 	}

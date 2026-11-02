@@ -32,8 +32,8 @@ var (
 	diziYouDataFetchRe = regexp.MustCompile(`(?is)<div id="searchelement">.*?<a[^>]+href="(?:https?://[^"]*diziyou\.[^/]+)?/([a-z0-9-]+)/?"[^>]*>.*?<a[^>]+href="[^"]*"[^>]*>([^<]+)</a>(?:.*?<div id="search-cat-year">(\d+)</div>)?`)
 	diziYouGeneralRe   = regexp.MustCompile(`(?is)<a[^>]+href="(?:https?://[^"]*diziyou\.[^/]+)?/([a-z0-9-]+)/?"[^>]*>([^<]+)</a>`)
 	diziYouEpRe        = regexp.MustCompile(`(?i)href="https?://[^"]*diziyou\.[^/]+/([a-z0-9-]+)-(\d+)-sezon-(\d+)-bolum/?"`)
-	diziYouPlayerRe    = regexp.MustCompile(`(?i)<iframe[^>]+id="diziyouPlayer"[^>]+src="([^"]+)"`)
-	diziYouItemIDRe    = regexp.MustCompile(`/(\d+)\.html`)
+	diziYouPlayerRe    = regexp.MustCompile(`(?i)<iframe[^>]+(?:id="diziyouPlayer"|title="Diziyou Player"|src="[^"]*/player/)[^>]+src="([^"]+)"`)
+	diziYouItemIDRe    = regexp.MustCompile(`/player/(\d+)\.html|/(\d+)\.html`)
 )
 
 func (p *DiziYouProvider) parseSeriesLinks(htmlStr string) []MediaItem {
@@ -169,9 +169,13 @@ func (p *DiziYouProvider) GetDetails(ctx context.Context, mediaID string) (*Medi
 			continue
 		}
 		seen[key] = true
+		epSlug := m[1]
+		if epSlug == "" {
+			epSlug = cleanID
+		}
 		seasonMap[sNum] = append(seasonMap[sNum], Episode{
-			ID:       fmt.Sprintf("%s:%d:%d", cleanID, sNum, eNum),
-			StreamID: fmt.Sprintf("%s:%d:%d", cleanID, sNum, eNum),
+			ID:       fmt.Sprintf("%s:%d:%d", epSlug, sNum, eNum),
+			StreamID: fmt.Sprintf("%s:%d:%d", epSlug, sNum, eNum),
 			Title:    fmt.Sprintf("%d. Sezon %d. Bölüm", sNum, eNum),
 			Season:   sNum,
 			Number:   eNum,
@@ -234,19 +238,31 @@ func (p *DiziYouProvider) ResolveStream(ctx context.Context, streamID string) (*
 	storage := p.storageURL()
 	epURL := fmt.Sprintf("%s/%s-%d-sezon-%d-bolum/", base, slug, season, episode)
 	htmlStr, _, err := FetchString(ctx, epURL, DefaultHeaders(base+"/"))
-	if err != nil {
-		return nil, err
+	if err != nil || !strings.Contains(htmlStr, "diziyouPlayer") {
+		trimmedSlug := strings.TrimRight(slug, "0123456789")
+		if trimmedSlug != "" && trimmedSlug != slug {
+			altURL := fmt.Sprintf("%s/%s-%d-sezon-%d-bolum/", base, trimmedSlug, season, episode)
+			if altHTML, _, errAlt := FetchString(ctx, altURL, DefaultHeaders(base+"/")); errAlt == nil && strings.Contains(altHTML, "diziyouPlayer") {
+				htmlStr = altHTML
+				epURL = altURL
+			}
+		}
 	}
 
 	pm := diziYouPlayerRe.FindStringSubmatch(htmlStr)
 	if len(pm) < 2 {
-		return nil, fmt.Errorf("diziyouPlayer iframe not found")
+		return nil, fmt.Errorf("diziyouPlayer iframe not found on '%s'", epURL)
 	}
 	idm := diziYouItemIDRe.FindStringSubmatch(pm[1])
-	if len(idm) < 2 {
-		return nil, fmt.Errorf("diziyou itemId not found")
+	itemID := ""
+	if len(idm) > 1 && idm[1] != "" {
+		itemID = idm[1]
+	} else if len(idm) > 2 && idm[2] != "" {
+		itemID = idm[2]
 	}
-	itemID := idm[1]
+	if itemID == "" {
+		return nil, fmt.Errorf("diziyou itemId not found in '%s'", pm[1])
+	}
 
 	hdrs := map[string]string{
 		"User-Agent": config.DefaultUserAgent,

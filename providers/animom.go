@@ -8,11 +8,14 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"anthology-dav/config"
 )
 
-type AniMomProvider struct{}
+type AniMomProvider struct {
+	fallback SonAnimeProvider
+}
 
 func init() {
 	Register(&AniMomProvider{})
@@ -62,41 +65,55 @@ func (p *AniMomProvider) parseCards(htmlStr, base string) []MediaItem {
 
 func (p *AniMomProvider) GetCatalog(ctx context.Context, page int) ([]MediaItem, error) {
 	base := p.baseURL()
-	htmlStr, _, err := FetchString(ctx, base+"/home", DefaultHeaders(base+"/"))
+	subCtx, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
+	defer cancel()
+	htmlStr, _, err := FetchString(subCtx, base+"/home", DefaultHeaders(base+"/"))
 	if err != nil {
-		return nil, err
+		return p.fallback.GetCatalog(ctx, page)
 	}
-	return p.parseCards(htmlStr, base), nil
+	if items := p.parseCards(htmlStr, base); len(items) > 0 {
+		return items, nil
+	}
+	return p.fallback.GetCatalog(ctx, page)
 }
 
 func (p *AniMomProvider) Search(ctx context.Context, query string) ([]MediaItem, error) {
 	base := p.baseURL()
+	subCtx, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
+	defer cancel()
 	form := url.Values{}
 	form.Set("query", strings.TrimSpace(query))
-	respStr, _, err := PostForm(ctx, base+"/search", form, map[string]string{
+	respStr, _, err := PostForm(subCtx, base+"/search", form, map[string]string{
 		"User-Agent":       config.DefaultUserAgent,
 		"Referer":          base + "/home",
 		"Origin":           base,
 		"X-Requested-With": "XMLHttpRequest",
 	})
 	if err != nil {
-		return nil, err
+		return p.fallback.Search(ctx, query)
 	}
 	var data struct {
 		Theme string `json:"theme"`
 	}
 	if json.Unmarshal([]byte(respStr), &data) == nil && data.Theme != "" {
-		return p.parseCards(data.Theme, base), nil
+		if items := p.parseCards(data.Theme, base); len(items) > 0 {
+			return items, nil
+		}
 	}
-	return p.parseCards(respStr, base), nil
+	if items := p.parseCards(respStr, base); len(items) > 0 {
+		return items, nil
+	}
+	return p.fallback.Search(ctx, query)
 }
 
 func (p *AniMomProvider) GetDetails(ctx context.Context, mediaID string) (*MediaDetail, error) {
 	slug := strings.TrimPrefix(mediaID, "animom:")
 	base := p.baseURL()
-	htmlStr, _, err := FetchString(ctx, fmt.Sprintf("%s/anime/%s", base, slug), DefaultHeaders(base+"/"))
+	subCtx, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
+	defer cancel()
+	htmlStr, _, err := FetchString(subCtx, fmt.Sprintf("%s/anime/%s", base, slug), DefaultHeaders(base+"/"))
 	if err != nil {
-		return nil, err
+		return p.fallback.GetDetails(ctx, slug)
 	}
 	title := slug
 	if m := regexp.MustCompile(`(?is)<h1[^>]*>(.*?)</h1>`).FindStringSubmatch(htmlStr); len(m) > 1 {
@@ -171,7 +188,8 @@ func (p *AniMomProvider) GetEpisodes(ctx context.Context, mediaID string, season
 }
 
 func (p *AniMomProvider) ResolveStream(ctx context.Context, streamID string) (*StreamResult, error) {
-	parts := strings.Split(strings.TrimPrefix(streamID, "animom:"), ":")
+	rawID := strings.TrimPrefix(streamID, "animom:")
+	parts := strings.Split(rawID, ":")
 	slug := parts[0]
 	season := 1
 	episode := 1
@@ -180,10 +198,12 @@ func (p *AniMomProvider) ResolveStream(ctx context.Context, streamID string) (*S
 		episode, _ = strconv.Atoi(parts[2])
 	}
 	base := p.baseURL()
+	subCtx, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
+	defer cancel()
 	epURL := fmt.Sprintf("%s/anime/%s/sezon-%d/bolum-%d", base, slug, season, episode)
-	htmlStr, _, err := FetchString(ctx, epURL, DefaultHeaders(base+"/"))
+	htmlStr, _, err := FetchString(subCtx, epURL, DefaultHeaders(base+"/"))
 	if err != nil {
-		return nil, err
+		return p.fallback.ResolveStream(ctx, rawID)
 	}
 
 	var sources []StreamSource
@@ -197,6 +217,9 @@ func (p *AniMomProvider) ResolveStream(ctx context.Context, streamID string) (*S
 			seen[u] = true
 			sources = append(sources, ExtractAnyIframe(ctx, u, epURL)...)
 		}
+	}
+	if len(sources) == 0 {
+		return p.fallback.ResolveStream(ctx, rawID)
 	}
 	return SelectBestStream(sources)
 }
